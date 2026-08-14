@@ -9,7 +9,7 @@ const basePath = process.env.PAGES_BASE_PATH || `/${repository}`;
 const pagesOrigin = `https://${owner.toLowerCase()}.github.io`;
 const outputDir = join(process.cwd(), "_site");
 
-const server = spawn("npm", ["run", "start"], {
+const server = spawn(join(process.cwd(), "node_modules", ".bin", "vinext"), ["start"], {
   env: { ...process.env, PORT: String(port) },
   stdio: ["ignore", "pipe", "pipe"],
 });
@@ -57,5 +57,10 @@ try {
   await writeFile(join(outputDir, ".nojekyll"), "");
   console.log(`Static GitHub Pages export created in ${outputDir}`);
 } finally {
+  const stopped = new Promise((resolve) => server.once("exit", resolve));
   server.kill("SIGTERM");
+  await Promise.race([
+    stopped,
+    new Promise((resolve) => setTimeout(resolve, 5_000)),
+  ]);
 }
