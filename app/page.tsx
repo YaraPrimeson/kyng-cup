@@ -39,10 +39,6 @@ export default function Home() {
         </div>
 
         <div className="hero-footer">
-          <a className="round-link" href="#about" aria-label="Explore KYNG CUP">
-            <span>Discover</span>
-            <Arrow />
-          </a>
           <div className="next-event">
             <span>Next cup</span>
             <strong>19—20.09</strong>

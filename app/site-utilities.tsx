@@ -38,8 +38,13 @@ export default function SiteUtilities() {
     }, 0);
 
     if ("serviceWorker" in window.navigator) {
-      const root = getSiteRoot();
-      void window.navigator.serviceWorker.register(`${root}sw.js`, { scope: root });
+      void window.navigator.serviceWorker.getRegistrations().then((registrations) =>
+        Promise.all(
+          registrations
+            .filter((registration) => registration.active?.scriptURL.endsWith("/sw.js"))
+            .map((registration) => registration.unregister()),
+        ),
+      );
     }
 
     return () => {
