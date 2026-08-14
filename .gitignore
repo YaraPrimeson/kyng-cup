@@ -41,3 +41,4 @@ yarn-error.log*
 /.npm-cache/
 /tmp/
 /_site/
+*.tsbuildinfo

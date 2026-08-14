@@ -81,6 +81,7 @@ button, input, select { font: inherit; }
 
 .tournament { background: #fff; }
 .tournament-title { margin: 60px 0 65px 25%; }
+.bracket-link { display: inline-flex; align-items: center; gap: 28px; margin-top: 12px; padding-bottom: 7px; border-bottom: 1px solid currentColor; text-transform: uppercase; letter-spacing: .12em; font-size: 11px; }
 .date-grid { display: grid; grid-template-columns: 1fr 1fr 1.4fr; gap: 16px; }
 .date-card { min-height: 360px; border-radius: 22px; padding: 28px; color: #fff; display: flex; flex-direction: column; justify-content: space-between; }
 .date-card.terracotta { background: var(--clay); } .date-card.peach { background: var(--peach); }
@@ -152,3 +153,62 @@ footer { padding: 28px 42px; display: grid; grid-template-columns: 1fr 1.5fr 1fr
 }
 
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+
+/* Live bracket */
+.bracket-page { min-height: 100svh; background: var(--paper); color: var(--ink); }
+.bracket-header { display: flex; justify-content: space-between; align-items: center; padding: 24px 42px; border-bottom: 1px solid var(--line); }
+.bracket-brand .ball-mark { background: var(--clay); }
+.bracket-back { display: flex; gap: 26px; align-items: center; text-transform: uppercase; letter-spacing: .12em; font-size: 10px; }
+.bracket-intro { padding: 74px 42px 62px; display: grid; grid-template-columns: 1.4fr .6fr; align-items: end; gap: 60px; }
+.bracket-intro h1 { margin: 22px 0 0; font: 400 clamp(74px, 10vw, 168px)/.72 var(--font-cormorant-garamond), Georgia, serif; letter-spacing: -.065em; }
+.bracket-summary { justify-self: end; width: min(100%, 360px); padding: 22px 0 8px; border-top: 1px solid var(--line); display: grid; gap: 10px; }
+.bracket-summary strong { font-size: 21px; font-weight: 600; }
+.bracket-summary > span:last-child { font-size: 12px; opacity: .62; }
+.live-indicator { display: inline-flex; align-items: center; gap: 8px; width: max-content; text-transform: uppercase; letter-spacing: .12em; font-size: 9px; color: var(--forest); }
+.live-indicator i { display: block; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.live-indicator.is-live i { animation: live-pulse 1.8s ease-out infinite; }
+.bracket-scroll { overflow-x: auto; padding: 0 42px 52px; scrollbar-color: var(--clay) rgba(20,32,25,.08); }
+.bracket-board { min-width: 1500px; display: grid; grid-template-columns: repeat(4, minmax(320px, 1fr)); gap: 54px; padding: 35px; border-radius: 24px; background: #fff; border: 1px solid var(--line); }
+.bracket-round > header { height: 70px; display: grid; grid-template-columns: auto 1fr auto; align-items: baseline; gap: 14px; border-bottom: 1px solid var(--line); }
+.bracket-round > header span { color: var(--clay); font-size: 10px; }
+.bracket-round > header h2 { margin: 0; font-size: 28px; font-weight: 500; }
+.bracket-round > header small { font-size: 9px; text-transform: uppercase; letter-spacing: .1em; opacity: .48; }
+.round-matches { display: grid; margin-top: 20px; }
+.round-1 .round-matches { gap: 14px; }
+.round-2 .round-matches { gap: 168px; padding-top: 83px; }
+.round-3 .round-matches { gap: 532px; padding-top: 251px; }
+.round-4 .round-matches { padding-top: 587px; }
+.bracket-match { height: 154px; position: relative; border: 1px solid rgba(20,32,25,.13); border-radius: 16px; background: #f7f5f1; padding: 13px 14px 10px; display: grid; grid-template-rows: auto 1fr 1fr; }
+.bracket-match::after { content: ""; position: absolute; top: 50%; right: -55px; width: 54px; border-top: 1px solid rgba(20,32,25,.22); }
+.round-4 .bracket-match::after { display: none; }
+.match-meta { display: flex; justify-content: space-between; text-transform: uppercase; letter-spacing: .09em; font-size: 8px; opacity: .58; padding: 0 3px 8px; }
+.status-live .match-meta span:last-child { color: var(--clay); opacity: 1; font-weight: 700; }
+.bracket-pair { min-width: 0; display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; align-items: center; gap: 8px; border-top: 1px solid rgba(20,32,25,.1); }
+.bracket-pair.is-winner { color: var(--forest); }
+.bracket-pair.is-winner .pair-score { color: #fff; background: var(--forest); }
+.bracket-pair.is-pending { opacity: .42; }
+.pair-seed { font-size: 9px; opacity: .55; }
+.pair-name { min-width: 0; display: grid; line-height: 1.05; }
+.pair-name strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; font-weight: 600; }
+.pair-name small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 4px; font-size: 8px; opacity: .54; }
+.pair-score { min-width: 27px; min-height: 27px; padding: 7px 6px; border-radius: 7px; text-align: center; font-size: 10px; font-weight: 700; }
+.bracket-state { margin: 0 42px 80px; min-height: 420px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 24px; background: #fff; font-size: 20px; }
+.bracket-state.is-error { color: var(--clay); }
+.bracket-footer { display: flex; justify-content: space-between; padding: 25px 42px; background: var(--forest-dark); color: rgba(255,255,255,.68); text-transform: uppercase; letter-spacing: .12em; font-size: 9px; }
+@keyframes live-pulse { 0% { box-shadow: 0 0 0 0 rgba(55,99,74,.45); } 70% { box-shadow: 0 0 0 7px rgba(55,99,74,0); } 100% { box-shadow: 0 0 0 0 rgba(55,99,74,0); } }
+
+@media (max-width: 900px) {
+  .bracket-header { padding: 20px 22px; }
+  .bracket-intro { padding: 60px 22px 45px; grid-template-columns: 1fr; gap: 40px; }
+  .bracket-summary { justify-self: start; }
+  .bracket-scroll { padding: 0 22px 40px; }
+  .bracket-board { padding: 24px; }
+  .bracket-footer { padding: 22px; }
+}
+
+@media (max-width: 540px) {
+  .bracket-intro h1 { font-size: 22vw; }
+  .bracket-back { gap: 9px; }
+  .bracket-board { min-width: 1340px; grid-template-columns: repeat(4, 290px); gap: 42px; }
+  .bracket-match::after { right: -43px; width: 42px; }
+}

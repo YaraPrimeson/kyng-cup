@@ -18,6 +18,7 @@ export default function Home() {
           <nav className="nav" aria-label="Main navigation">
             <a href="#about">About</a>
             <a href="#tournament">Tournament</a>
+            <a href="bracket/">Live bracket</a>
             <a href="#community">Community</a>
           </nav>
           <a className="header-cta" href="#register">
@@ -120,6 +121,7 @@ export default function Home() {
         <div className="tournament-title">
           <p className="kicker">Vienna · September 2026</p>
           <h2>Two days.<br />One community.</h2>
+          <a className="bracket-link" href="bracket/">Open live bracket <Arrow /></a>
         </div>
         <div className="date-grid">
           <div className="date-card terracotta">

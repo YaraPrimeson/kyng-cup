@@ -23,23 +23,16 @@ async function waitForServer() {
     try {
       const response = await fetch(`http://127.0.0.1:${port}/`);
       if (response.ok) return response;
-    } catch {}
+    } catch {
+      // The server may still be starting.
+    }
     await new Promise((resolve) => setTimeout(resolve, 500));
   }
   throw new Error(`Production server did not start.\n${serverLog}`);
 }
 
 try {
-  const response = await waitForServer();
-  let html = await response.text();
-
-  html = html
-    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "")
-    .replace(/<link\b[^>]*rel=["']modulepreload["'][^>]*>/gi, "")
-    .replace(/\sdata-rsc-[a-z-]+=["'][^"']*["']/gi, "")
-    .replaceAll(`http://localhost:${port}`, `${pagesOrigin}${basePath}`)
-    .replaceAll('href="/', `href="${basePath}/`)
-    .replaceAll('src="/', `src="${basePath}/`);
+  await waitForServer();
 
   await rm(outputDir, { recursive: true, force: true });
   await mkdir(outputDir, { recursive: true });
@@ -53,7 +46,30 @@ try {
     await writeFile(cssPath, css.replaceAll("url(/", `url(${basePath}/`));
   }
 
-  await writeFile(join(outputDir, "index.html"), html);
+  for (const route of ["/", "/bracket/"]) {
+    const response = await fetch(`http://127.0.0.1:${port}${route}`);
+    if (!response.ok) throw new Error(`Failed to export ${route}: ${response.status}`);
+
+    let html = await response.text();
+    if (route === "/") {
+      html = html
+        .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "")
+        .replace(/<link\b[^>]*rel=["']modulepreload["'][^>]*>/gi, "")
+        .replace(/\sdata-rsc-[a-z-]+=["'][^"']*["']/gi, "");
+    }
+
+    html = html
+      .replaceAll(`http://localhost:${port}`, `${pagesOrigin}${basePath}`)
+      .replaceAll('href="/', `href="${basePath}/`)
+      .replaceAll('src="/', `src="${basePath}/`)
+      .replaceAll('"/_next/', `"${basePath}/_next/`)
+      .replaceAll('"/assets/', `"${basePath}/assets/`)
+      .replaceAll("url(/", `url(${basePath}/`);
+
+    const routeDir = route === "/" ? outputDir : join(outputDir, route);
+    await mkdir(routeDir, { recursive: true });
+    await writeFile(join(routeDir, "index.html"), html);
+  }
   await writeFile(join(outputDir, ".nojekyll"), "");
   console.log(`Static GitHub Pages export created in ${outputDir}`);
 } finally {
