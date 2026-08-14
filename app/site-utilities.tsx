@@ -8,6 +8,11 @@ function getSiteRoot() {
   return window.location.pathname.includes("/kyng-cup/") ? "/kyng-cup/" : "/";
 }
 
+function isHomePage() {
+  const pathname = window.location.pathname.replace(/\/+$/, "");
+  return pathname === "" || pathname === "/kyng-cup";
+}
+
 export default function SiteUtilities() {
   const [isOffline, setIsOffline] = useState(false);
   const [showCookies, setShowCookies] = useState(false);
@@ -19,6 +24,11 @@ export default function SiteUtilities() {
     window.addEventListener("offline", updateConnection);
 
     const cookieTimer = window.setTimeout(() => {
+      if (!isHomePage()) {
+        setShowCookies(false);
+        return;
+      }
+
       try {
         setShowCookies(!window.localStorage.getItem("kyng-cookie-consent"));
       } catch {
