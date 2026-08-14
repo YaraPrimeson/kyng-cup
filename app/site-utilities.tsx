@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 type Consent = "all" | "necessary";
+const CONSENT_KEY = "kyng-cookie-consent-v2";
 
 function getSiteRoot() {
   return window.location.pathname.includes("/kyng-cup/") ? "/kyng-cup/" : "/";
@@ -30,7 +31,7 @@ export default function SiteUtilities() {
       }
 
       try {
-        setShowCookies(!window.localStorage.getItem("kyng-cookie-consent"));
+        setShowCookies(!window.localStorage.getItem(CONSENT_KEY));
       } catch {
         setShowCookies(true);
       }
@@ -51,7 +52,7 @@ export default function SiteUtilities() {
 
   function saveConsent(value: Consent) {
     try {
-      window.localStorage.setItem("kyng-cookie-consent", value);
+      window.localStorage.setItem(CONSENT_KEY, value);
     } finally {
       setShowCookies(false);
     }
