@@ -389,12 +389,16 @@ export default function AdminPage() {
           {selected && <>
             <div className="admin-section-heading admin-first-section"><div><span>01</span><h2>Tournament</h2></div><p>Publish, start live coverage or archive the completed tournament.</p></div>
             <TournamentSettings key={selected.updated_at} tournament={selected} onSaved={() => void loadTournaments(user)} />
-            <div className="admin-section-heading admin-matches-heading"><div><span>02</span><h2>Participants</h2></div><p>Edit every pair, then place them manually into the draw.</p></div>
-            <div className="admin-pair-grid">{pairs.map((pair) => <PairEditor key={`${pair.id}-${pair.updated_at}`} pair={pair} onSaved={() => void loadTournamentData()} />)}</div>
+            <details className="admin-collapsible admin-matches-heading">
+              <summary><div><span>02</span><h2>Participants</h2></div><p>Edit every pair, then place them manually into the draw.</p></summary>
+              <div className="admin-collapsible-content"><div className="admin-pair-grid">{pairs.map((pair) => <PairEditor key={`${pair.id}-${pair.updated_at}`} pair={pair} onSaved={() => void loadTournamentData()} />)}</div></div>
+            </details>
             <div className="admin-section-heading admin-matches-heading"><div><span>03</span><h2>Manual draw</h2></div><p>Use the arrows to assign each pair to a first-round position.</p></div>
             <ManualDraw tournament={selected} pairs={pairs} onSaved={() => void loadTournamentData()} />
-            <div className="admin-section-heading admin-matches-heading"><div><span>04</span><h2>Matches &amp; courts</h2></div><p>Schedule matches, switch LIVE on, enter scores and correct results safely.</p></div>
-            <div className="admin-match-grid">{matches.map((match) => <AdminMatch key={`${match.id}-${match.updated_at}`} match={match} pairMap={pairMap} bracketSize={selected.bracket_size} onSaved={() => void loadTournamentData()} />)}</div>
+            <details className="admin-collapsible admin-matches-heading" open>
+              <summary><div><span>04</span><h2>Matches &amp; courts</h2></div><p>Schedule matches, switch LIVE on, enter scores and correct results safely.</p></summary>
+              <div className="admin-collapsible-content"><div className="admin-match-grid">{matches.map((match) => <AdminMatch key={`${match.id}-${match.updated_at}`} match={match} pairMap={pairMap} bracketSize={selected.bracket_size} onSaved={() => void loadTournamentData()} />)}</div></div>
+            </details>
             <div className="admin-section-heading admin-matches-heading"><div><span>05</span><h2>Team &amp; roles</h2></div><p>Owners control structure and access; administrators manage tournament operations.</p></div>
             <TeamManager tournament={selected} members={members} onSaved={() => void loadTournamentData()} />
             <div className="admin-section-heading admin-matches-heading"><div><span>06</span><h2>Activity log</h2></div><p>The latest protected changes to tournament data.</p></div>
