@@ -6,6 +6,7 @@ Landing page and live tournament bracket for the KYNG CUP tennis and padel commu
 
 - Landing: https://yaraprimeson.github.io/kyng-cup/
 - Bracket: https://yaraprimeson.github.io/kyng-cup/bracket/
+- Admin: https://yaraprimeson.github.io/kyng-cup/admin/
 
 ## Stack
 
@@ -25,6 +26,8 @@ The initial `vienna-2026` draw contains 16 doubles pairs and 15 matches:
 - final: 1 match
 
 Each match points to its next match and destination slot. The protected `record_match_result` database function validates the result, stores it in the audit history, and advances the winner atomically.
+
+The admin page supports Supabase email/password authentication. A new account cannot edit results until its user ID is explicitly added to `tournament_admins`.
 
 ## Local development
 
