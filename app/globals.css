@@ -174,10 +174,29 @@ footer { padding: 28px 42px; display: grid; grid-template-columns: 1fr 1.5fr 1fr
 .admin-dashboard-heading { display: flex; justify-content: space-between; align-items: end; gap: 40px; margin-bottom: 55px; }
 .admin-dashboard h1 { font-size: clamp(64px, 7vw, 116px); margin-bottom: 0; }
 .admin-dashboard-heading > a { padding-bottom: 6px; border-bottom: 1px solid currentColor; text-transform: uppercase; letter-spacing: .1em; font-size: 10px; }
+.admin-section-heading { margin: 0 0 20px; padding-top: 28px; border-top: 1px solid var(--line); display: flex; justify-content: space-between; align-items: end; gap: 30px; }
+.admin-section-heading > div { display: flex; align-items: baseline; gap: 14px; }
+.admin-section-heading span { color: var(--clay); font-size: 10px; }
+.admin-section-heading h2 { margin: 0; font: 500 clamp(34px, 4vw, 58px)/.9 var(--font-cormorant-garamond), Georgia, serif; letter-spacing: -.035em; }
+.admin-section-heading p { max-width: 310px; margin: 0; font-size: 11px; line-height: 1.45; opacity: .55; }
+.admin-matches-heading { margin-top: 68px; }
+.admin-pair-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.admin-pair-editor { border-radius: 18px; background: #fff; border: 1px solid var(--line); padding: 18px; display: grid; gap: 14px; }
+.admin-pair-number { padding-bottom: 12px; border-bottom: 1px solid var(--line); text-transform: uppercase; letter-spacing: .09em; font-size: 9px; color: var(--forest); }
+.admin-player-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.admin-field { min-width: 0; display: grid; gap: 6px; }
+.admin-field > span { text-transform: uppercase; letter-spacing: .1em; font-size: 8px; opacity: .5; }
+.admin-field input { width: 100%; min-width: 0; border: 1px solid var(--line); border-radius: 10px; background: var(--paper); padding: 10px; outline: 0; font: inherit; font-size: 13px; }
+.admin-field input:focus { border-color: var(--forest); }
+.admin-save-button { justify-self: start; border: 0; border-radius: 999px; padding: 10px 15px; background: var(--forest); color: #fff; cursor: pointer; font-size: 10px; }
+.admin-save-button:disabled { opacity: .4; cursor: not-allowed; }
 .admin-match-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
 .admin-match { border-radius: 18px; background: #fff; border: 1px solid var(--line); padding: 18px; display: grid; gap: 0; }
 .admin-match-title { display: flex; justify-content: space-between; padding-bottom: 13px; text-transform: uppercase; letter-spacing: .09em; font-size: 9px; }
 .admin-match-title strong { color: var(--forest); font-weight: 700; }
+.admin-court-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: end; padding: 12px 0; border-top: 1px solid var(--line); }
+.admin-court-row button { height: 37px; border: 1px solid var(--forest); border-radius: 10px; padding: 0 12px; background: transparent; color: var(--forest); cursor: pointer; font-size: 10px; }
+.admin-court-row button:disabled { opacity: .4; cursor: not-allowed; }
 .admin-match > label { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: center; padding: 12px 0; border-top: 1px solid var(--line); cursor: pointer; }
 .admin-match > label.is-disabled { opacity: .4; cursor: default; }
 .admin-match > label span { min-width: 0; display: grid; }
@@ -190,6 +209,7 @@ footer { padding: 28px 42px; display: grid; grid-template-columns: 1fr 1.5fr 1fr
 .admin-score-row button:disabled { opacity: .4; cursor: not-allowed; }
 
 @media (max-width: 1000px) {
+  .admin-pair-grid { grid-template-columns: 1fr; }
   .admin-match-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
@@ -199,6 +219,8 @@ footer { padding: 28px 42px; display: grid; grid-template-columns: 1fr 1.5fr 1fr
   .admin-auth form { padding: 24px; }
   .admin-dashboard { padding: 55px 22px 70px; }
   .admin-dashboard-heading { display: grid; }
+  .admin-section-heading { display: grid; }
+  .admin-player-fields { grid-template-columns: 1fr; }
   .admin-match-grid { grid-template-columns: 1fr; }
   .admin-state { padding: 30px 22px; }
 }

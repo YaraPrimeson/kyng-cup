@@ -16,6 +16,7 @@ type Match = {
   winner_id: string | null;
   status: string;
   court: string | null;
+  updated_at: string;
 };
 
 const roundNames: Record<number, string> = {
@@ -40,6 +41,66 @@ function parseScore(value: string) {
   return { pairOne, pairTwo };
 }
 
+function PairEditor({ pair, onSaved }: { pair: Pair; onSaved: () => void }) {
+  const [name, setName] = useState(pair.name);
+  const [playerOne, setPlayerOne] = useState(pair.player_one);
+  const [playerTwo, setPlayerTwo] = useState(pair.player_two);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  async function savePair(event: FormEvent) {
+    event.preventDefault();
+    const values = {
+      name: name.trim(),
+      player_one: playerOne.trim(),
+      player_two: playerTwo.trim(),
+    };
+
+    if (!values.name || !values.player_one || !values.player_two) {
+      setMessage("Fill in the pair name and both player names.");
+      return;
+    }
+
+    setSaving(true);
+    setMessage(null);
+    const { error } = await supabase
+      .from("pairs")
+      .update(values)
+      .eq("id", pair.id)
+      .select("id")
+      .single();
+    setSaving(false);
+
+    if (error) setMessage(error.message);
+    else {
+      setMessage("Names saved.");
+      onSaved();
+    }
+  }
+
+  return (
+    <form className="admin-pair-editor" onSubmit={savePair}>
+      <div className="admin-pair-number">Pair {pair.name}</div>
+      <label className="admin-field">
+        <span>Pair name</span>
+        <input value={name} onChange={(event) => setName(event.target.value)} required />
+      </label>
+      <div className="admin-player-fields">
+        <label className="admin-field">
+          <span>Player one</span>
+          <input value={playerOne} onChange={(event) => setPlayerOne(event.target.value)} required />
+        </label>
+        <label className="admin-field">
+          <span>Player two</span>
+          <input value={playerTwo} onChange={(event) => setPlayerTwo(event.target.value)} required />
+        </label>
+      </div>
+      <button className="admin-save-button" type="submit" disabled={saving}>{saving ? "Saving…" : "Save names"}</button>
+      {message && <small className="admin-message" role="status">{message}</small>}
+    </form>
+  );
+}
+
 function AdminMatch({ match, pairMap, onSaved }: { match: Match; pairMap: Map<string, Pair>; onSaved: () => void }) {
   const pairOne = match.pair_one_id ? pairMap.get(match.pair_one_id) : undefined;
   const pairTwo = match.pair_two_id ? pairMap.get(match.pair_two_id) : undefined;
@@ -47,8 +108,29 @@ function AdminMatch({ match, pairMap, onSaved }: { match: Match; pairMap: Map<st
     match.pair_one_sets.map((value, index) => `${value}-${match.pair_two_sets[index]}`).join(", "),
   );
   const [winner, setWinner] = useState(match.winner_id ?? "");
+  const [court, setCourt] = useState(match.court ?? "");
   const [saving, setSaving] = useState(false);
+  const [savingCourt, setSavingCourt] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [courtMessage, setCourtMessage] = useState<string | null>(null);
+
+  async function saveCourt() {
+    setSavingCourt(true);
+    setCourtMessage(null);
+    const { error } = await supabase
+      .from("matches")
+      .update({ court: court.trim() || null })
+      .eq("id", match.id)
+      .select("id")
+      .single();
+    setSavingCourt(false);
+
+    if (error) setCourtMessage(error.message);
+    else {
+      setCourtMessage("Court saved.");
+      onSaved();
+    }
+  }
 
   async function saveResult(event: FormEvent) {
     event.preventDefault();
@@ -79,8 +161,16 @@ function AdminMatch({ match, pairMap, onSaved }: { match: Match; pairMap: Map<st
     <form className="admin-match" onSubmit={saveResult}>
       <div className="admin-match-title">
         <span>{roundNames[match.round]} · Match {match.position}</span>
-        <strong>{match.status === "completed" ? "Completed" : match.court ?? "Scheduled"}</strong>
+        <strong>{match.status === "completed" ? "Completed" : "Scheduled"}</strong>
       </div>
+      <div className="admin-court-row">
+        <label className="admin-field" htmlFor={`court-${match.id}`}>
+          <span>Court</span>
+          <input id={`court-${match.id}`} value={court} onChange={(event) => setCourt(event.target.value)} placeholder="e.g. Centre court" />
+        </label>
+        <button type="button" onClick={() => void saveCourt()} disabled={savingCourt}>{savingCourt ? "Saving…" : "Save court"}</button>
+      </div>
+      {courtMessage && <small className="admin-message" role="status">{courtMessage}</small>}
       <label aria-label={`Select ${pairOne?.name ?? "first pair"} as winner`} htmlFor={`winner-${match.id}-one`} className={!pairOne ? "is-disabled" : ""}>
         <input id={`winner-${match.id}-one`} type="radio" name={`winner-${match.id}`} value={pairOne?.id ?? ""} checked={winner === pairOne?.id} onChange={(event) => setWinner(event.target.value)} disabled={!pairOne} />
         <span><strong>{pairOne?.name ?? "Waiting for winner"}</strong><small>{pairOne ? `${pairOne.player_one} · ${pairOne.player_two}` : "Previous round"}</small></span>
@@ -141,7 +231,7 @@ export default function AdminPage() {
     if (!tournamentId || !isAdmin) return;
     const [pairsResult, matchesResult] = await Promise.all([
       supabase.from("pairs").select("id,name,player_one,player_two").eq("tournament_id", tournamentId),
-      supabase.from("matches").select("id,round,position,pair_one_id,pair_two_id,pair_one_sets,pair_two_sets,winner_id,status,court").eq("tournament_id", tournamentId).order("round").order("position"),
+      supabase.from("matches").select("id,round,position,pair_one_id,pair_two_id,pair_one_sets,pair_two_sets,winner_id,status,court,updated_at").eq("tournament_id", tournamentId).order("round").order("position"),
     ]);
     setPairs((pairsResult.data ?? []) as Pair[]);
     setMatches((matchesResult.data ?? []) as Match[]);
@@ -224,8 +314,19 @@ export default function AdminPage() {
             <div><p className="eyebrow">KYNG CUP Vienna 2026</p><h1>Match control<span className="accent-dot">.</span></h1></div>
             <a href="../bracket/" target="_blank" rel="noreferrer">Open public bracket ↗</a>
           </div>
+          <div className="admin-section-heading">
+            <div><span>01</span><h2>Participants</h2></div>
+            <p>Edit pair names and the names of both players.</p>
+          </div>
+          <div className="admin-pair-grid">
+            {pairs.map((pair) => <PairEditor key={pair.id} pair={pair} onSaved={() => void loadMatches()} />)}
+          </div>
+          <div className="admin-section-heading admin-matches-heading">
+            <div><span>02</span><h2>Matches &amp; courts</h2></div>
+            <p>Assign a court, enter the score and select the winner.</p>
+          </div>
           <div className="admin-match-grid">
-            {matches.map((match) => <AdminMatch key={match.id} match={match} pairMap={pairMap} onSaved={() => void loadMatches()} />)}
+            {matches.map((match) => <AdminMatch key={`${match.id}-${match.updated_at}`} match={match} pairMap={pairMap} onSaved={() => void loadMatches()} />)}
           </div>
         </section>
       )}
