@@ -4,7 +4,30 @@ import type { User } from "@supabase/supabase-js";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
-type Pair = { id: string; name: string; player_one: string; player_two: string };
+type TournamentStatus = "draft" | "published" | "live" | "completed";
+type MatchStatus = "scheduled" | "live" | "completed";
+
+type Tournament = {
+  id: string;
+  slug: string;
+  name: string;
+  location: string | null;
+  starts_at: string | null;
+  bracket_size: number;
+  status: TournamentStatus;
+  updated_at: string;
+  role: "owner" | "admin";
+};
+
+type Pair = {
+  id: string;
+  name: string;
+  player_one: string;
+  player_two: string;
+  seed: number | null;
+  updated_at: string;
+};
+
 type Match = {
   id: string;
   round: number;
@@ -14,22 +37,31 @@ type Match = {
   pair_one_sets: number[];
   pair_two_sets: number[];
   winner_id: string | null;
-  status: string;
+  status: MatchStatus;
   court: string | null;
+  scheduled_at: string | null;
   updated_at: string;
 };
 
-const roundNames: Record<number, string> = {
-  1: "Round of 16",
-  2: "Quarterfinal",
-  3: "Semifinal",
-  4: "Final",
+type AdminMember = { user_id: string; email: string; role: "owner" | "admin"; created_at: string };
+type Activity = { id: number; entity_type: string; action: string; changed_by: string | null; created_at: string };
+
+const roundLabels: Record<number, Record<number, string>> = {
+  8: { 1: "Quarterfinal", 2: "Semifinal", 3: "Final" },
+  16: { 1: "Round of 16", 2: "Quarterfinal", 3: "Semifinal", 4: "Final" },
+  32: { 1: "Round of 32", 2: "Round of 16", 3: "Quarterfinal", 4: "Semifinal", 5: "Final" },
 };
+
+function toLocalDateTime(value: string | null) {
+  if (!value) return "";
+  const date = new Date(value);
+  const offset = date.getTimezoneOffset() * 60_000;
+  return new Date(date.getTime() - offset).toISOString().slice(0, 16);
+}
 
 function parseScore(value: string) {
   const sets = value.split(",").map((set) => set.trim()).filter(Boolean);
   if (!sets.length) return null;
-
   const pairOne: number[] = [];
   const pairTwo: number[] = [];
   for (const set of sets) {
@@ -41,6 +73,91 @@ function parseScore(value: string) {
   return { pairOne, pairTwo };
 }
 
+function Feedback({ message }: { message: string | null }) {
+  return message ? <small className="admin-message" role="status">{message}</small> : null;
+}
+
+function CreateTournament({ onCreated }: { onCreated: (id: string) => void }) {
+  const [name, setName] = useState("");
+  const [slug, setSlug] = useState("");
+  const [location, setLocation] = useState("Vienna, Austria");
+  const [startsAt, setStartsAt] = useState("");
+  const [size, setSize] = useState(16);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  async function create(event: FormEvent) {
+    event.preventDefault();
+    setSaving(true);
+    setMessage(null);
+    const { data, error } = await supabase.rpc("create_tournament_with_bracket", {
+      p_name: name.trim(),
+      p_slug: slug.trim().toLowerCase(),
+      p_location: location.trim(),
+      p_starts_at: startsAt ? new Date(startsAt).toISOString() : null,
+      p_bracket_size: size,
+    });
+    setSaving(false);
+    if (error) setMessage(error.message);
+    else {
+      setMessage("Tournament created. Add participant names and publish when ready.");
+      onCreated(data as string);
+    }
+  }
+
+  return (
+    <form className="admin-create-card" onSubmit={create}>
+      <div className="admin-section-heading compact-heading"><div><span>+</span><h2>New tournament</h2></div><p>A complete empty bracket will be created automatically.</p></div>
+      <div className="admin-form-grid">
+        <label className="admin-field"><span>Name</span><input value={name} onChange={(event) => { setName(event.target.value); if (!slug) setSlug(event.target.value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")); }} required /></label>
+        <label className="admin-field"><span>URL slug</span><input value={slug} onChange={(event) => setSlug(event.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))} placeholder="kyng-cup-vienna-2027" required /></label>
+        <label className="admin-field"><span>Location</span><input value={location} onChange={(event) => setLocation(event.target.value)} /></label>
+        <label className="admin-field"><span>Starts at</span><input type="datetime-local" value={startsAt} onChange={(event) => setStartsAt(event.target.value)} /></label>
+        <label className="admin-field"><span>Pairs</span><select value={size} onChange={(event) => setSize(Number(event.target.value))}><option value={8}>8 pairs</option><option value={16}>16 pairs</option><option value={32}>32 pairs</option></select></label>
+      </div>
+      <button className="admin-save-button" type="submit" disabled={saving}>{saving ? "Creating…" : "Create tournament"}</button>
+      <Feedback message={message} />
+    </form>
+  );
+}
+
+function TournamentSettings({ tournament, onSaved }: { tournament: Tournament; onSaved: () => void }) {
+  const [name, setName] = useState(tournament.name);
+  const [location, setLocation] = useState(tournament.location ?? "");
+  const [startsAt, setStartsAt] = useState(toLocalDateTime(tournament.starts_at));
+  const [status, setStatus] = useState<TournamentStatus>(tournament.status);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  async function save(event: FormEvent) {
+    event.preventDefault();
+    if (status === "completed" && tournament.status !== "completed" && !window.confirm("Archive this tournament as completed?")) return;
+    setSaving(true);
+    setMessage(null);
+    const { error } = await supabase.from("tournaments").update({
+      name: name.trim(), location: location.trim() || null,
+      starts_at: startsAt ? new Date(startsAt).toISOString() : null,
+      status, updated_at: new Date().toISOString(),
+    }).eq("id", tournament.id).select("id").single();
+    setSaving(false);
+    if (error) setMessage(error.message);
+    else { setMessage("Tournament settings saved."); onSaved(); }
+  }
+
+  return (
+    <form className="admin-settings-card" onSubmit={save}>
+      <div className="admin-form-grid">
+        <label className="admin-field"><span>Tournament name</span><input value={name} onChange={(event) => setName(event.target.value)} required /></label>
+        <label className="admin-field"><span>Location</span><input value={location} onChange={(event) => setLocation(event.target.value)} /></label>
+        <label className="admin-field"><span>Starts at</span><input type="datetime-local" value={startsAt} onChange={(event) => setStartsAt(event.target.value)} /></label>
+        <label className="admin-field"><span>Visibility / status</span><select value={status} onChange={(event) => setStatus(event.target.value as TournamentStatus)}><option value="draft">Draft · hidden</option><option value="published">Published</option><option value="live">Live now</option><option value="completed">Completed · archive</option></select></label>
+      </div>
+      <button className="admin-save-button" type="submit" disabled={saving}>{saving ? "Saving…" : "Save tournament"}</button>
+      <Feedback message={message} />
+    </form>
+  );
+}
+
 function PairEditor({ pair, onSaved }: { pair: Pair; onSaved: () => void }) {
   const [name, setName] = useState(pair.name);
   const [playerOne, setPlayerOne] = useState(pair.player_one);
@@ -48,286 +165,239 @@ function PairEditor({ pair, onSaved }: { pair: Pair; onSaved: () => void }) {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
-  async function savePair(event: FormEvent) {
+  async function save(event: FormEvent) {
     event.preventDefault();
-    const values = {
-      name: name.trim(),
-      player_one: playerOne.trim(),
-      player_two: playerTwo.trim(),
-    };
-
-    if (!values.name || !values.player_one || !values.player_two) {
-      setMessage("Fill in the pair name and both player names.");
-      return;
-    }
-
-    setSaving(true);
-    setMessage(null);
-    const { error } = await supabase
-      .from("pairs")
-      .update(values)
-      .eq("id", pair.id)
-      .select("id")
-      .single();
+    if (![name, playerOne, playerTwo].every((value) => value.trim())) { setMessage("Fill in all three names."); return; }
+    setSaving(true); setMessage(null);
+    const { error } = await supabase.from("pairs").update({ name: name.trim(), player_one: playerOne.trim(), player_two: playerTwo.trim() }).eq("id", pair.id).select("id").single();
     setSaving(false);
-
-    if (error) setMessage(error.message);
-    else {
-      setMessage("Names saved.");
-      onSaved();
-    }
+    if (error) setMessage(error.message); else { setMessage("Names saved."); onSaved(); }
   }
 
   return (
-    <form className="admin-pair-editor" onSubmit={savePair}>
-      <div className="admin-pair-number">Pair {pair.name}</div>
-      <label className="admin-field">
-        <span>Pair name</span>
-        <input value={name} onChange={(event) => setName(event.target.value)} required />
-      </label>
+    <form className="admin-pair-editor" onSubmit={save}>
+      <div className="admin-pair-number">Draw position {pair.seed ?? "—"}</div>
+      <label className="admin-field"><span>Pair name</span><input value={name} onChange={(event) => setName(event.target.value)} required /></label>
       <div className="admin-player-fields">
-        <label className="admin-field">
-          <span>Player one</span>
-          <input value={playerOne} onChange={(event) => setPlayerOne(event.target.value)} required />
-        </label>
-        <label className="admin-field">
-          <span>Player two</span>
-          <input value={playerTwo} onChange={(event) => setPlayerTwo(event.target.value)} required />
-        </label>
+        <label className="admin-field"><span>Player one</span><input value={playerOne} onChange={(event) => setPlayerOne(event.target.value)} required /></label>
+        <label className="admin-field"><span>Player two</span><input value={playerTwo} onChange={(event) => setPlayerTwo(event.target.value)} required /></label>
       </div>
       <button className="admin-save-button" type="submit" disabled={saving}>{saving ? "Saving…" : "Save names"}</button>
-      {message && <small className="admin-message" role="status">{message}</small>}
+      <Feedback message={message} />
     </form>
   );
 }
 
-function AdminMatch({ match, pairMap, onSaved }: { match: Match; pairMap: Map<string, Pair>; onSaved: () => void }) {
+function ManualDraw({ tournament, pairs, onSaved }: { tournament: Tournament; pairs: Pair[]; onSaved: () => void }) {
+  const initial = useMemo(() => [...pairs].sort((a, b) => (a.seed ?? 999) - (b.seed ?? 999)).map((pair) => pair.id), [pairs]);
+  const [order, setOrder] = useState(initial);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const pairMap = useMemo(() => new Map(pairs.map((pair) => [pair.id, pair])), [pairs]);
+
+  function move(index: number, direction: -1 | 1) {
+    const target = index + direction;
+    if (target < 0 || target >= order.length) return;
+    const next = [...order];
+    [next[index], next[target]] = [next[target], next[index]];
+    setOrder(next);
+  }
+
+  async function save() {
+    if (!window.confirm("Apply this manual draw? It can only be changed before matches begin.")) return;
+    setSaving(true); setMessage(null);
+    const { error } = await supabase.rpc("set_manual_draw", { p_tournament_id: tournament.id, p_pair_ids: order });
+    setSaving(false);
+    if (error) setMessage(error.message); else { setMessage("Manual draw saved."); onSaved(); }
+  }
+
+  if (tournament.role !== "owner") return <p className="admin-muted-note">Only the tournament owner can change the draw.</p>;
+  return (
+    <div className="admin-draw-card">
+      <div className="admin-draw-list">
+        {order.map((id, index) => <div className="admin-draw-row" key={id}><span>{String(index + 1).padStart(2, "0")}</span><strong>{pairMap.get(id)?.name}</strong><small>{index % 2 === 0 ? `Match ${Math.floor(index / 2) + 1} · first slot` : `Match ${Math.floor(index / 2) + 1} · second slot`}</small><div><button type="button" onClick={() => move(index, -1)} disabled={index === 0} aria-label="Move up">↑</button><button type="button" onClick={() => move(index, 1)} disabled={index === order.length - 1} aria-label="Move down">↓</button></div></div>)}
+      </div>
+      <button className="admin-save-button" type="button" onClick={() => void save()} disabled={saving}>{saving ? "Saving…" : "Save manual draw"}</button>
+      <Feedback message={message} />
+    </div>
+  );
+}
+
+function AdminMatch({ match, pairMap, bracketSize, onSaved }: { match: Match; pairMap: Map<string, Pair>; bracketSize: number; onSaved: () => void }) {
   const pairOne = match.pair_one_id ? pairMap.get(match.pair_one_id) : undefined;
   const pairTwo = match.pair_two_id ? pairMap.get(match.pair_two_id) : undefined;
-  const [score, setScore] = useState(
-    match.pair_one_sets.map((value, index) => `${value}-${match.pair_two_sets[index]}`).join(", "),
-  );
+  const [score, setScore] = useState(match.pair_one_sets.map((value, index) => `${value}-${match.pair_two_sets[index]}`).join(", "));
   const [winner, setWinner] = useState(match.winner_id ?? "");
   const [court, setCourt] = useState(match.court ?? "");
+  const [scheduledAt, setScheduledAt] = useState(toLocalDateTime(match.scheduled_at));
+  const [status, setStatus] = useState<"scheduled" | "live">(match.status === "live" ? "live" : "scheduled");
   const [saving, setSaving] = useState(false);
-  const [savingCourt, setSavingCourt] = useState(false);
+  const [savingDetails, setSavingDetails] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const [courtMessage, setCourtMessage] = useState<string | null>(null);
+  const title = roundLabels[bracketSize]?.[match.round] ?? `Round ${match.round}`;
 
-  async function saveCourt() {
-    setSavingCourt(true);
-    setCourtMessage(null);
-    const { error } = await supabase
-      .from("matches")
-      .update({ court: court.trim() || null })
-      .eq("id", match.id)
-      .select("id")
-      .single();
-    setSavingCourt(false);
-
-    if (error) setCourtMessage(error.message);
-    else {
-      setCourtMessage("Court saved.");
-      onSaved();
-    }
+  async function saveDetails() {
+    setSavingDetails(true); setMessage(null);
+    const { error } = await supabase.from("matches").update({ court: court.trim() || null, scheduled_at: scheduledAt ? new Date(scheduledAt).toISOString() : null, status: match.status === "completed" ? "completed" : status, updated_at: new Date().toISOString() }).eq("id", match.id).select("id").single();
+    setSavingDetails(false);
+    if (error) setMessage(error.message); else { setMessage(status === "live" ? "Match is live." : "Schedule saved."); onSaved(); }
   }
 
   async function saveResult(event: FormEvent) {
     event.preventDefault();
     const parsed = parseScore(score);
-    if (!parsed || !winner) {
-      setMessage("Use score format 6-4, 3-6, 10-8 and select a winner.");
-      return;
-    }
-
-    setSaving(true);
-    setMessage(null);
-    const { error } = await supabase.rpc("record_match_result", {
-      p_match_id: match.id,
-      p_pair_one_sets: parsed.pairOne,
-      p_pair_two_sets: parsed.pairTwo,
-      p_winner_id: winner,
-    });
+    if (!parsed || !winner) { setMessage("Use score format 6-4, 3-6, 10-8 and select a winner."); return; }
+    if (match.winner_id && !window.confirm("Replace the saved result? The change will be recorded in the activity log.")) return;
+    setSaving(true); setMessage(null);
+    const { error } = await supabase.rpc("record_match_result", { p_match_id: match.id, p_pair_one_sets: parsed.pairOne, p_pair_two_sets: parsed.pairTwo, p_winner_id: winner });
     setSaving(false);
+    if (error) setMessage(error.message); else { setMessage("Result saved. The winner advanced automatically."); onSaved(); }
+  }
 
-    if (error) setMessage(error.message);
-    else {
-      setMessage("Result saved. The winner has advanced.");
-      onSaved();
-    }
+  async function resetResult() {
+    if (!window.confirm("Reset this result and remove its winner from the next round?")) return;
+    setSaving(true); setMessage(null);
+    const { error } = await supabase.rpc("reset_match_result", { p_match_id: match.id });
+    setSaving(false);
+    if (error) setMessage(error.message); else { setMessage("Result reset."); onSaved(); }
   }
 
   return (
-    <form className="admin-match" onSubmit={saveResult}>
-      <div className="admin-match-title">
-        <span>{roundNames[match.round]} · Match {match.position}</span>
-        <strong>{match.status === "completed" ? "Completed" : "Scheduled"}</strong>
+    <form className={`admin-match status-${match.status}`} onSubmit={saveResult}>
+      <div className="admin-match-title"><span>{title} · Match {match.position}</span><strong>{match.status === "completed" ? "Completed" : match.status === "live" ? "Live" : "Scheduled"}</strong></div>
+      <div className="admin-match-details">
+        <label className="admin-field"><span>Date &amp; time</span><input type="datetime-local" value={scheduledAt} onChange={(event) => setScheduledAt(event.target.value)} /></label>
+        <label className="admin-field"><span>Court</span><input value={court} onChange={(event) => setCourt(event.target.value)} placeholder="Centre court" /></label>
+        <label className="admin-field"><span>Status</span><select value={status} onChange={(event) => setStatus(event.target.value as "scheduled" | "live")} disabled={match.status === "completed"}><option value="scheduled">Scheduled</option><option value="live">Live now</option></select></label>
+        <button type="button" onClick={() => void saveDetails()} disabled={savingDetails}>{savingDetails ? "Saving…" : "Save schedule"}</button>
       </div>
-      <div className="admin-court-row">
-        <label className="admin-field" htmlFor={`court-${match.id}`}>
-          <span>Court</span>
-          <input id={`court-${match.id}`} value={court} onChange={(event) => setCourt(event.target.value)} placeholder="e.g. Centre court" />
-        </label>
-        <button type="button" onClick={() => void saveCourt()} disabled={savingCourt}>{savingCourt ? "Saving…" : "Save court"}</button>
-      </div>
-      {courtMessage && <small className="admin-message" role="status">{courtMessage}</small>}
-      <label aria-label={`Select ${pairOne?.name ?? "first pair"} as winner`} htmlFor={`winner-${match.id}-one`} className={!pairOne ? "is-disabled" : ""}>
-        <input id={`winner-${match.id}-one`} type="radio" name={`winner-${match.id}`} value={pairOne?.id ?? ""} checked={winner === pairOne?.id} onChange={(event) => setWinner(event.target.value)} disabled={!pairOne} />
-        <span><strong>{pairOne?.name ?? "Waiting for winner"}</strong><small>{pairOne ? `${pairOne.player_one} · ${pairOne.player_two}` : "Previous round"}</small></span>
-      </label>
-      <label aria-label={`Select ${pairTwo?.name ?? "second pair"} as winner`} htmlFor={`winner-${match.id}-two`} className={!pairTwo ? "is-disabled" : ""}>
-        <input id={`winner-${match.id}-two`} type="radio" name={`winner-${match.id}`} value={pairTwo?.id ?? ""} checked={winner === pairTwo?.id} onChange={(event) => setWinner(event.target.value)} disabled={!pairTwo} />
-        <span><strong>{pairTwo?.name ?? "Waiting for winner"}</strong><small>{pairTwo ? `${pairTwo.player_one} · ${pairTwo.player_two}` : "Previous round"}</small></span>
-      </label>
-      <div className="admin-score-row">
-        <input aria-label="Set scores" value={score} onChange={(event) => setScore(event.target.value)} placeholder="6-4, 6-3" disabled={!pairOne || !pairTwo} />
-        <button type="submit" disabled={saving || !pairOne || !pairTwo}>{saving ? "Saving…" : "Save result"}</button>
-      </div>
-      {message && <small className="admin-message" role="status">{message}</small>}
+      <label aria-label={`Select ${pairOne?.name ?? "first pair"} as winner`} htmlFor={`winner-${match.id}-one`} className={!pairOne ? "is-disabled" : ""}><input id={`winner-${match.id}-one`} type="radio" name={`winner-${match.id}`} value={pairOne?.id ?? ""} checked={winner === pairOne?.id} onChange={(event) => setWinner(event.target.value)} disabled={!pairOne} /><span><strong>{pairOne?.name ?? "Waiting for winner"}</strong><small>{pairOne ? `${pairOne.player_one} · ${pairOne.player_two}` : "Previous round"}</small></span></label>
+      <label aria-label={`Select ${pairTwo?.name ?? "second pair"} as winner`} htmlFor={`winner-${match.id}-two`} className={!pairTwo ? "is-disabled" : ""}><input id={`winner-${match.id}-two`} type="radio" name={`winner-${match.id}`} value={pairTwo?.id ?? ""} checked={winner === pairTwo?.id} onChange={(event) => setWinner(event.target.value)} disabled={!pairTwo} /><span><strong>{pairTwo?.name ?? "Waiting for winner"}</strong><small>{pairTwo ? `${pairTwo.player_one} · ${pairTwo.player_two}` : "Previous round"}</small></span></label>
+      <div className="admin-score-row"><input aria-label="Set scores" value={score} onChange={(event) => setScore(event.target.value)} placeholder="6-4, 6-3" disabled={!pairOne || !pairTwo} /><button type="submit" disabled={saving || !pairOne || !pairTwo}>{saving ? "Saving…" : match.winner_id ? "Correct result" : "Save result"}</button></div>
+      {match.winner_id && <button className="admin-reset-button" type="button" onClick={() => void resetResult()} disabled={saving}>Reset result</button>}
+      <Feedback message={message} />
     </form>
+  );
+}
+
+function TeamManager({ tournament, members, onSaved }: { tournament: Tournament; members: AdminMember[]; onSaved: () => void }) {
+  const [email, setEmail] = useState("");
+  const [role, setRole] = useState<"owner" | "admin">("admin");
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  async function add(event: FormEvent) {
+    event.preventDefault(); setSaving(true); setMessage(null);
+    const { error } = await supabase.rpc("add_tournament_admin_by_email", { p_tournament_id: tournament.id, p_email: email.trim(), p_role: role });
+    setSaving(false);
+    if (error) setMessage(error.message); else { setEmail(""); setMessage("Team member added."); onSaved(); }
+  }
+
+  async function remove(member: AdminMember) {
+    if (!window.confirm(`Remove ${member.email} from this tournament?`)) return;
+    const { error } = await supabase.rpc("remove_tournament_admin", { p_tournament_id: tournament.id, p_user_id: member.user_id });
+    if (error) setMessage(error.message); else { setMessage("Administrator removed."); onSaved(); }
+  }
+
+  return (
+    <div className="admin-team-card">
+      <div className="admin-team-list">{members.map((member) => <div key={member.user_id}><span><strong>{member.email}</strong><small>{member.role}</small></span>{tournament.role === "owner" && member.role !== "owner" && <button type="button" onClick={() => void remove(member)}>Remove</button>}</div>)}</div>
+      {tournament.role === "owner" && <form className="admin-team-form" onSubmit={add}><label className="admin-field"><span>Account email</span><input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required /></label><label className="admin-field"><span>Role</span><select value={role} onChange={(event) => setRole(event.target.value as "owner" | "admin")}><option value="admin">Administrator</option><option value="owner">Owner</option></select></label><button className="admin-save-button" type="submit" disabled={saving}>{saving ? "Adding…" : "Add member"}</button></form>}
+      <Feedback message={message} />
+    </div>
   );
 }
 
 export default function AdminPage() {
   const [user, setUser] = useState<User | null>(null);
   const [checking, setChecking] = useState(true);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [tournamentId, setTournamentId] = useState<string | null>(null);
+  const [tournaments, setTournaments] = useState<Tournament[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [pairs, setPairs] = useState<Pair[]>([]);
   const [matches, setMatches] = useState<Match[]>([]);
+  const [members, setMembers] = useState<AdminMember[]>([]);
+  const [activity, setActivity] = useState<Activity[]>([]);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [authMode, setAuthMode] = useState<"signin" | "signup">("signin");
   const [authMessage, setAuthMessage] = useState<string | null>(null);
+  const [showCreate, setShowCreate] = useState(false);
 
-  const loadAccess = useCallback(async (currentUser: User | null) => {
+  const selected = tournaments.find((tournament) => tournament.id === selectedId) ?? null;
+
+  const loadTournaments = useCallback(async (currentUser: User | null, preferredId?: string) => {
     setUser(currentUser);
-    if (!currentUser) {
-      setIsAdmin(false);
-      setChecking(false);
-      return;
-    }
-
-    const tournamentResult = await supabase.from("tournaments").select("id").eq("slug", "vienna-2026").single();
-    if (!tournamentResult.data) {
-      setAuthMessage("Tournament not found.");
-      setChecking(false);
-      return;
-    }
-
-    const id = tournamentResult.data.id as string;
-    setTournamentId(id);
-    const adminResult = await supabase
-      .from("tournament_admins")
-      .select("user_id")
-      .eq("tournament_id", id)
-      .eq("user_id", currentUser.id)
-      .maybeSingle();
-    setIsAdmin(Boolean(adminResult.data));
+    if (!currentUser) { setTournaments([]); setSelectedId(null); setChecking(false); return; }
+    const memberships = await supabase.from("tournament_admins").select("tournament_id,role").eq("user_id", currentUser.id);
+    const membershipRows = (memberships.data ?? []) as { tournament_id: string; role: "owner" | "admin" }[];
+    if (!membershipRows.length) { setTournaments([]); setSelectedId(null); setChecking(false); return; }
+    const ids = membershipRows.map((item) => item.tournament_id);
+    const result = await supabase.from("tournaments").select("id,slug,name,location,starts_at,bracket_size,status,updated_at").in("id", ids).order("created_at", { ascending: false });
+    const roles = new Map(membershipRows.map((item) => [item.tournament_id, item.role]));
+    const managed = ((result.data ?? []) as Omit<Tournament, "role">[]).map((item) => ({ ...item, role: roles.get(item.id) ?? "admin" }));
+    setTournaments(managed);
+    setSelectedId((current) => preferredId && managed.some((item) => item.id === preferredId) ? preferredId : current && managed.some((item) => item.id === current) ? current : managed[0]?.id ?? null);
     setChecking(false);
   }, []);
 
-  const loadMatches = useCallback(async () => {
-    if (!tournamentId || !isAdmin) return;
-    const [pairsResult, matchesResult] = await Promise.all([
-      supabase.from("pairs").select("id,name,player_one,player_two").eq("tournament_id", tournamentId),
-      supabase.from("matches").select("id,round,position,pair_one_id,pair_two_id,pair_one_sets,pair_two_sets,winner_id,status,court,updated_at").eq("tournament_id", tournamentId).order("round").order("position"),
+  const loadTournamentData = useCallback(async () => {
+    if (!selectedId) { setPairs([]); setMatches([]); setMembers([]); setActivity([]); return; }
+    const [pairsResult, matchesResult, membersResult, activityResult] = await Promise.all([
+      supabase.from("pairs").select("id,name,player_one,player_two,seed,updated_at").eq("tournament_id", selectedId).order("seed"),
+      supabase.from("matches").select("id,round,position,pair_one_id,pair_two_id,pair_one_sets,pair_two_sets,winner_id,status,court,scheduled_at,updated_at").eq("tournament_id", selectedId).order("round").order("position"),
+      supabase.rpc("list_tournament_admins", { p_tournament_id: selectedId }),
+      supabase.from("activity_log").select("id,entity_type,action,changed_by,created_at").eq("tournament_id", selectedId).order("created_at", { ascending: false }).limit(30),
     ]);
-    setPairs((pairsResult.data ?? []) as Pair[]);
-    setMatches((matchesResult.data ?? []) as Match[]);
-  }, [isAdmin, tournamentId]);
+    setPairs((pairsResult.data ?? []) as Pair[]); setMatches((matchesResult.data ?? []) as Match[]);
+    setMembers((membersResult.data ?? []) as AdminMember[]); setActivity((activityResult.data ?? []) as Activity[]);
+  }, [selectedId]);
 
   useEffect(() => {
-    const initialLoad = window.setTimeout(async () => {
-      const { data } = await supabase.auth.getUser();
-      await loadAccess(data.user);
-    }, 0);
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      window.setTimeout(() => void loadAccess(session?.user ?? null), 0);
-    });
-    return () => {
-      window.clearTimeout(initialLoad);
-      listener.subscription.unsubscribe();
-    };
-  }, [loadAccess]);
+    const timer = window.setTimeout(async () => { const { data } = await supabase.auth.getUser(); await loadTournaments(data.user); }, 0);
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => window.setTimeout(() => void loadTournaments(session?.user ?? null), 0));
+    return () => { window.clearTimeout(timer); listener.subscription.unsubscribe(); };
+  }, [loadTournaments]);
+
+  useEffect(() => { const timer = window.setTimeout(() => void loadTournamentData(), 0); return () => window.clearTimeout(timer); }, [loadTournamentData]);
 
   useEffect(() => {
-    const load = window.setTimeout(() => void loadMatches(), 0);
-    return () => window.clearTimeout(load);
-  }, [loadMatches]);
+    if (!selectedId) return;
+    const channel = supabase.channel(`admin:${selectedId}`).on("postgres_changes", { event: "*", schema: "public", table: "matches", filter: `tournament_id=eq.${selectedId}` }, () => void loadTournamentData()).on("postgres_changes", { event: "*", schema: "public", table: "pairs", filter: `tournament_id=eq.${selectedId}` }, () => void loadTournamentData()).on("postgres_changes", { event: "*", schema: "public", table: "tournaments", filter: `id=eq.${selectedId}` }, () => { void loadTournamentData(); void loadTournaments(user); }).subscribe();
+    return () => { void supabase.removeChannel(channel); };
+  }, [loadTournamentData, loadTournaments, selectedId, user]);
 
   const pairMap = useMemo(() => new Map(pairs.map((pair) => [pair.id, pair])), [pairs]);
 
   async function submitAuth(event: FormEvent) {
-    event.preventDefault();
-    setAuthMessage(null);
-    const result = authMode === "signin"
-      ? await supabase.auth.signInWithPassword({ email, password })
-      : await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            emailRedirectTo: new URL(window.location.pathname, window.location.origin).toString(),
-          },
-        });
-    if (result.error) setAuthMessage(result.error.message);
-    else if (authMode === "signup" && !result.data.session) setAuthMessage("Check your email to confirm the account, then sign in.");
+    event.preventDefault(); setAuthMessage(null);
+    const result = authMode === "signin" ? await supabase.auth.signInWithPassword({ email, password }) : await supabase.auth.signUp({ email, password, options: { emailRedirectTo: new URL(window.location.pathname, window.location.origin).toString() } });
+    if (result.error) setAuthMessage(result.error.message); else if (authMode === "signup" && !result.data.session) setAuthMessage("Check your email to confirm the account, then sign in.");
   }
 
   return (
     <main className="admin-page">
-      <header className="admin-header">
-        {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
-        <a className="brand" href="/"><span className="ball-mark" aria-hidden="true"><i /></span><span>KYNG CUP</span></a>
-        {user && <button type="button" onClick={() => void supabase.auth.signOut()}>Sign out</button>}
-      </header>
-
-      {checking ? (
-        <section className="admin-state" role="status">Checking access…</section>
-      ) : !user ? (
-        <section className="admin-auth">
-          <div>
-            <p className="eyebrow">Protected area</p>
-            <h1>Tournament<br />admin<span className="accent-dot">.</span></h1>
-            <p>Sign in to update scores. Database permissions prevent every non-admin account from changing the bracket.</p>
-          </div>
-          <form onSubmit={submitAuth}>
-            <label><span>Email</span><input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required /></label>
-            <label><span>Password</span><input type="password" value={password} onChange={(event) => setPassword(event.target.value)} minLength={8} required /></label>
-            <button type="submit">{authMode === "signin" ? "Sign in" : "Create account"} <span aria-hidden="true">↗</span></button>
-            <button className="auth-switch" type="button" onClick={() => setAuthMode(authMode === "signin" ? "signup" : "signin")}>
-              {authMode === "signin" ? "Create a new admin account" : "I already have an account"}
-            </button>
-            {authMessage && <p className="admin-message" role="status">{authMessage}</p>}
-          </form>
-        </section>
-      ) : !isAdmin ? (
-        <section className="admin-state pending-access">
-          <p className="eyebrow">Account created</p>
-          <h1>Access is<br />waiting<span className="accent-dot">.</span></h1>
-          <p>Your account is secure, but it has not yet been assigned to KYNG CUP Vienna 2026. Tell the site owner that registration is complete.</p>
-          <code>{user.email}</code>
-        </section>
+      <header className="admin-header"><a className="brand" href="../"><span className="ball-mark" aria-hidden="true"><i /></span><span>KYNG CUP</span></a>{user && <button type="button" onClick={() => void supabase.auth.signOut()}>Sign out</button>}</header>
+      {checking ? <section className="admin-state" role="status">Checking access…</section> : !user ? (
+        <section className="admin-auth"><div><p className="eyebrow">Protected area</p><h1>Tournament<br />admin<span className="accent-dot">.</span></h1><p>Sign in to create tournaments, manage participants, schedules and live results.</p></div><form onSubmit={submitAuth}><label><span>Email</span><input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required /></label><label><span>Password</span><input type="password" value={password} onChange={(event) => setPassword(event.target.value)} minLength={8} required /></label><button type="submit">{authMode === "signin" ? "Sign in" : "Create account"} <span aria-hidden="true">↗</span></button><button className="auth-switch" type="button" onClick={() => setAuthMode(authMode === "signin" ? "signup" : "signin")}>{authMode === "signin" ? "Create a new account" : "I already have an account"}</button><Feedback message={authMessage} /></form></section>
       ) : (
         <section className="admin-dashboard">
-          <div className="admin-dashboard-heading">
-            <div><p className="eyebrow">KYNG CUP Vienna 2026</p><h1>Match control<span className="accent-dot">.</span></h1></div>
-            <a href="../bracket/" target="_blank" rel="noreferrer">Open public bracket ↗</a>
-          </div>
-          <div className="admin-section-heading">
-            <div><span>01</span><h2>Participants</h2></div>
-            <p>Edit pair names and the names of both players.</p>
-          </div>
-          <div className="admin-pair-grid">
-            {pairs.map((pair) => <PairEditor key={pair.id} pair={pair} onSaved={() => void loadMatches()} />)}
-          </div>
-          <div className="admin-section-heading admin-matches-heading">
-            <div><span>02</span><h2>Matches &amp; courts</h2></div>
-            <p>Assign a court, enter the score and select the winner.</p>
-          </div>
-          <div className="admin-match-grid">
-            {matches.map((match) => <AdminMatch key={`${match.id}-${match.updated_at}`} match={match} pairMap={pairMap} onSaved={() => void loadMatches()} />)}
-          </div>
+          <div className="admin-dashboard-heading"><div><p className="eyebrow">Tournament control centre</p><h1>Match control<span className="accent-dot">.</span></h1></div>{selected && <a href={`../bracket/?tournament=${selected.slug}`} target="_blank" rel="noreferrer">Open public bracket ↗</a>}</div>
+          <div className="admin-toolbar"><label className="admin-field"><span>Current tournament</span><select value={selectedId ?? ""} onChange={(event) => setSelectedId(event.target.value || null)}><option value="">No tournament selected</option>{tournaments.map((tournament) => <option value={tournament.id} key={tournament.id}>{tournament.name} · {tournament.status}</option>)}</select></label><button type="button" onClick={() => setShowCreate((value) => !value)}>{showCreate ? "Close" : "+ New tournament"}</button></div>
+          {(showCreate || !tournaments.length) && <CreateTournament onCreated={(id) => { setShowCreate(false); void loadTournaments(user, id); }} />}
+          {selected && <>
+            <div className="admin-section-heading admin-first-section"><div><span>01</span><h2>Tournament</h2></div><p>Publish, start live coverage or archive the completed tournament.</p></div>
+            <TournamentSettings key={selected.updated_at} tournament={selected} onSaved={() => void loadTournaments(user)} />
+            <div className="admin-section-heading admin-matches-heading"><div><span>02</span><h2>Participants</h2></div><p>Edit every pair, then place them manually into the draw.</p></div>
+            <div className="admin-pair-grid">{pairs.map((pair) => <PairEditor key={`${pair.id}-${pair.updated_at}`} pair={pair} onSaved={() => void loadTournamentData()} />)}</div>
+            <div className="admin-section-heading admin-matches-heading"><div><span>03</span><h2>Manual draw</h2></div><p>Use the arrows to assign each pair to a first-round position.</p></div>
+            <ManualDraw tournament={selected} pairs={pairs} onSaved={() => void loadTournamentData()} />
+            <div className="admin-section-heading admin-matches-heading"><div><span>04</span><h2>Matches &amp; courts</h2></div><p>Schedule matches, switch LIVE on, enter scores and correct results safely.</p></div>
+            <div className="admin-match-grid">{matches.map((match) => <AdminMatch key={`${match.id}-${match.updated_at}`} match={match} pairMap={pairMap} bracketSize={selected.bracket_size} onSaved={() => void loadTournamentData()} />)}</div>
+            <div className="admin-section-heading admin-matches-heading"><div><span>05</span><h2>Team &amp; roles</h2></div><p>Owners control structure and access; administrators manage tournament operations.</p></div>
+            <TeamManager tournament={selected} members={members} onSaved={() => void loadTournamentData()} />
+            <div className="admin-section-heading admin-matches-heading"><div><span>06</span><h2>Activity log</h2></div><p>The latest protected changes to tournament data.</p></div>
+            <div className="admin-activity-list">{activity.length ? activity.map((item) => <div key={item.id}><span>{item.entity_type}</span><strong>{item.action.replaceAll("_", " ")}</strong><time>{new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" }).format(new Date(item.created_at))}</time></div>) : <p>No changes recorded yet.</p>}</div>
+          </>}
         </section>
       )}
     </main>
