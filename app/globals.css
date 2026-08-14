@@ -93,6 +93,31 @@ button, input, select { font: inherit; }
 .event-details span { text-transform: uppercase; letter-spacing: .1em; font-size: 9px; opacity: .55; }
 .event-details strong { font: 400 20px/1.2 var(--font-cormorant-garamond), Georgia, serif; text-align: right; }
 
+.home-bracket-cta { padding: 110px 42px; display: grid; grid-template-columns: .78fr 1.22fr; gap: 7vw; align-items: center; background: var(--paper); overflow: hidden; }
+.home-bracket-copy { min-width: 0; }
+.home-live-label { width: max-content; margin-top: 70px; display: flex; align-items: center; gap: 9px; color: var(--forest); text-transform: uppercase; letter-spacing: .13em; font-size: 9px; font-weight: 700; }
+.home-live-label i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; animation: live-pulse 1.8s ease-out infinite; }
+.home-bracket-copy h2 { margin: 28px 0 32px; font: 400 clamp(64px, 7vw, 116px)/.82 var(--font-cormorant-garamond), Georgia, serif; letter-spacing: -.06em; }
+.home-bracket-copy > p { max-width: 460px; margin: 0; line-height: 1.55; opacity: .66; }
+.home-bracket-copy > a { margin-top: 38px; padding: 17px 20px; border-radius: 999px; background: var(--forest); color: #fff; display: flex; justify-content: space-between; align-items: center; gap: 30px; width: min(100%, 360px); text-transform: uppercase; letter-spacing: .1em; font-size: 10px; transition: background .2s, transform .2s; }
+.home-bracket-copy > a:hover { background: var(--clay); transform: translateY(-2px); }
+.home-bracket-preview { min-width: 720px; padding: 26px; border-radius: 24px; background: #fff; border: 1px solid var(--line); box-shadow: 0 25px 70px rgba(20,32,25,.08); transform: rotate(-2deg); }
+.preview-round-labels { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 42px; padding: 0 5px 16px; border-bottom: 1px solid var(--line); color: var(--clay); text-transform: uppercase; letter-spacing: .1em; font-size: 8px; }
+.preview-bracket-grid { min-height: 455px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 42px; }
+.preview-column { padding-top: 22px; display: flex; flex-direction: column; justify-content: space-between; }
+.preview-middle { padding: 90px 0 75px; }
+.preview-final { justify-content: center; }
+.preview-match { position: relative; min-height: 96px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 13px; background: #f8f6f1; display: grid; align-content: center; }
+.preview-match::after { content: ""; position: absolute; top: 50%; right: -43px; width: 42px; border-top: 1px solid var(--line); }
+.preview-final .preview-match::after { display: none; }
+.preview-match > span { min-width: 0; padding: 8px 0; border-top: 1px solid rgba(20,32,25,.1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; }
+.preview-match > span:first-of-type { border-top: 0; }
+.preview-match b { margin-right: 8px; color: var(--clay); font-size: 8px; }
+.preview-match small { margin-bottom: 5px; color: var(--clay); text-transform: uppercase; letter-spacing: .09em; font-size: 7px; }
+.preview-match.is-highlighted { border-color: var(--forest); box-shadow: inset 3px 0 0 var(--forest); }
+.preview-match.is-live { background: var(--forest-dark); color: #fff; border-color: var(--forest-dark); }
+.preview-match.is-live > span { border-color: rgba(255,255,255,.15); }
+
 .registration { background: var(--forest); color: #fff; padding: 110px 42px 85px; display: grid; grid-template-columns: 1.1fr .9fr; gap: 10%; }
 .registration-copy > p:last-child { margin: 0 0 0 28%; max-width: 450px; color: rgba(255,255,255,.68); line-height: 1.55; }
 .interest-form { align-self: end; display: grid; }
@@ -132,6 +157,9 @@ footer { padding: 28px 42px; display: grid; grid-template-columns: 1fr 1.5fr 1fr
   .tournament-title { margin-left: 0; }
   .date-grid { grid-template-columns: 1fr 1fr; }
   .event-details { grid-column: 1 / -1; min-height: 320px; }
+  .home-bracket-cta { padding: 80px 22px; grid-template-columns: 1fr; gap: 65px; }
+  .home-live-label { margin-top: 55px; }
+  .home-bracket-preview { min-width: 680px; width: 100%; transform: none; }
   .registration { grid-template-columns: 1fr; padding: 80px 22px 60px; }
   .interest-form { margin-top: 65px; }
   footer { padding: 28px 22px; grid-template-columns: 1fr auto; }
@@ -149,6 +177,14 @@ footer { padding: 28px 42px; display: grid; grid-template-columns: 1fr 1.5fr 1fr
   .event-details { grid-column: auto; }
   .date-card { min-height: 290px; }
   .date-card strong { font-size: 120px; }
+  .home-bracket-cta { gap: 48px; }
+  .home-bracket-copy h2 { font-size: 20vw; }
+  .home-bracket-preview { min-width: 0; padding: 16px; overflow: hidden; }
+  .preview-round-labels { grid-template-columns: 1fr 1fr; gap: 18px; }
+  .preview-round-labels span:last-child { display: none; }
+  .preview-bracket-grid { min-height: 390px; grid-template-columns: 1fr 1fr; gap: 18px; }
+  .preview-final { display: none; }
+  .preview-match::after { right: -19px; width: 18px; }
   .registration-copy > p:last-child { margin-left: 0; }
 }
 

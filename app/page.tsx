@@ -143,6 +143,36 @@ export default function Home() {
         </div>
       </section>
 
+      <section className="home-bracket-cta" aria-labelledby="home-bracket-title">
+        <div className="home-bracket-copy">
+          <div className="section-index">
+            <span>04</span>
+            <span>Live tournament</span>
+          </div>
+          <span className="home-live-label"><i /> Results update automatically</span>
+          <h2 id="home-bracket-title">Follow every<br />match<span className="accent-dot">.</span></h2>
+          <p>See the full tournament draw, match times, courts and live results as each pair moves toward the final.</p>
+          <a href="bracket/">Open tournament bracket <Arrow /></a>
+        </div>
+        <div className="home-bracket-preview" aria-hidden="true">
+          <div className="preview-round-labels"><span>Round of 16</span><span>Quarterfinal</span><span>Final</span></div>
+          <div className="preview-bracket-grid">
+            <div className="preview-column">
+              <div className="preview-match"><span><b>01</b> Vienna Pair</span><span><b>08</b> King&apos;s Court</span></div>
+              <div className="preview-match"><span><b>04</b> Clay Club</span><span><b>05</b> Match Point</span></div>
+              <div className="preview-match"><span><b>03</b> Baseline</span><span><b>06</b> Topspin</span></div>
+            </div>
+            <div className="preview-column preview-middle">
+              <div className="preview-match is-highlighted"><span><b>01</b> Vienna Pair</span><span><b>04</b> Clay Club</span></div>
+              <div className="preview-match"><span><b>03</b> Baseline</span><span><b>02</b> Centre Court</span></div>
+            </div>
+            <div className="preview-column preview-final">
+              <div className="preview-match is-live"><small>Live · Centre court</small><span><b>01</b> Vienna Pair</span><span><b>02</b> Centre Court</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section className="registration" id="register">
         <div className="registration-copy">
           <p className="eyebrow">The next point starts here</p>
