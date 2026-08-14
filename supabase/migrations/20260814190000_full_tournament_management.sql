@@ -252,6 +252,9 @@ declare
   v_match_count integer;
 begin
   if v_user_id is null then raise exception 'Authentication required'; end if;
+  if not exists (select 1 from public.tournament_admins where user_id = v_user_id and role = 'owner') then
+    raise exception 'Only an existing tournament owner can create another tournament';
+  end if;
   if p_bracket_size not in (8, 16, 32) then raise exception 'Bracket size must be 8, 16 or 32'; end if;
   if coalesce(trim(p_name), '') = '' then raise exception 'Tournament name is required'; end if;
   if coalesce(trim(p_slug), '') !~ '^[a-z0-9]+(?:-[a-z0-9]+)*$' then raise exception 'Use a lowercase URL slug'; end if;

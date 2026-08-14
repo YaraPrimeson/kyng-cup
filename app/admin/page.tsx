@@ -324,6 +324,7 @@ export default function AdminPage() {
   const [showCreate, setShowCreate] = useState(false);
 
   const selected = tournaments.find((tournament) => tournament.id === selectedId) ?? null;
+  const canCreateTournament = tournaments.some((tournament) => tournament.role === "owner");
 
   const loadTournaments = useCallback(async (currentUser: User | null, preferredId?: string) => {
     setUser(currentUser);
@@ -382,8 +383,9 @@ export default function AdminPage() {
       ) : (
         <section className="admin-dashboard">
           <div className="admin-dashboard-heading"><div><p className="eyebrow">Tournament control centre</p><h1>Match control<span className="accent-dot">.</span></h1></div>{selected && <a href={`../bracket/?tournament=${selected.slug}`} target="_blank" rel="noreferrer">Open public bracket ↗</a>}</div>
-          <div className="admin-toolbar"><label className="admin-field"><span>Current tournament</span><select value={selectedId ?? ""} onChange={(event) => setSelectedId(event.target.value || null)}><option value="">No tournament selected</option>{tournaments.map((tournament) => <option value={tournament.id} key={tournament.id}>{tournament.name} · {tournament.status}</option>)}</select></label><button type="button" onClick={() => setShowCreate((value) => !value)}>{showCreate ? "Close" : "+ New tournament"}</button></div>
-          {(showCreate || !tournaments.length) && <CreateTournament onCreated={(id) => { setShowCreate(false); void loadTournaments(user, id); }} />}
+          <div className="admin-toolbar"><label className="admin-field"><span>Current tournament</span><select value={selectedId ?? ""} onChange={(event) => setSelectedId(event.target.value || null)}><option value="">No tournament selected</option>{tournaments.map((tournament) => <option value={tournament.id} key={tournament.id}>{tournament.name} · {tournament.status}</option>)}</select></label>{canCreateTournament && <button type="button" onClick={() => setShowCreate((value) => !value)}>{showCreate ? "Close" : "+ New tournament"}</button>}</div>
+          {showCreate && canCreateTournament && <CreateTournament onCreated={(id) => { setShowCreate(false); void loadTournaments(user, id); }} />}
+          {!tournaments.length && <div className="admin-muted-note">This account has no tournament access yet. Ask an owner to add your email as an administrator.</div>}
           {selected && <>
             <div className="admin-section-heading admin-first-section"><div><span>01</span><h2>Tournament</h2></div><p>Publish, start live coverage or archive the completed tournament.</p></div>
             <TournamentSettings key={selected.updated_at} tournament={selected} onSaved={() => void loadTournaments(user)} />
