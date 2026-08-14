@@ -173,7 +173,13 @@ export default function AdminPage() {
     setAuthMessage(null);
     const result = authMode === "signin"
       ? await supabase.auth.signInWithPassword({ email, password })
-      : await supabase.auth.signUp({ email, password });
+      : await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            emailRedirectTo: new URL(window.location.pathname, window.location.origin).toString(),
+          },
+        });
     if (result.error) setAuthMessage(result.error.message);
     else if (authMode === "signup" && !result.data.session) setAuthMessage("Check your email to confirm the account, then sign in.");
   }
