@@ -60,6 +60,8 @@ test("ships live bracket and protected tournament controls", async () => {
   assert.match(admin, /Published · show on sport page/);
   assert.match(admin, /Update live score/);
   assert.match(admin, /setSelectedId\(null\); setShowCreate\(true\)/);
+  assert.match(admin, /showCreate && !selectedId && canCreateTournament/);
+  assert.match(admin, /if \(tournamentId\) setShowCreate\(false\)/);
   assert.match(admin, /admin-create-actions/);
   assert.match(admin, /ends_at/);
   assert.match(admin, /matchesByRound/);
@@ -79,6 +81,8 @@ test("ships live bracket and protected tournament controls", async () => {
   assert.match(home, /honest competition/);
   assert.doesNotMatch(home, /serious competition/);
   assert.match(upcoming, /t\("participate"\)/);
+  assert.match(upcoming, /starts_at,ends_at/);
+  assert.match(upcoming, /upcoming-date-point/);
   assert.doesNotMatch(upcoming, /bracket_size/);
   assert.match(i18n, /localStorage\.setItem\(languageStorageKey/);
   assert.match(i18n, /Request a place/);

@@ -375,10 +375,13 @@ body { font-size: 18px; }
 .sport-page .manifesto-copy h2 { max-width: 1060px; }
 .upcoming-dynamic { min-height: 650px; padding: 115px 42px; background: #fff; }
 .upcoming-layout { margin-top: 55px; display: grid; grid-template-columns: minmax(280px,.72fr) 1.28fr; gap: 18px; }
-.upcoming-date { min-height: 410px; border-radius: 24px; padding: 36px; background: var(--clay); color: #fff; display: flex; flex-direction: column; justify-content: space-between; }
+.upcoming-date { min-height: 410px; border-radius: 24px; padding: 36px; background: var(--clay); color: #fff; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 18px; }
 .padel-page .upcoming-date { background: var(--forest); }
-.upcoming-date strong { align-self: center; font: 400 clamp(118px, 15vw, 220px)/.84 var(--font-lora), Georgia, serif; }
+.upcoming-date-point { min-width: 0; display: grid; justify-items: center; align-content: center; gap: 12px; text-align: center; }
+.upcoming-date-point small { text-transform: uppercase; letter-spacing: .13em; font-size: 10px; opacity: .68; }
+.upcoming-date strong { font: 400 clamp(72px, 8.5vw, 132px)/.84 var(--font-lora), Georgia, serif; }
 .upcoming-date span { text-transform: capitalize; }
+.upcoming-date > i { font-style: normal; font-size: 26px; opacity: .48; }
 .upcoming-copy { min-height: 410px; padding: 42px; border: 1px solid var(--line); border-radius: 24px; display: flex; flex-direction: column; }
 .upcoming-copy h2 { max-width: 800px; margin: 40px 0 auto; font: 400 clamp(46px, 5vw, 82px)/.92 var(--font-lora), Georgia, serif; letter-spacing: -.04em; }
 .upcoming-copy > div:not(.upcoming-actions) { margin-top: 42px; display: flex; gap: 60px; }
@@ -424,6 +427,9 @@ body { font-size: 18px; }
   .principle-card { width: 160px; height: 180px; padding: 29px 21px 19px; border-radius: 80px 80px 20px 20px; }
   .principle-number { font-size: 39px; }
   .upcoming-copy { padding: 26px; }
+  .upcoming-date { padding: 26px 20px; gap: 10px; }
+  .upcoming-date strong { font-size: clamp(56px, 18vw, 74px); }
+  .upcoming-date-point span { font-size: 13px; }
   .upcoming-copy > div:not(.upcoming-actions) { display: grid; gap: 20px; }
   .upcoming-actions { align-self: flex-start; justify-content: flex-start; }
 }

@@ -62,6 +62,8 @@ const autoTranslations: Record<string, Partial<Record<Exclude<Language, "en">, s
   "Starts at": { uk: "Початок", de: "Beginn", ru: "Начало" },
   "Start date": { uk: "Дата початку", de: "Startdatum", ru: "Дата начала" },
   "End date": { uk: "Дата завершення", de: "Enddatum", ru: "Дата окончания" },
+  "Start": { uk: "Початок", de: "Beginn", ru: "Начало" },
+  "End": { uk: "Завершення", de: "Ende", ru: "Окончание" },
   "End date cannot be earlier than start date.": { uk: "Дата завершення не може бути раніше дати початку.", de: "Das Enddatum darf nicht vor dem Startdatum liegen.", ru: "Дата окончания не может быть раньше даты начала." },
   "Sport": { uk: "Вид спорту", de: "Sportart", ru: "Вид спорта" },
   "Pairs": { uk: "Пари", de: "Paare", ru: "Пары" },
