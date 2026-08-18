@@ -123,6 +123,7 @@ const autoTranslations: Record<string, Partial<Record<Exclude<Language, "en">, s
   "Contact": { uk: "Контакти", de: "Kontakt", ru: "Контакты" },
   "KYNG standard": { uk: "Стандарт KYNG", de: "KYNG-Standard", ru: "Стандарт KYNG" },
   "Quarterfinal": { uk: "Чвертьфінал", de: "Viertelfinale", ru: "Четвертьфинал" },
+  "Semifinal": { uk: "Півфінал", de: "Halbfinale", ru: "Полуфинал" },
   "Live · Centre court": { uk: "Наживо · Центральний корт", de: "Live · Center Court", ru: "В эфире · Центральный корт" },
   "Cookie policy": { uk: "Політика cookies", de: "Cookie-Richtlinie", ru: "Политика cookies" },
   "Privacy notice · Updated 14 August 2026": { uk: "Повідомлення про приватність · Оновлено 14 серпня 2026", de: "Datenschutzhinweis · Aktualisiert am 14. August 2026", ru: "Уведомление о конфиденциальности · Обновлено 14 августа 2026" },

@@ -39,7 +39,7 @@ test("server-renders distinct tennis and padel pages", async () => {
 });
 
 test("ships live bracket and protected tournament controls", async () => {
-  const [admin, bracket, home, upcoming, i18n, styles, sportPage, exporter, migration, sportMigration] = await Promise.all([
+  const [admin, bracket, home, upcoming, i18n, styles, sportPage, footer, exporter, migration, sportMigration] = await Promise.all([
     readFile(new URL("../app/admin/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/bracket/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
@@ -47,6 +47,7 @@ test("ships live bracket and protected tournament controls", async () => {
     readFile(new URL("../app/i18n.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
     readFile(new URL("../app/sport-page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/site-footer.tsx", import.meta.url), "utf8"),
     readFile(new URL("../scripts/export-pages.mjs", import.meta.url), "utf8"),
     readFile(new URL("../supabase/migrations/20260814190000_full_tournament_management.sql", import.meta.url), "utf8"),
     readFile(new URL("../supabase/migrations/20260818120000_add_tournament_sport.sql", import.meta.url), "utf8"),
@@ -73,6 +74,7 @@ test("ships live bracket and protected tournament controls", async () => {
   assert.doesNotMatch(upcoming, /bracket_size/);
   assert.match(i18n, /localStorage\.setItem\(languageStorageKey/);
   assert.match(i18n, /Request a place/);
+  assert.match(i18n, /"Semifinal": \{ uk: "Півфінал", de: "Halbfinale", ru: "Полуфинал" \}/);
   assert.match(i18n, /addEventListener\("storage"/);
   assert.doesNotMatch(styles, /\.language-select::after/);
   assert.match(styles, /kyng-universal-hero-v3\.png/);
@@ -82,6 +84,9 @@ test("ships live bracket and protected tournament controls", async () => {
   assert.match(sportPage, /Fast game\. Shared rhythm\./);
   assert.doesNotMatch(sportPage, /fair judging|Social by design|Closer court\. Bigger energy\./);
   assert.doesNotMatch(sportPage, /is-highlighted|className="preview-match is-live"/);
+  assert.match(footer, /aria-label="Telegram"/);
+  assert.match(footer, /aria-label="Instagram"/);
+  assert.doesNotMatch(footer, /basePath}\/tennis|basePath}\/padel/);
   assert.doesNotMatch(exporter, /if\s*\(route === "\/"\)/);
   assert.doesNotMatch(exporter, /replace\(\/<script/);
   assert.match(migration, /enable row level security/i);
