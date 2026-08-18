@@ -1,10 +1,6 @@
-const Arrow = () => <span aria-hidden="true">↗</span>;
+import Wordmark from "./wordmark";
 
-const BallMark = () => (
-  <span className="ball-mark" aria-hidden="true">
-    <i />
-  </span>
-);
+const Arrow = () => <span aria-hidden="true">↗</span>;
 
 export default function Home() {
   return (
@@ -12,8 +8,7 @@ export default function Home() {
       <section className="hero" id="top">
         <header className="site-header">
           <a className="brand" href="#top" aria-label="KYNG CUP home">
-            <BallMark />
-            <span>KYNG CUP</span>
+            <Wordmark />
           </a>
           <nav className="nav" aria-label="Main navigation">
             <a href="#about">About</a>
@@ -201,7 +196,7 @@ export default function Home() {
       </section>
 
       <footer>
-        <a className="brand footer-brand" href="#top"><BallMark /><span>KYNG CUP</span></a>
+        <a className="brand footer-brand" href="#top"><Wordmark /></a>
         <p>International tennis & padel community</p>
         <div className="footer-links">
           <a href="#top">Instagram</a>

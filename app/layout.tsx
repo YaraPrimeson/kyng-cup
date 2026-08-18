@@ -13,7 +13,7 @@ const cormorantGaramond = Cormorant_Garamond({
 export const metadata: Metadata = {
   title: "KYNG CUP — More Than a Game",
   description: "International tennis and padel tournaments built around competition, atmosphere and community.",
-  icons: { icon: "/favicon.svg", shortcut: "/favicon.svg" },
+  icons: { icon: "/favicon.png", shortcut: "/favicon.png", apple: "/favicon.png" },
   openGraph: {
     title: "KYNG CUP — More Than a Game",
     description: "International tennis and padel tournaments built around competition, atmosphere and community.",

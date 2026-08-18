@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Wordmark from "../wordmark";
 
 export const metadata: Metadata = {
   title: "Cookie Policy — KYNG CUP",
@@ -8,7 +9,7 @@ export const metadata: Metadata = {
 export default function CookiesPage() {
   return (
     <main className="legal-page">
-      <header><a className="brand" href="../"><span className="ball-mark" aria-hidden="true"><i /></span><span>KYNG CUP</span></a><a href="../">Back to home ↗</a></header>
+      <header><a className="brand" href="../"><Wordmark /></a><a href="../">Back to home ↗</a></header>
       <article>
         <p className="eyebrow">Privacy notice · Updated 14 August 2026</p>
         <h1>Cookie<br />policy<span>.</span></h1>

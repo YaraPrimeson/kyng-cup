@@ -2,6 +2,7 @@
 
 import { CSSProperties, useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import Wordmark from "../wordmark";
 
 type Tournament = {
   id: string;
@@ -78,7 +79,7 @@ export default function BracketPage() {
   }
 
   return <main className="bracket-page">
-    <header className="bracket-header"><a className="brand bracket-brand" href="../" aria-label="KYNG CUP home"><span className="ball-mark" aria-hidden="true"><i /></span><span>KYNG CUP</span></a><a className="bracket-back" href="../">Back to home <span aria-hidden="true">↗</span></a></header>
+    <header className="bracket-header"><a className="brand bracket-brand" href="../" aria-label="KYNG CUP home"><Wordmark /></a><a className="bracket-back" href="../">Back to home <span aria-hidden="true">↗</span></a></header>
     <section className="bracket-intro"><div><p className="eyebrow">Live tournament experience</p><h1>Tournament<br />bracket<span className="accent-dot">.</span></h1></div><div className="bracket-summary"><span className={`live-indicator${tournament?.status === "live" ? " is-live" : ""}`}><i /> {tournament?.status === "live" ? "Live updates" : tournament?.status === "completed" ? "Tournament completed" : "Tournament schedule"}</span><strong>{tournament?.name ?? "KYNG CUP"}</strong><span>{tournament?.location ?? "Location TBA"} · {tournament?.bracket_size ?? 16} doubles pairs</span>{tournaments.length > 1 && <label className="bracket-selector"><span>Choose tournament</span><select value={tournament?.slug ?? ""} onChange={(event) => selectTournament(event.target.value)}>{tournaments.map((item) => <option value={item.slug} key={item.id}>{item.name}{item.status === "completed" ? " · archive" : ""}</option>)}</select></label>}</div></section>
     {champion && <section className="champion-banner"><span>Champion</span><div><strong>{champion.name}</strong><small>{champion.player_one} · {champion.player_two}</small></div><b>KYNG CUP</b></section>}
     {loading ? <div className="bracket-state" role="status" aria-live="polite">Loading the draw…</div> : error ? <div className="bracket-state is-error" role="alert">{error}</div> : <>

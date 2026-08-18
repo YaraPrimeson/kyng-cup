@@ -21,6 +21,9 @@ test("server-renders the KYNG CUP landing page", async () => {
   assert.match(html, /<title>KYNG CUP — More Than a Game<\/title>/i);
   assert.match(html, /More than/);
   assert.match(html, /Open live bracket/);
+  assert.match(html, /brand-wordmark/);
+  assert.match(html, /favicon\.png/);
+  assert.doesNotMatch(html, /ball-mark/);
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape/i);
 });
 

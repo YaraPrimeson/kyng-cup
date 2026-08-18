@@ -3,6 +3,7 @@
 import type { User } from "@supabase/supabase-js";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import Wordmark from "../wordmark";
 
 type TournamentStatus = "draft" | "published" | "live" | "completed";
 type MatchStatus = "scheduled" | "live" | "completed";
@@ -377,7 +378,7 @@ export default function AdminPage() {
 
   return (
     <main className="admin-page">
-      <header className="admin-header"><a className="brand" href="../"><span className="ball-mark" aria-hidden="true"><i /></span><span>KYNG CUP</span></a>{user && <button type="button" onClick={() => void supabase.auth.signOut()}>Sign out</button>}</header>
+      <header className="admin-header"><a className="brand" href="../"><Wordmark /></a>{user && <button type="button" onClick={() => void supabase.auth.signOut()}>Sign out</button>}</header>
       {checking ? <section className="admin-state" role="status">Checking access…</section> : !user ? (
         <section className="admin-auth"><div><p className="eyebrow">Protected area</p><h1>Tournament<br />admin<span className="accent-dot">.</span></h1><p>Sign in to create tournaments, manage participants, schedules and live results.</p></div><form onSubmit={submitAuth}><label><span>Email</span><input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required /></label><label><span>Password</span><input type="password" value={password} onChange={(event) => setPassword(event.target.value)} minLength={8} required /></label><button type="submit">{authMode === "signin" ? "Sign in" : "Create account"} <span aria-hidden="true">↗</span></button><button className="auth-switch" type="button" onClick={() => setAuthMode(authMode === "signin" ? "signup" : "signin")}>{authMode === "signin" ? "Create a new account" : "I already have an account"}</button><Feedback message={authMessage} /></form></section>
       ) : (
