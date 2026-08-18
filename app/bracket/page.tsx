@@ -54,7 +54,7 @@ function MatchCard({ match, pairMap, language }: { match: Match; pairMap: Map<st
   const pairTwo = match.pair_two_id ? pairMap.get(match.pair_two_id) : undefined;
   const text = bracketCopy[language];
   const date = match.scheduled_at ? new Intl.DateTimeFormat(dateLocales[language], { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(match.scheduled_at)) : text.scheduleTba;
-  return <article className={`bracket-match status-${match.status}`}><div className="match-meta"><span>{date}</span><span>{match.court ?? text.courtTba}</span><strong>{match.status === "completed" ? text.final : match.status === "live" ? text.live : text.scheduled}</strong></div><PairRow pair={pairOne} scores={match.pair_one_sets} winner={match.winner_id === match.pair_one_id && !!match.winner_id} language={language} /><PairRow pair={pairTwo} scores={match.pair_two_sets} winner={match.winner_id === match.pair_two_id && !!match.winner_id} language={language} /></article>;
+  return <article className={`bracket-match status-${match.status}`}><span className="match-connector" aria-hidden="true" /><div className="match-meta"><span>{date}</span><span>{match.court ?? text.courtTba}</span><strong>{match.status === "completed" ? text.final : match.status === "live" ? text.live : text.scheduled}</strong></div><PairRow pair={pairOne} scores={match.pair_one_sets} winner={match.winner_id === match.pair_one_id && !!match.winner_id} language={language} /><PairRow pair={pairTwo} scores={match.pair_two_sets} winner={match.winner_id === match.pair_two_id && !!match.winner_id} language={language} /></article>;
 }
 
 export default function BracketPage() {

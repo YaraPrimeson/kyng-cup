@@ -50,9 +50,11 @@ test("ships live bracket and protected tournament controls", async () => {
   assert.match(admin, /reset_match_result/);
   assert.doesNotMatch(admin, /ManualDraw/);
   assert.match(admin, /Published · show on sport page/);
+  assert.match(admin, /Update live score/);
   assert.match(admin, /Team &amp; roles/);
-  assert.match(admin, /Activity log/);
+  assert.doesNotMatch(admin, /Activity log/);
   assert.match(bracket, /postgres_changes/);
+  assert.match(bracket, /match-connector/);
   assert.match(bracket, /round-mobile-controls/);
   assert.match(bracket, /Champion/);
   assert.match(migration, /enable row level security/i);

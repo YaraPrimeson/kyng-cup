@@ -47,8 +47,6 @@ type Match = {
 };
 
 type AdminMember = { user_id: string; email: string; role: "owner" | "admin"; created_at: string };
-type Activity = { id: number; entity_type: string; action: string; changed_by: string | null; created_at: string };
-
 const roundLabels: Record<number, Record<number, string>> = {
   8: { 1: "Quarterfinal", 2: "Semifinal", 3: "Final" },
   16: { 1: "Round of 16", 2: "Quarterfinal", 3: "Semifinal", 4: "Final" },
@@ -230,11 +228,26 @@ function AdminMatch({ match, pairMap, bracketSize, onSaved }: { match: Match; pa
     event.preventDefault();
     const parsed = parseScore(score);
     if (!parsed || !winner) { setMessage("Use score format 6-4, 3-6, 10-8 and select a winner."); return; }
-    if (match.winner_id && !window.confirm("Replace the saved result? The change will be recorded in the activity log.")) return;
+    if (match.winner_id && !window.confirm("Replace the saved result?")) return;
     setSaving(true); setMessage(null);
     const { error } = await supabase.rpc("record_match_result", { p_match_id: match.id, p_pair_one_sets: parsed.pairOne, p_pair_two_sets: parsed.pairTwo, p_winner_id: winner });
     setSaving(false);
     if (error) setMessage(error.message); else { setMessage("Result saved. The winner advanced automatically."); onSaved(); }
+  }
+
+  async function saveLiveScore() {
+    const parsed = parseScore(score);
+    if (!parsed) { setMessage("Use score format 3-2 or 6-4, 3-6."); return; }
+    if (match.status === "completed") { setMessage("Reset the final result before changing the live score."); return; }
+    setSaving(true); setMessage(null);
+    const { error } = await supabase.from("matches").update({
+      pair_one_sets: parsed.pairOne,
+      pair_two_sets: parsed.pairTwo,
+      status: "live",
+      updated_at: new Date().toISOString(),
+    }).eq("id", match.id).select("id").single();
+    setSaving(false);
+    if (error) setMessage(error.message); else { setMessage("Live score updated. No pair has advanced yet."); setStatus("live"); onSaved(); }
   }
 
   async function resetResult() {
@@ -256,7 +269,7 @@ function AdminMatch({ match, pairMap, bracketSize, onSaved }: { match: Match; pa
       </div>
       <label aria-label={`Select ${pairOne?.name ?? "first pair"} as winner`} htmlFor={`winner-${match.id}-one`} className={!pairOne ? "is-disabled" : ""}><input id={`winner-${match.id}-one`} type="radio" name={`winner-${match.id}`} value={pairOne?.id ?? ""} checked={winner === pairOne?.id} onChange={(event) => setWinner(event.target.value)} disabled={!pairOne} /><span><strong>{pairOne?.name ?? "Waiting for winner"}</strong><small>{pairOne ? `${pairOne.player_one} · ${pairOne.player_two}` : "Previous round"}</small></span></label>
       <label aria-label={`Select ${pairTwo?.name ?? "second pair"} as winner`} htmlFor={`winner-${match.id}-two`} className={!pairTwo ? "is-disabled" : ""}><input id={`winner-${match.id}-two`} type="radio" name={`winner-${match.id}`} value={pairTwo?.id ?? ""} checked={winner === pairTwo?.id} onChange={(event) => setWinner(event.target.value)} disabled={!pairTwo} /><span><strong>{pairTwo?.name ?? "Waiting for winner"}</strong><small>{pairTwo ? `${pairTwo.player_one} · ${pairTwo.player_two}` : "Previous round"}</small></span></label>
-      <div className="admin-score-row"><input aria-label="Set scores" value={score} onChange={(event) => setScore(event.target.value)} placeholder="6-4, 6-3" disabled={!pairOne || !pairTwo} /><button type="submit" disabled={saving || !pairOne || !pairTwo}>{saving ? "Saving…" : match.winner_id ? "Correct result" : "Save result"}</button></div>
+      <div className="admin-score-row"><input aria-label="Set scores" value={score} onChange={(event) => setScore(event.target.value)} placeholder="3-2 or 6-4, 3-6" disabled={!pairOne || !pairTwo} /><div><button className="admin-live-score-button" type="button" onClick={() => void saveLiveScore()} disabled={saving || !pairOne || !pairTwo || match.status === "completed"}>{saving ? "Saving…" : "Update live score"}</button><button type="submit" disabled={saving || !pairOne || !pairTwo}>{saving ? "Saving…" : match.winner_id ? "Correct final result" : "Save final result"}</button></div></div>
       {match.winner_id && <button className="admin-reset-button" type="button" onClick={() => void resetResult()} disabled={saving}>Reset result</button>}
       <Feedback message={message} />
     </form>
@@ -301,7 +314,6 @@ export default function AdminPage() {
   const [pairs, setPairs] = useState<Pair[]>([]);
   const [matches, setMatches] = useState<Match[]>([]);
   const [members, setMembers] = useState<AdminMember[]>([]);
-  const [activity, setActivity] = useState<Activity[]>([]);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [authMode, setAuthMode] = useState<"signin" | "signup">("signin");
@@ -327,15 +339,14 @@ export default function AdminPage() {
   }, []);
 
   const loadTournamentData = useCallback(async () => {
-    if (!selectedId) { setPairs([]); setMatches([]); setMembers([]); setActivity([]); return; }
-    const [pairsResult, matchesResult, membersResult, activityResult] = await Promise.all([
+    if (!selectedId) { setPairs([]); setMatches([]); setMembers([]); return; }
+    const [pairsResult, matchesResult, membersResult] = await Promise.all([
       supabase.from("pairs").select("id,name,player_one,player_two,seed,updated_at").eq("tournament_id", selectedId).order("seed"),
       supabase.from("matches").select("id,round,position,pair_one_id,pair_two_id,pair_one_sets,pair_two_sets,winner_id,status,court,scheduled_at,updated_at").eq("tournament_id", selectedId).order("round").order("position"),
       supabase.rpc("list_tournament_admins", { p_tournament_id: selectedId }),
-      supabase.from("activity_log").select("id,entity_type,action,changed_by,created_at").eq("tournament_id", selectedId).order("created_at", { ascending: false }).limit(30),
     ]);
     setPairs((pairsResult.data ?? []) as Pair[]); setMatches((matchesResult.data ?? []) as Match[]);
-    setMembers((membersResult.data ?? []) as AdminMember[]); setActivity((activityResult.data ?? []) as Activity[]);
+    setMembers((membersResult.data ?? []) as AdminMember[]);
   }, [selectedId]);
 
   useEffect(() => {
@@ -384,8 +395,6 @@ export default function AdminPage() {
             </details>
             <div className="admin-section-heading admin-matches-heading"><div><span>04</span><h2>Team &amp; roles</h2></div><p>Owners control structure and access; administrators manage tournament operations.</p></div>
             <TeamManager tournament={selected} members={members} onSaved={() => void loadTournamentData()} />
-            <div className="admin-section-heading admin-matches-heading"><div><span>05</span><h2>Activity log</h2></div><p>The latest protected changes to tournament data.</p></div>
-            <div className="admin-activity-list">{activity.length ? activity.map((item) => <div key={item.id}><span>{item.entity_type}</span><strong>{item.action.replaceAll("_", " ")}</strong><time>{new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" }).format(new Date(item.created_at))}</time></div>) : <p>No changes recorded yet.</p>}</div>
           </>}
         </section>
       )}
