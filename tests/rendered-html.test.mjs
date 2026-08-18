@@ -39,9 +39,12 @@ test("server-renders distinct tennis and padel pages", async () => {
 });
 
 test("ships live bracket and protected tournament controls", async () => {
-  const [admin, bracket, migration, sportMigration] = await Promise.all([
+  const [admin, bracket, i18n, styles, sportPage, migration, sportMigration] = await Promise.all([
     readFile(new URL("../app/admin/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/bracket/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/i18n.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+    readFile(new URL("../app/sport-page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../supabase/migrations/20260814190000_full_tournament_management.sql", import.meta.url), "utf8"),
     readFile(new URL("../supabase/migrations/20260818120000_add_tournament_sport.sql", import.meta.url), "utf8"),
   ]);
@@ -57,6 +60,10 @@ test("ships live bracket and protected tournament controls", async () => {
   assert.match(bracket, /match-connector/);
   assert.match(bracket, /round-mobile-controls/);
   assert.match(bracket, /Champion/);
+  assert.match(i18n, /localStorage\.setItem\(languageStorageKey/);
+  assert.match(i18n, /addEventListener\("storage"/);
+  assert.doesNotMatch(styles, /\.language-select::after/);
+  assert.match(sportPage, /preview-connector/);
   assert.match(migration, /enable row level security/i);
   assert.match(migration, /is_tournament_owner/);
   assert.match(migration, /activity_log/);

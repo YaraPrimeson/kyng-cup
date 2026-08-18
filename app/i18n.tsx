@@ -5,6 +5,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 export type Language = "en" | "uk" | "de" | "ru";
 
 const languages: Language[] = ["en", "uk", "de", "ru"];
+const languageStorageKey = "kyng-language";
 
 const common = {
   en: { home: "Home", tennis: "Tennis", padel: "Padel", bracket: "Live bracket", language: "Language", back: "Back to home", openBracket: "Open tournament bracket", noTournament: "The next tournament will be announced soon.", loadingTournament: "Loading the next tournament…", upcoming: "Upcoming tournament", location: "Location", pairs: "Pairs", status: "Status", scheduled: "Scheduled", live: "Live", completed: "Completed", viewBracket: "View live bracket", contact: "Contact", copyright: "International tennis & padel community" },
@@ -183,11 +184,15 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   const [language, setLanguageState] = useState<Language>("en");
 
   useEffect(() => {
-    const saved = window.localStorage.getItem("kyng-language") as Language | null;
-    const timer = window.setTimeout(() => {
-      if (saved && languages.includes(saved)) setLanguageState(saved);
-    }, 0);
-    return () => window.clearTimeout(timer);
+    const applySavedLanguage = (value: string | null) => {
+      if (value && languages.includes(value as Language)) setLanguageState(value as Language);
+    };
+    applySavedLanguage(window.localStorage.getItem(languageStorageKey));
+    const syncLanguage = (event: StorageEvent) => {
+      if (event.key === languageStorageKey) applySavedLanguage(event.newValue);
+    };
+    window.addEventListener("storage", syncLanguage);
+    return () => window.removeEventListener("storage", syncLanguage);
   }, []);
 
   useEffect(() => {
@@ -197,7 +202,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   }, [language]);
 
   const setLanguage = useCallback((next: Language) => {
-    window.localStorage.setItem("kyng-language", next);
+    window.localStorage.setItem(languageStorageKey, next);
     setLanguageState(next);
   }, []);
   const t = useCallback((key: CommonKey) => common[language][key], [language]);
