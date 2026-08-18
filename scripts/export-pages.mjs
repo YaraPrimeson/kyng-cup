@@ -50,15 +50,7 @@ try {
     const response = await fetch(`http://127.0.0.1:${port}${route}`);
     if (!response.ok) throw new Error(`Failed to export ${route}: ${response.status}`);
 
-    let html = await response.text();
-    if (route === "/") {
-      html = html
-        .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "")
-        .replace(/<link\b[^>]*rel=["']modulepreload["'][^>]*>/gi, "")
-        .replace(/\sdata-rsc-[a-z-]+=["'][^"']*["']/gi, "");
-    }
-
-    html = html
+    const html = (await response.text())
       .replaceAll(`http://localhost:${port}`, `${pagesOrigin}${basePath}`)
       .replaceAll('href="/', `href="${basePath}/`)
       .replaceAll('src="/', `src="${basePath}/`)

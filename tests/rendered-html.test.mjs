@@ -39,7 +39,7 @@ test("server-renders distinct tennis and padel pages", async () => {
 });
 
 test("ships live bracket and protected tournament controls", async () => {
-  const [admin, bracket, home, upcoming, i18n, styles, sportPage, migration, sportMigration] = await Promise.all([
+  const [admin, bracket, home, upcoming, i18n, styles, sportPage, exporter, migration, sportMigration] = await Promise.all([
     readFile(new URL("../app/admin/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/bracket/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
@@ -47,6 +47,7 @@ test("ships live bracket and protected tournament controls", async () => {
     readFile(new URL("../app/i18n.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
     readFile(new URL("../app/sport-page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../scripts/export-pages.mjs", import.meta.url), "utf8"),
     readFile(new URL("../supabase/migrations/20260814190000_full_tournament_management.sql", import.meta.url), "utf8"),
     readFile(new URL("../supabase/migrations/20260818120000_add_tournament_sport.sql", import.meta.url), "utf8"),
   ]);
@@ -74,6 +75,8 @@ test("ships live bracket and protected tournament controls", async () => {
   assert.match(sportPage, /preview-connector/);
   assert.match(sportPage, /home-bracket-actions/);
   assert.doesNotMatch(sportPage, /is-highlighted|className="preview-match is-live"/);
+  assert.doesNotMatch(exporter, /if\s*\(route === "\/"\)/);
+  assert.doesNotMatch(exporter, /replace\(\/<script/);
   assert.match(migration, /enable row level security/i);
   assert.match(migration, /is_tournament_owner/);
   assert.match(migration, /activity_log/);
