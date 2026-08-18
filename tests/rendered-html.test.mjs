@@ -75,6 +75,7 @@ test("ships live bracket and protected tournament controls", async () => {
   assert.match(i18n, /Request a place/);
   assert.match(i18n, /addEventListener\("storage"/);
   assert.doesNotMatch(styles, /\.language-select::after/);
+  assert.match(styles, /kyng-universal-hero-v3\.png/);
   assert.match(sportPage, /preview-connector/);
   assert.match(sportPage, /home-bracket-actions/);
   assert.match(sportPage, /Strong competition\. A community worth returning to\./);
