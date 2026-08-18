@@ -14,17 +14,17 @@ type Tournament = {
   location: string | null;
   starts_at: string | null;
   bracket_size: number;
-  status: "published" | "live" | "completed";
+  status: "published" | "live";
 };
 
 type Pair = { id: string; name: string; player_one: string; player_two: string; seed: number | null; country_code: string | null };
 type Match = { id: string; round: number; position: number; pair_one_id: string | null; pair_two_id: string | null; pair_one_sets: number[]; pair_two_sets: number[]; winner_id: string | null; status: "scheduled" | "live" | "completed"; court: string | null; scheduled_at: string | null };
 
 const bracketCopy = {
-  en: { headingA: "Tournament", headingB: "bracket", decided: "To be decided", previousWinner: "Winner of previous match", scheduleTba: "Schedule TBA", courtTba: "Court TBA", final: "Final", live: "Live", scheduled: "Scheduled", locationTba: "Location TBA", pairs: "doubles pairs", matches: "matches", previous: "Previous", next: "Next", noBracket: "No published tournament bracket is available yet.", loadError: "The latest match data could not be loaded." },
-  uk: { headingA: "Турнірна", headingB: "сітка", decided: "Ще не визначено", previousWinner: "Переможець попереднього матчу", scheduleTba: "Розклад уточнюється", courtTba: "Корт уточнюється", final: "Фінал", live: "Наживо", scheduled: "Заплановано", locationTba: "Локація уточнюється", pairs: "пар", matches: "матчів", previous: "Назад", next: "Далі", noBracket: "Опублікованої турнірної сітки поки немає.", loadError: "Не вдалося завантажити актуальні дані матчів." },
-  de: { headingA: "Turnier-", headingB: "baum", decided: "Noch offen", previousWinner: "Sieger des vorherigen Matches", scheduleTba: "Zeitplan folgt", courtTba: "Court folgt", final: "Finale", live: "Live", scheduled: "Geplant", locationTba: "Ort folgt", pairs: "Doppelpaare", matches: "Matches", previous: "Zurück", next: "Weiter", noBracket: "Noch kein veröffentlichter Turnierbaum verfügbar.", loadError: "Die aktuellen Matchdaten konnten nicht geladen werden." },
-  ru: { headingA: "Турнирная", headingB: "сетка", decided: "Ещё не определено", previousWinner: "Победитель предыдущего матча", scheduleTba: "Расписание уточняется", courtTba: "Корт уточняется", final: "Финал", live: "В эфире", scheduled: "Запланирован", locationTba: "Локация уточняется", pairs: "пар", matches: "матчей", previous: "Назад", next: "Далее", noBracket: "Опубликованной турнирной сетки пока нет.", loadError: "Не удалось загрузить актуальные данные матчей." },
+  en: { headingA: "Tournament", headingB: "bracket", decided: "To be decided", previousWinner: "Winner of previous match", scheduleTba: "Schedule TBA", courtTba: "Court TBA", final: "Final", live: "Live", scheduled: "Scheduled", locationTba: "Location TBA", pairs: "doubles pairs", previous: "Previous", next: "Next", noBracket: "No published tournament bracket is available yet.", loadError: "The latest match data could not be loaded." },
+  uk: { headingA: "Турнірна", headingB: "сітка", decided: "Ще не визначено", previousWinner: "Переможець попереднього матчу", scheduleTba: "Розклад уточнюється", courtTba: "Корт уточнюється", final: "Фінал", live: "Наживо", scheduled: "Заплановано", locationTba: "Локація уточнюється", pairs: "пар", previous: "Назад", next: "Далі", noBracket: "Опублікованої турнірної сітки поки немає.", loadError: "Не вдалося завантажити актуальні дані матчів." },
+  de: { headingA: "Turnier-", headingB: "baum", decided: "Noch offen", previousWinner: "Sieger des vorherigen Matches", scheduleTba: "Zeitplan folgt", courtTba: "Court folgt", final: "Finale", live: "Live", scheduled: "Geplant", locationTba: "Ort folgt", pairs: "Doppelpaare", previous: "Zurück", next: "Weiter", noBracket: "Noch kein veröffentlichter Turnierbaum verfügbar.", loadError: "Die aktuellen Matchdaten konnten nicht geladen werden." },
+  ru: { headingA: "Турнирная", headingB: "сетка", decided: "Ещё не определено", previousWinner: "Победитель предыдущего матча", scheduleTba: "Расписание уточняется", courtTba: "Корт уточняется", final: "Финал", live: "В эфире", scheduled: "Запланирован", locationTba: "Локация уточняется", pairs: "пар", previous: "Назад", next: "Далее", noBracket: "Опубликованной турнирной сетки пока нет.", loadError: "Не удалось загрузить актуальные данные матчей." },
 } as const;
 
 function getRounds(size: number, language: Language) {
@@ -69,7 +69,7 @@ export default function BracketPage() {
   const [error, setError] = useState<string | null>(null);
 
   const loadBracket = useCallback(async (requestedSlug?: string) => {
-    const tournamentResult = await supabase.from("tournaments").select("id,slug,name,sport,location,starts_at,bracket_size,status").in("status", ["published", "live", "completed"]).order("starts_at", { ascending: false, nullsFirst: false });
+    const tournamentResult = await supabase.from("tournaments").select("id,slug,name,sport,location,starts_at,bracket_size,status").in("status", ["published", "live"]).order("starts_at", { ascending: false, nullsFirst: false });
     if (tournamentResult.error || !tournamentResult.data?.length) { setError(text.noBracket); setLoading(false); return; }
     const available = tournamentResult.data as Tournament[];
     const urlSlug = requestedSlug ?? new URLSearchParams(window.location.search).get("tournament") ?? undefined;
@@ -104,7 +104,7 @@ export default function BracketPage() {
   }
 
   return <main className="bracket-page">
-    <section className="bracket-intro"><div><p className="eyebrow">Live tournament experience</p><h1>{text.headingA}<br />{text.headingB}<span className="accent-dot">.</span></h1></div><div className="bracket-summary"><span className={`live-indicator${tournament?.status === "live" ? " is-live" : ""}`}><i /> {tournament?.status === "live" ? "Live updates" : tournament?.status === "completed" ? "Tournament completed" : "Tournament schedule"}</span><strong>{tournament?.name ?? "KYNG CUP"}</strong><span>{tournament?.location ?? text.locationTba} · {tournament?.bracket_size ?? 16} {text.pairs}</span>{tournaments.length > 1 && <label className="bracket-selector"><span>Choose tournament</span><select value={tournament?.slug ?? ""} onChange={(event) => selectTournament(event.target.value)}>{tournaments.map((item) => <option value={item.slug} key={item.id}>{item.name}{item.status === "completed" ? " · archive" : ""}</option>)}</select></label>}</div></section>
+    <section className="bracket-intro"><div><p className="eyebrow">Live tournament experience</p><h1>{text.headingA}<br />{text.headingB}<span className="accent-dot">.</span></h1></div><div className="bracket-summary"><span className={`live-indicator${tournament?.status === "live" ? " is-live" : ""}`}><i /> {tournament?.status === "live" ? "Live updates" : "Tournament schedule"}</span><strong>{tournament?.name ?? "KYNG CUP"}</strong><span>{tournament?.location ?? text.locationTba} · {tournament?.bracket_size ?? 16} {text.pairs}</span>{tournaments.length > 1 && <label className="bracket-selector"><span>Choose tournament</span><select value={tournament?.slug ?? ""} onChange={(event) => selectTournament(event.target.value)}>{tournaments.map((item) => <option value={item.slug} key={item.id}>{item.name}</option>)}</select></label>}</div></section>
     {champion && <section className="champion-banner"><span>Champion</span><div><strong>{champion.name}</strong><small>{champion.player_one} · {champion.player_two}</small></div><b>KYNG CUP</b></section>}
     {loading ? <div className="bracket-state" role="status" aria-live="polite">Loading the draw…</div> : error ? <div className="bracket-state is-error" role="alert">{error}</div> : <>
       <nav className="round-tabs" aria-label="Tournament rounds">{rounds.map((round) => <button className={activeRound === round.number ? "is-active" : ""} type="button" onClick={() => setActiveRound(round.number)} key={round.number}><span>0{round.number}</span>{round.label}</button>)}</nav>
@@ -112,7 +112,7 @@ export default function BracketPage() {
         {rounds.map((round) => {
           const power = 2 ** (round.number - 1);
           const roundStyle = { "--round-gap": `${168 * power - 154}px`, "--round-offset": `${84 * (power - 1)}px` } as CSSProperties;
-          return <section className={`bracket-round round-${round.number}${activeRound === round.number ? " is-active" : ""}`} key={round.number}><header><span>0{round.number}</span><h2>{round.label}</h2><small>{matches.filter((match) => match.round === round.number).length} {text.matches}</small></header><div className="round-matches" style={roundStyle}>{matches.filter((match) => match.round === round.number).map((match) => <MatchCard key={match.id} match={match} pairMap={pairMap} language={language} />)}</div></section>;
+          return <section className={`bracket-round round-${round.number}${activeRound === round.number ? " is-active" : ""}`} key={round.number}><header><span>0{round.number}</span><h2>{round.label}</h2></header><div className="round-matches" style={roundStyle}>{matches.filter((match) => match.round === round.number).map((match) => <MatchCard key={match.id} match={match} pairMap={pairMap} language={language} />)}</div></section>;
         })}
       </div></section>
       <div className="round-mobile-controls"><button type="button" onClick={() => setActiveRound((value) => Math.max(1, value - 1))} disabled={activeRound === 1}>← {text.previous}</button><span>{activeRound} / {rounds.length}</span><button type="button" onClick={() => setActiveRound((value) => Math.min(rounds.length, value + 1))} disabled={activeRound === rounds.length}>{text.next} →</button></div>

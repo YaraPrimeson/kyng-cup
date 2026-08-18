@@ -16,7 +16,7 @@ export default function Home() {
   const basePath = pathname.startsWith("/kyng-cup") ? "/kyng-cup" : "";
   const { language } = useLanguage();
   const c = copy[language];
-  return <main className="universal-page">
+  return <main className="universal-page" data-language={language} key={language}>
     <section className="universal-hero"><div><p className="eyebrow">{c.eyebrow}</p><h1>{c.title}</h1><p>{c.intro}</p></div><span className="universal-scroll">KYNG CUP · 2026</span></section>
     <section className="universal-about"><div className="section-index"><span>01</span><span>{c.aboutLabel}</span></div><div><h2>{c.aboutTitle}</h2><p>{c.aboutText}</p></div></section>
     <section className="sport-choice"><div className="section-index"><span>02</span><span>{c.choose}</span></div><h2>{c.chooseTitle}</h2><div className="sport-choice-grid">
