@@ -30,13 +30,13 @@ const bracketCopy = {
 function getRounds(size: number, language: Language) {
   const labelsByLanguage: Record<Language, Record<number, string[]>> = {
     en: {
-    8: ["Quarterfinals", "Semifinals", "Final"],
-    16: ["Round of 16", "Quarterfinals", "Semifinals", "Final"],
-    32: ["Round of 32", "Round of 16", "Quarterfinals", "Semifinals", "Final"],
+    8: ["Quarterfinal", "Semifinal", "Final"],
+    16: ["Round of 16", "Quarterfinal", "Semifinal", "Final"],
+    32: ["Round of 32", "Round of 16", "Quarterfinal", "Semifinal", "Final"],
     },
-    uk: { 8: ["Чвертьфінали", "Півфінали", "Фінал"], 16: ["1/8 фіналу", "Чвертьфінали", "Півфінали", "Фінал"], 32: ["1/16 фіналу", "1/8 фіналу", "Чвертьфінали", "Півфінали", "Фінал"] },
+    uk: { 8: ["Чвертьфінал", "Півфінал", "Фінал"], 16: ["1/8 фіналу", "Чвертьфінал", "Півфінал", "Фінал"], 32: ["1/16 фіналу", "1/8 фіналу", "Чвертьфінал", "Півфінал", "Фінал"] },
     de: { 8: ["Viertelfinale", "Halbfinale", "Finale"], 16: ["Achtelfinale", "Viertelfinale", "Halbfinale", "Finale"], 32: ["Sechzehntelfinale", "Achtelfinale", "Viertelfinale", "Halbfinale", "Finale"] },
-    ru: { 8: ["Четвертьфиналы", "Полуфиналы", "Финал"], 16: ["1/8 финала", "Четвертьфиналы", "Полуфиналы", "Финал"], 32: ["1/16 финала", "1/8 финала", "Четвертьфиналы", "Полуфиналы", "Финал"] },
+    ru: { 8: ["Четвертьфинал", "Полуфинал", "Финал"], 16: ["1/8 финала", "Четвертьфинал", "Полуфинал", "Финал"], 32: ["1/16 финала", "1/8 финала", "Четвертьфинал", "Полуфинал", "Финал"] },
   };
   const labels = labelsByLanguage[language];
   return (labels[size] ?? labels[16]).map((label, index) => ({ number: index + 1, label }));

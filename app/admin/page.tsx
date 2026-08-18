@@ -16,6 +16,7 @@ type Tournament = {
   sport: Sport;
   location: string | null;
   starts_at: string | null;
+  ends_at: string | null;
   bracket_size: number;
   status: TournamentStatus;
   updated_at: string;
@@ -60,6 +61,14 @@ function toLocalDateTime(value: string | null) {
   return new Date(date.getTime() - offset).toISOString().slice(0, 16);
 }
 
+function toLocalDate(value: string | null) {
+  return toLocalDateTime(value).slice(0, 10);
+}
+
+function toIsoDate(value: string) {
+  return value ? new Date(`${value}T12:00:00`).toISOString() : null;
+}
+
 function parseScore(value: string) {
   const sets = value.split(",").map((set) => set.trim()).filter(Boolean);
   if (!sets.length) return null;
@@ -78,11 +87,12 @@ function Feedback({ message }: { message: string | null }) {
   return message ? <small className="admin-message" role="status">{message}</small> : null;
 }
 
-function CreateTournament({ onCreated }: { onCreated: (id: string) => void }) {
+function CreateTournament({ onCreated, onClose }: { onCreated: (id: string) => void; onClose: () => void }) {
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
   const [location, setLocation] = useState("Vienna, Austria");
   const [startsAt, setStartsAt] = useState("");
+  const [endsAt, setEndsAt] = useState("");
   const [size, setSize] = useState(16);
   const [sport, setSport] = useState<Sport>("tennis");
   const [status, setStatus] = useState<"draft" | "published">("published");
@@ -91,13 +101,14 @@ function CreateTournament({ onCreated }: { onCreated: (id: string) => void }) {
 
   async function create(event: FormEvent) {
     event.preventDefault();
+    if (startsAt && endsAt && endsAt < startsAt) { setMessage("End date cannot be earlier than start date."); return; }
     setSaving(true);
     setMessage(null);
     const { data, error } = await supabase.rpc("create_tournament_with_bracket", {
       p_name: name.trim(),
       p_slug: slug.trim().toLowerCase(),
       p_location: location.trim(),
-      p_starts_at: startsAt ? new Date(startsAt).toISOString() : null,
+      p_starts_at: toIsoDate(startsAt),
       p_bracket_size: size,
       p_sport: sport,
     });
@@ -108,7 +119,7 @@ function CreateTournament({ onCreated }: { onCreated: (id: string) => void }) {
     }
 
     const tournamentId = data as string;
-    const visibility = await supabase.from("tournaments").update({ status, updated_at: new Date().toISOString() }).eq("id", tournamentId).select("id").single();
+    const visibility = await supabase.from("tournaments").update({ status, ends_at: toIsoDate(endsAt), updated_at: new Date().toISOString() }).eq("id", tournamentId).select("id").single();
     setSaving(false);
     if (visibility.error) setMessage(visibility.error.message);
     else {
@@ -124,12 +135,13 @@ function CreateTournament({ onCreated }: { onCreated: (id: string) => void }) {
         <label className="admin-field"><span>Name</span><input value={name} onChange={(event) => { setName(event.target.value); if (!slug) setSlug(event.target.value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")); }} required /></label>
         <label className="admin-field"><span>URL slug</span><input value={slug} onChange={(event) => setSlug(event.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))} placeholder="kyng-cup-vienna-2027" required /></label>
         <label className="admin-field"><span>Location</span><input value={location} onChange={(event) => setLocation(event.target.value)} /></label>
-        <label className="admin-field"><span>Starts at</span><input type="datetime-local" value={startsAt} onChange={(event) => setStartsAt(event.target.value)} /></label>
+        <label className="admin-field"><span>Start date</span><input type="date" value={startsAt} max={endsAt || undefined} onChange={(event) => setStartsAt(event.target.value)} required /></label>
+        <label className="admin-field"><span>End date</span><input type="date" value={endsAt} min={startsAt || undefined} onChange={(event) => setEndsAt(event.target.value)} required /></label>
         <label className="admin-field"><span>Sport</span><select value={sport} onChange={(event) => setSport(event.target.value as Sport)}><option value="tennis">Tennis</option><option value="padel">Padel</option></select></label>
         <label className="admin-field"><span>Visibility / status</span><select value={status} onChange={(event) => setStatus(event.target.value as "draft" | "published")}><option value="published">Published · show on sport page</option><option value="draft">Draft · hidden</option></select></label>
         <label className="admin-field"><span>Pairs</span><select value={size} onChange={(event) => setSize(Number(event.target.value))}><option value={8}>8 pairs</option><option value={16}>16 pairs</option><option value={32}>32 pairs</option></select></label>
       </div>
-      <button className="admin-save-button" type="submit" disabled={saving}>{saving ? "Creating…" : "Create tournament"}</button>
+      <div className="admin-create-actions"><button className="admin-save-button" type="submit" disabled={saving}>{saving ? "Creating…" : "Create tournament"}</button><button className="admin-close-button" type="button" onClick={onClose}>Close</button></div>
       <Feedback message={message} />
     </form>
   );
@@ -138,7 +150,8 @@ function CreateTournament({ onCreated }: { onCreated: (id: string) => void }) {
 function TournamentSettings({ tournament, onSaved }: { tournament: Tournament; onSaved: () => void }) {
   const [name, setName] = useState(tournament.name);
   const [location, setLocation] = useState(tournament.location ?? "");
-  const [startsAt, setStartsAt] = useState(toLocalDateTime(tournament.starts_at));
+  const [startsAt, setStartsAt] = useState(toLocalDate(tournament.starts_at));
+  const [endsAt, setEndsAt] = useState(toLocalDate(tournament.ends_at));
   const [status, setStatus] = useState<TournamentStatus>(tournament.status);
   const [sport, setSport] = useState<Sport>(tournament.sport);
   const [saving, setSaving] = useState(false);
@@ -146,12 +159,13 @@ function TournamentSettings({ tournament, onSaved }: { tournament: Tournament; o
 
   async function save(event: FormEvent) {
     event.preventDefault();
+    if (startsAt && endsAt && endsAt < startsAt) { setMessage("End date cannot be earlier than start date."); return; }
     if (status === "completed" && tournament.status !== "completed" && !window.confirm("Archive this tournament as completed?")) return;
     setSaving(true);
     setMessage(null);
     const { error } = await supabase.from("tournaments").update({
       name: name.trim(), location: location.trim() || null,
-      starts_at: startsAt ? new Date(startsAt).toISOString() : null,
+      starts_at: toIsoDate(startsAt), ends_at: toIsoDate(endsAt),
       sport, status, updated_at: new Date().toISOString(),
     }).eq("id", tournament.id).select("id").single();
     setSaving(false);
@@ -164,7 +178,8 @@ function TournamentSettings({ tournament, onSaved }: { tournament: Tournament; o
       <div className="admin-form-grid">
         <label className="admin-field"><span>Tournament name</span><input value={name} onChange={(event) => setName(event.target.value)} required /></label>
         <label className="admin-field"><span>Location</span><input value={location} onChange={(event) => setLocation(event.target.value)} /></label>
-        <label className="admin-field"><span>Starts at</span><input type="datetime-local" value={startsAt} onChange={(event) => setStartsAt(event.target.value)} /></label>
+        <label className="admin-field"><span>Start date</span><input type="date" value={startsAt} max={endsAt || undefined} onChange={(event) => setStartsAt(event.target.value)} required /></label>
+        <label className="admin-field"><span>End date</span><input type="date" value={endsAt} min={startsAt || undefined} onChange={(event) => setEndsAt(event.target.value)} required /></label>
         <label className="admin-field"><span>Sport</span><select value={sport} onChange={(event) => setSport(event.target.value as Sport)}><option value="tennis">Tennis</option><option value="padel">Padel</option></select></label>
         <label className="admin-field"><span>Visibility / status</span><select value={status} onChange={(event) => setStatus(event.target.value as TournamentStatus)}><option value="draft">Draft · hidden</option><option value="published">Published</option><option value="live">Live now</option><option value="completed">Completed · archive</option></select></label>
       </div>
@@ -330,7 +345,7 @@ export default function AdminPage() {
     const membershipRows = (memberships.data ?? []) as { tournament_id: string; role: "owner" | "admin" }[];
     if (!membershipRows.length) { setTournaments([]); setSelectedId(null); setChecking(false); return; }
     const ids = membershipRows.map((item) => item.tournament_id);
-    const result = await supabase.from("tournaments").select("id,slug,name,sport,location,starts_at,bracket_size,status,updated_at").in("id", ids).order("created_at", { ascending: false });
+    const result = await supabase.from("tournaments").select("id,slug,name,sport,location,starts_at,ends_at,bracket_size,status,updated_at").in("id", ids).order("created_at", { ascending: false });
     const roles = new Map(membershipRows.map((item) => [item.tournament_id, item.role]));
     const managed = ((result.data ?? []) as Omit<Tournament, "role">[]).map((item) => ({ ...item, role: roles.get(item.id) ?? "admin" }));
     setTournaments(managed);
@@ -364,6 +379,7 @@ export default function AdminPage() {
   }, [loadTournamentData, loadTournaments, selectedId, user]);
 
   const pairMap = useMemo(() => new Map(pairs.map((pair) => [pair.id, pair])), [pairs]);
+  const matchesByRound = useMemo(() => Array.from(new Set(matches.map((match) => match.round))).sort((a, b) => a - b).map((round) => ({ round, matches: matches.filter((match) => match.round === round) })), [matches]);
 
   async function submitAuth(event: FormEvent) {
     event.preventDefault(); setAuthMessage(null);
@@ -379,8 +395,8 @@ export default function AdminPage() {
       ) : (
         <section className="admin-dashboard">
           <div className="admin-dashboard-heading"><div><p className="eyebrow">Tournament control centre</p><h1>Match control<span className="accent-dot">.</span></h1></div>{selected && <a href={`../bracket/?tournament=${selected.slug}`} target="_blank" rel="noreferrer">Open public bracket ↗</a>}</div>
-          <div className="admin-toolbar"><label className="admin-field"><span>Current tournament</span><select value={selectedId ?? ""} onChange={(event) => setSelectedId(event.target.value || null)}><option value="">No tournament selected</option>{tournaments.map((tournament) => <option value={tournament.id} key={tournament.id}>{tournament.name} · {tournament.sport} · {tournament.status}</option>)}</select></label>{canCreateTournament && <button type="button" onClick={() => setShowCreate((value) => !value)}>{showCreate ? "Close" : "+ New tournament"}</button>}</div>
-          {showCreate && canCreateTournament && <CreateTournament onCreated={(id) => { setShowCreate(false); void loadTournaments(user, id); }} />}
+          <div className="admin-toolbar"><label className="admin-field"><span>Current tournament</span><select value={selectedId ?? ""} onChange={(event) => setSelectedId(event.target.value || null)}><option value="">No tournament selected</option>{tournaments.map((tournament) => <option value={tournament.id} key={tournament.id}>{tournament.name} · {tournament.sport} · {tournament.status}</option>)}</select></label>{canCreateTournament && <button type="button" onClick={() => { setSelectedId(null); setShowCreate(true); }}>+ New tournament</button>}</div>
+          {showCreate && canCreateTournament && <CreateTournament onClose={() => setShowCreate(false)} onCreated={(id) => { setShowCreate(false); void loadTournaments(user, id); }} />}
           {!tournaments.length && <div className="admin-muted-note">This account has no tournament access yet. Ask an owner to add your email as an administrator.</div>}
           {selected && <>
             <div className="admin-section-heading admin-first-section"><div><span>01</span><h2>Tournament</h2></div><p>Publish, start live coverage or archive the completed tournament.</p></div>
@@ -391,7 +407,7 @@ export default function AdminPage() {
             </details>
             <details className="admin-collapsible admin-matches-heading" open>
               <summary><div><span>03</span><h2>Matches &amp; courts</h2></div><p>Schedule matches, switch LIVE on, enter scores and correct results safely.</p></summary>
-              <div className="admin-collapsible-content"><div className="admin-match-grid">{matches.map((match) => <AdminMatch key={`${match.id}-${match.updated_at}`} match={match} pairMap={pairMap} bracketSize={selected.bracket_size} onSaved={() => void loadTournamentData()} />)}</div></div>
+              <div className="admin-collapsible-content admin-round-groups">{matchesByRound.map(({ round, matches: roundMatches }) => <details className="admin-round-group" open key={round}><summary><h3>{roundLabels[selected.bracket_size]?.[round] ?? `Round ${round}`}</h3><span>{roundMatches.length}</span></summary><div className="admin-match-grid">{roundMatches.map((match) => <AdminMatch key={`${match.id}-${match.updated_at}`} match={match} pairMap={pairMap} bracketSize={selected.bracket_size} onSaved={() => void loadTournamentData()} />)}</div></details>)}</div>
             </details>
             <div className="admin-section-heading admin-matches-heading"><div><span>04</span><h2>Team &amp; roles</h2></div><p>Owners control structure and access; administrators manage tournament operations.</p></div>
             <TeamManager tournament={selected} members={members} onSaved={() => void loadTournamentData()} />

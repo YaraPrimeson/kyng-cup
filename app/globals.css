@@ -492,11 +492,28 @@ body { font-size: 18px; }
 .admin-field select:focus { border-color: var(--forest); }
 .admin-create-card, .admin-settings-card, .admin-draw-card, .admin-team-card { padding: 22px; border: 1px solid var(--line); border-radius: 20px; background: #fff; }
 .admin-create-card { margin-bottom: 50px; }
+.admin-create-actions { margin-top: 24px; display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.admin-close-button { border: 1px solid var(--forest); border-radius: 999px; padding: 9px 15px; background: transparent; color: var(--forest); cursor: pointer; font-size: 12px; }
 .admin-settings-card { display: grid; gap: 18px; }
 .compact-heading { padding-top: 0; border-top: 0; }
 .admin-first-section { margin-top: 50px; }
 .admin-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 13px; }
 .admin-match.status-live { box-shadow: inset 0 3px 0 var(--clay); }
+.admin-round-groups { display: grid; gap: 18px; }
+.admin-round-group { padding: 18px; border: 1px solid var(--line); border-radius: 18px; background: rgba(255,255,255,.52); }
+.admin-round-group > summary { list-style: none; display: flex; justify-content: space-between; align-items: center; gap: 20px; cursor: pointer; }
+.admin-round-group > summary::-webkit-details-marker { display: none; }
+.admin-round-group > summary h3 { margin: 0; font: 500 27px/1 var(--font-lora), Georgia, serif; }
+.admin-round-group > summary span { min-width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%; background: var(--forest); color: #fff; font-size: 11px; }
+.admin-round-group > summary::after { content: "Hide −"; margin-left: auto; border-bottom: 1px solid currentColor; padding-bottom: 3px; text-transform: uppercase; letter-spacing: .08em; font-size: 10px; }
+.admin-round-group:not([open]) > summary::after { content: "Show +"; }
+html[lang="uk"] .admin-round-group > summary::after { content: "Сховати −"; }
+html[lang="uk"] .admin-round-group:not([open]) > summary::after { content: "Показати +"; }
+html[lang="de"] .admin-round-group > summary::after { content: "Ausblenden −"; }
+html[lang="de"] .admin-round-group:not([open]) > summary::after { content: "Zeigen +"; }
+html[lang="ru"] .admin-round-group > summary::after { content: "Скрыть −"; }
+html[lang="ru"] .admin-round-group:not([open]) > summary::after { content: "Показать +"; }
+.admin-round-group > .admin-match-grid { margin-top: 16px; }
 .admin-match-details { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; padding: 12px 0; border-top: 1px solid var(--line); }
 .admin-match-details > label:first-child { grid-column: 1 / -1; }
 .admin-match-details > button { align-self: end; height: 37px; border: 1px solid var(--forest); border-radius: 10px; padding: 0 12px; background: transparent; color: var(--forest); cursor: pointer; font-size: 12px; }

@@ -39,7 +39,7 @@ test("server-renders distinct tennis and padel pages", async () => {
 });
 
 test("ships live bracket and protected tournament controls", async () => {
-  const [admin, bracket, home, upcoming, i18n, styles, sportPage, footer, exporter, migration, sportMigration] = await Promise.all([
+  const [admin, bracket, home, upcoming, i18n, styles, sportPage, footer, exporter, migration, sportMigration, dateMigration] = await Promise.all([
     readFile(new URL("../app/admin/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/bracket/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
@@ -51,6 +51,7 @@ test("ships live bracket and protected tournament controls", async () => {
     readFile(new URL("../scripts/export-pages.mjs", import.meta.url), "utf8"),
     readFile(new URL("../supabase/migrations/20260814190000_full_tournament_management.sql", import.meta.url), "utf8"),
     readFile(new URL("../supabase/migrations/20260818120000_add_tournament_sport.sql", import.meta.url), "utf8"),
+    readFile(new URL("../supabase/migrations/20260818122000_add_tournament_end_date.sql", import.meta.url), "utf8"),
   ]);
 
   assert.match(admin, /create_tournament_with_bracket/);
@@ -58,6 +59,11 @@ test("ships live bracket and protected tournament controls", async () => {
   assert.doesNotMatch(admin, /ManualDraw/);
   assert.match(admin, /Published · show on sport page/);
   assert.match(admin, /Update live score/);
+  assert.match(admin, /setSelectedId\(null\); setShowCreate\(true\)/);
+  assert.match(admin, /admin-create-actions/);
+  assert.match(admin, /ends_at/);
+  assert.match(admin, /matchesByRound/);
+  assert.match(admin, /admin-round-group/);
   assert.match(admin, /Team &amp; roles/);
   assert.doesNotMatch(admin, /Activity log/);
   assert.match(bracket, /postgres_changes/);
@@ -67,6 +73,8 @@ test("ships live bracket and protected tournament controls", async () => {
   assert.match(bracket, /\["published", "live"\]/);
   assert.doesNotMatch(bracket, /archive/);
   assert.doesNotMatch(bracket, /text\.matches/);
+  assert.match(bracket, /\["Quarterfinal", "Semifinal", "Final"\]/);
+  assert.doesNotMatch(bracket, /Quarterfinals|Semifinals/);
   assert.match(home, /key=\{language\}/);
   assert.match(home, /honest competition/);
   assert.doesNotMatch(home, /serious competition/);
@@ -94,4 +102,6 @@ test("ships live bracket and protected tournament controls", async () => {
   assert.match(migration, /activity_log/);
   assert.match(sportMigration, /tournaments_sport_check/);
   assert.match(sportMigration, /p_sport text/);
+  assert.match(dateMigration, /add column if not exists ends_at timestamptz/);
+  assert.match(dateMigration, /ends_at >= starts_at/);
 });
