@@ -94,6 +94,7 @@ test("ships live bracket and protected tournament controls", async () => {
   assert.doesNotMatch(sportPage, /is-highlighted|className="preview-match is-live"/);
   assert.match(footer, /aria-label="Telegram"/);
   assert.match(footer, /aria-label="Instagram"/);
+  assert.doesNotMatch(footer, /mailto:|t\("contact"\)/);
   assert.doesNotMatch(footer, /basePath}\/tennis|basePath}\/padel/);
   assert.doesNotMatch(exporter, /if\s*\(route === "\/"\)/);
   assert.doesNotMatch(exporter, /replace\(\/<script/);
