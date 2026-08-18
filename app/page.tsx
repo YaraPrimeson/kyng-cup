@@ -1,5 +1,6 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import SiteFooter from "./site-footer";
 import { Language, useLanguage } from "./i18n";
 
@@ -11,14 +12,16 @@ const copy: Record<Language, { eyebrow: string; title: string; intro: string; ab
 };
 
 export default function Home() {
+  const pathname = usePathname();
+  const basePath = pathname.startsWith("/kyng-cup") ? "/kyng-cup" : "";
   const { language } = useLanguage();
   const c = copy[language];
   return <main className="universal-page">
     <section className="universal-hero"><div><p className="eyebrow">{c.eyebrow}</p><h1>{c.title}</h1><p>{c.intro}</p></div><span className="universal-scroll">KYNG CUP · 2026</span></section>
     <section className="universal-about"><div className="section-index"><span>01</span><span>{c.aboutLabel}</span></div><div><h2>{c.aboutTitle}</h2><p>{c.aboutText}</p></div></section>
     <section className="sport-choice"><div className="section-index"><span>02</span><span>{c.choose}</span></div><h2>{c.chooseTitle}</h2><div className="sport-choice-grid">
-      <a className="sport-choice-card tennis-choice" href="/tennis/"><span>Tennis</span><p>{c.tennisText}</p><strong>{c.enter} ↗</strong></a>
-      <a className="sport-choice-card padel-choice" href="/padel/"><span>Padel</span><p>{c.padelText}</p><strong>{c.enter} ↗</strong></a>
+      <a className="sport-choice-card tennis-choice" href={`${basePath}/tennis/`}><span>Tennis</span><p>{c.tennisText}</p><strong>{c.enter} ↗</strong></a>
+      <a className="sport-choice-card padel-choice" href={`${basePath}/padel/`}><span>Padel</span><p>{c.padelText}</p><strong>{c.enter} ↗</strong></a>
     </div></section>
     <SiteFooter />
   </main>;

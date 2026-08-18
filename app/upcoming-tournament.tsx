@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { useLanguage } from "./i18n";
 
@@ -9,6 +10,8 @@ type Tournament = { id: string; slug: string; name: string; location: string | n
 const locales = { en: "en-GB", uk: "uk-UA", de: "de-AT", ru: "ru-RU" } as const;
 
 export default function UpcomingTournament({ sport }: { sport: Sport }) {
+  const pathname = usePathname();
+  const basePath = pathname.startsWith("/kyng-cup") ? "/kyng-cup" : "";
   const { language, t } = useLanguage();
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [loading, setLoading] = useState(true);
@@ -25,7 +28,7 @@ export default function UpcomingTournament({ sport }: { sport: Sport }) {
   return <section className="upcoming-dynamic" id="tournament"><div className="section-index"><span>03</span><span>{t("upcoming")}</span></div>
     {loading ? <p className="upcoming-state">{t("loadingTournament")}</p> : !tournament ? <p className="upcoming-state">{t("noTournament")}</p> : <div className="upcoming-layout">
       <div className="upcoming-date"><strong>{date ? new Intl.DateTimeFormat(locales[language], { day: "2-digit" }).format(date) : "—"}</strong><span>{date ? new Intl.DateTimeFormat(locales[language], { month: "long", year: "numeric" }).format(date) : t("scheduled")}</span></div>
-      <div className="upcoming-copy"><span className={`live-indicator${tournament.status === "live" ? " is-live" : ""}`}><i />{tournament.status === "live" ? t("live") : t("scheduled")}</span><h2>{tournament.name}</h2><div><span>{t("location")}<strong>{tournament.location ?? "Vienna, Austria"}</strong></span><span>{t("pairs")}<strong>{tournament.bracket_size}</strong></span></div><a href={`/bracket/?tournament=${tournament.slug}&sport=${sport}`}>{t("viewBracket")} ↗</a></div>
+      <div className="upcoming-copy"><span className={`live-indicator${tournament.status === "live" ? " is-live" : ""}`}><i />{tournament.status === "live" ? t("live") : t("scheduled")}</span><h2>{tournament.name}</h2><div><span>{t("location")}<strong>{tournament.location ?? "Vienna, Austria"}</strong></span><span>{t("pairs")}<strong>{tournament.bracket_size}</strong></span></div><a href={`${basePath}/bracket/?tournament=${tournament.slug}&sport=${sport}`}>{t("viewBracket")} ↗</a></div>
     </div>}
   </section>;
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import { Language, useLanguage } from "./i18n";
 import SiteFooter from "./site-footer";
 import UpcomingTournament from "./upcoming-tournament";
@@ -23,6 +24,8 @@ const copy: Record<Sport, Record<Language, SportCopy>> = {
 };
 
 export default function SportPage({ sport }: { sport: Sport }) {
+  const pathname = usePathname();
+  const basePath = pathname.startsWith("/kyng-cup") ? "/kyng-cup" : "";
   const { language, t } = useLanguage();
   const c = copy[sport][language];
   return <main className={`sport-page ${sport}-page`}>
@@ -30,7 +33,7 @@ export default function SportPage({ sport }: { sport: Sport }) {
     <section className="manifesto"><div className="section-index"><span>01</span><span>{c.approach}</span></div><div className="manifesto-copy"><p className="kicker">{c.kicker}</p><h2>{c.approachTitle}</h2><p className="manifesto-lead">{c.approachText}</p></div><div className="principle-card"><span className="principle-number">100%</span><p>KYNG CUP</p></div></section>
     <section className="experience"><div className="experience-visual" role="img" aria-label={`${sport} player in motion`}><div className="visual-label"><span>KYNG standard</span><strong>{c.visual}</strong></div></div><div className="experience-copy"><div className="section-index light"><span>02</span><span>{c.experience}</span></div><h2>{c.experienceTitle}</h2><div className="experience-list">{c.points.map(([title, text], index) => <article key={title}><span>0{index + 1}</span><div><h3>{title}</h3><p>{text}</p></div></article>)}</div></div></section>
     <UpcomingTournament sport={sport} />
-    <section className="home-bracket-cta"><div className="home-bracket-copy"><div className="section-index"><span>04</span><span>{c.liveLabel}</span></div><span className="home-live-label"><i />{t("live")}</span><h2>{c.liveTitle}</h2><p>{c.liveText}</p><a href={`/bracket/?sport=${sport}`}>{t("openBracket")} ↗</a></div><div className="home-bracket-preview" aria-hidden="true"><div className="preview-round-labels"><span>Round of 16</span><span>Quarterfinal</span><span>Final</span></div><div className="preview-bracket-grid"><div className="preview-column"><div className="preview-match"><span><b>01</b> Vienna Pair</span><span><b>08</b> King&apos;s Court</span></div><div className="preview-match"><span><b>04</b> Clay Club</span><span><b>05</b> Match Point</span></div></div><div className="preview-column preview-middle"><div className="preview-match is-highlighted"><span><b>01</b> Vienna Pair</span><span><b>04</b> Clay Club</span></div></div><div className="preview-column preview-final"><div className="preview-match is-live"><small>Live · Centre court</small><span><b>01</b> Vienna Pair</span><span><b>02</b> Centre Court</span></div></div></div></div></section>
+    <section className="home-bracket-cta"><div className="home-bracket-copy"><div className="section-index"><span>04</span><span>{c.liveLabel}</span></div><span className="home-live-label"><i />{t("live")}</span><h2>{c.liveTitle}</h2><p>{c.liveText}</p><a href={`${basePath}/bracket/?sport=${sport}`}>{t("openBracket")} ↗</a></div><div className="home-bracket-preview" aria-hidden="true"><div className="preview-round-labels"><span>Round of 16</span><span>Quarterfinal</span><span>Final</span></div><div className="preview-bracket-grid"><div className="preview-column"><div className="preview-match"><span><b>01</b> Vienna Pair</span><span><b>08</b> King&apos;s Court</span></div><div className="preview-match"><span><b>04</b> Clay Club</span><span><b>05</b> Match Point</span></div></div><div className="preview-column preview-middle"><div className="preview-match is-highlighted"><span><b>01</b> Vienna Pair</span><span><b>04</b> Clay Club</span></div></div><div className="preview-column preview-final"><div className="preview-match is-live"><small>Live · Centre court</small><span><b>01</b> Vienna Pair</span><span><b>02</b> Centre Court</span></div></div></div></div></section>
     <SiteFooter />
   </main>;
 }

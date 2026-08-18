@@ -87,6 +87,7 @@ function CreateTournament({ onCreated }: { onCreated: (id: string) => void }) {
   const [startsAt, setStartsAt] = useState("");
   const [size, setSize] = useState(16);
   const [sport, setSport] = useState<Sport>("tennis");
+  const [status, setStatus] = useState<"draft" | "published">("published");
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -102,11 +103,19 @@ function CreateTournament({ onCreated }: { onCreated: (id: string) => void }) {
       p_bracket_size: size,
       p_sport: sport,
     });
+    if (error) {
+      setSaving(false);
+      setMessage(error.message);
+      return;
+    }
+
+    const tournamentId = data as string;
+    const visibility = await supabase.from("tournaments").update({ status, updated_at: new Date().toISOString() }).eq("id", tournamentId).select("id").single();
     setSaving(false);
-    if (error) setMessage(error.message);
+    if (visibility.error) setMessage(visibility.error.message);
     else {
-      setMessage("Tournament created. Add participant names and publish when ready.");
-      onCreated(data as string);
+      setMessage(status === "published" ? "Tournament created and published on the relevant sport page." : "Draft tournament created.");
+      onCreated(tournamentId);
     }
   }
 
@@ -119,6 +128,7 @@ function CreateTournament({ onCreated }: { onCreated: (id: string) => void }) {
         <label className="admin-field"><span>Location</span><input value={location} onChange={(event) => setLocation(event.target.value)} /></label>
         <label className="admin-field"><span>Starts at</span><input type="datetime-local" value={startsAt} onChange={(event) => setStartsAt(event.target.value)} /></label>
         <label className="admin-field"><span>Sport</span><select value={sport} onChange={(event) => setSport(event.target.value as Sport)}><option value="tennis">Tennis</option><option value="padel">Padel</option></select></label>
+        <label className="admin-field"><span>Visibility / status</span><select value={status} onChange={(event) => setStatus(event.target.value as "draft" | "published")}><option value="published">Published · show on sport page</option><option value="draft">Draft · hidden</option></select></label>
         <label className="admin-field"><span>Pairs</span><select value={size} onChange={(event) => setSize(Number(event.target.value))}><option value={8}>8 pairs</option><option value={16}>16 pairs</option><option value={32}>32 pairs</option></select></label>
       </div>
       <button className="admin-save-button" type="submit" disabled={saving}>{saving ? "Creating…" : "Create tournament"}</button>
@@ -193,41 +203,6 @@ function PairEditor({ pair, onSaved }: { pair: Pair; onSaved: () => void }) {
       <button className="admin-save-button" type="submit" disabled={saving}>{saving ? "Saving…" : "Save names"}</button>
       <Feedback message={message} />
     </form>
-  );
-}
-
-function ManualDraw({ tournament, pairs, onSaved }: { tournament: Tournament; pairs: Pair[]; onSaved: () => void }) {
-  const initial = useMemo(() => [...pairs].sort((a, b) => (a.seed ?? 999) - (b.seed ?? 999)).map((pair) => pair.id), [pairs]);
-  const [order, setOrder] = useState(initial);
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-  const pairMap = useMemo(() => new Map(pairs.map((pair) => [pair.id, pair])), [pairs]);
-
-  function move(index: number, direction: -1 | 1) {
-    const target = index + direction;
-    if (target < 0 || target >= order.length) return;
-    const next = [...order];
-    [next[index], next[target]] = [next[target], next[index]];
-    setOrder(next);
-  }
-
-  async function save() {
-    if (!window.confirm("Apply this manual draw? It can only be changed before matches begin.")) return;
-    setSaving(true); setMessage(null);
-    const { error } = await supabase.rpc("set_manual_draw", { p_tournament_id: tournament.id, p_pair_ids: order });
-    setSaving(false);
-    if (error) setMessage(error.message); else { setMessage("Manual draw saved."); onSaved(); }
-  }
-
-  if (tournament.role !== "owner") return <p className="admin-muted-note">Only the tournament owner can change the draw.</p>;
-  return (
-    <div className="admin-draw-card">
-      <div className="admin-draw-list">
-        {order.map((id, index) => <div className="admin-draw-row" key={id}><span>{String(index + 1).padStart(2, "0")}</span><strong>{pairMap.get(id)?.name}</strong><small>{index % 2 === 0 ? `Match ${Math.floor(index / 2) + 1} · first slot` : `Match ${Math.floor(index / 2) + 1} · second slot`}</small><div><button type="button" onClick={() => move(index, -1)} disabled={index === 0} aria-label="Move up">↑</button><button type="button" onClick={() => move(index, 1)} disabled={index === order.length - 1} aria-label="Move down">↓</button></div></div>)}
-      </div>
-      <button className="admin-save-button" type="button" onClick={() => void save()} disabled={saving}>{saving ? "Saving…" : "Save manual draw"}</button>
-      <Feedback message={message} />
-    </div>
   );
 }
 
@@ -400,18 +375,16 @@ export default function AdminPage() {
             <div className="admin-section-heading admin-first-section"><div><span>01</span><h2>Tournament</h2></div><p>Publish, start live coverage or archive the completed tournament.</p></div>
             <TournamentSettings key={selected.updated_at} tournament={selected} onSaved={() => void loadTournaments(user)} />
             <details className="admin-collapsible admin-matches-heading">
-              <summary><div><span>02</span><h2>Participants</h2></div><p>Edit every pair, then place them manually into the draw.</p></summary>
+              <summary><div><span>02</span><h2>Participants</h2></div><p>Edit the pair and player names used in the tournament bracket.</p></summary>
               <div className="admin-collapsible-content"><div className="admin-pair-grid">{pairs.map((pair) => <PairEditor key={`${pair.id}-${pair.updated_at}`} pair={pair} onSaved={() => void loadTournamentData()} />)}</div></div>
             </details>
-            <div className="admin-section-heading admin-matches-heading"><div><span>03</span><h2>Manual draw</h2></div><p>Use the arrows to assign each pair to a first-round position.</p></div>
-            <ManualDraw tournament={selected} pairs={pairs} onSaved={() => void loadTournamentData()} />
             <details className="admin-collapsible admin-matches-heading" open>
-              <summary><div><span>04</span><h2>Matches &amp; courts</h2></div><p>Schedule matches, switch LIVE on, enter scores and correct results safely.</p></summary>
+              <summary><div><span>03</span><h2>Matches &amp; courts</h2></div><p>Schedule matches, switch LIVE on, enter scores and correct results safely.</p></summary>
               <div className="admin-collapsible-content"><div className="admin-match-grid">{matches.map((match) => <AdminMatch key={`${match.id}-${match.updated_at}`} match={match} pairMap={pairMap} bracketSize={selected.bracket_size} onSaved={() => void loadTournamentData()} />)}</div></div>
             </details>
-            <div className="admin-section-heading admin-matches-heading"><div><span>05</span><h2>Team &amp; roles</h2></div><p>Owners control structure and access; administrators manage tournament operations.</p></div>
+            <div className="admin-section-heading admin-matches-heading"><div><span>04</span><h2>Team &amp; roles</h2></div><p>Owners control structure and access; administrators manage tournament operations.</p></div>
             <TeamManager tournament={selected} members={members} onSaved={() => void loadTournamentData()} />
-            <div className="admin-section-heading admin-matches-heading"><div><span>06</span><h2>Activity log</h2></div><p>The latest protected changes to tournament data.</p></div>
+            <div className="admin-section-heading admin-matches-heading"><div><span>05</span><h2>Activity log</h2></div><p>The latest protected changes to tournament data.</p></div>
             <div className="admin-activity-list">{activity.length ? activity.map((item) => <div key={item.id}><span>{item.entity_type}</span><strong>{item.action.replaceAll("_", " ")}</strong><time>{new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" }).format(new Date(item.created_at))}</time></div>) : <p>No changes recorded yet.</p>}</div>
           </>}
         </section>
