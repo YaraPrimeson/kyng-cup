@@ -3,15 +3,17 @@
 import type { User } from "@supabase/supabase-js";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import Wordmark from "../wordmark";
+import { useLanguage } from "../i18n";
 
 type TournamentStatus = "draft" | "published" | "live" | "completed";
 type MatchStatus = "scheduled" | "live" | "completed";
+type Sport = "tennis" | "padel";
 
 type Tournament = {
   id: string;
   slug: string;
   name: string;
+  sport: Sport;
   location: string | null;
   starts_at: string | null;
   bracket_size: number;
@@ -84,6 +86,7 @@ function CreateTournament({ onCreated }: { onCreated: (id: string) => void }) {
   const [location, setLocation] = useState("Vienna, Austria");
   const [startsAt, setStartsAt] = useState("");
   const [size, setSize] = useState(16);
+  const [sport, setSport] = useState<Sport>("tennis");
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -97,6 +100,7 @@ function CreateTournament({ onCreated }: { onCreated: (id: string) => void }) {
       p_location: location.trim(),
       p_starts_at: startsAt ? new Date(startsAt).toISOString() : null,
       p_bracket_size: size,
+      p_sport: sport,
     });
     setSaving(false);
     if (error) setMessage(error.message);
@@ -114,6 +118,7 @@ function CreateTournament({ onCreated }: { onCreated: (id: string) => void }) {
         <label className="admin-field"><span>URL slug</span><input value={slug} onChange={(event) => setSlug(event.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))} placeholder="kyng-cup-vienna-2027" required /></label>
         <label className="admin-field"><span>Location</span><input value={location} onChange={(event) => setLocation(event.target.value)} /></label>
         <label className="admin-field"><span>Starts at</span><input type="datetime-local" value={startsAt} onChange={(event) => setStartsAt(event.target.value)} /></label>
+        <label className="admin-field"><span>Sport</span><select value={sport} onChange={(event) => setSport(event.target.value as Sport)}><option value="tennis">Tennis</option><option value="padel">Padel</option></select></label>
         <label className="admin-field"><span>Pairs</span><select value={size} onChange={(event) => setSize(Number(event.target.value))}><option value={8}>8 pairs</option><option value={16}>16 pairs</option><option value={32}>32 pairs</option></select></label>
       </div>
       <button className="admin-save-button" type="submit" disabled={saving}>{saving ? "Creating…" : "Create tournament"}</button>
@@ -127,6 +132,7 @@ function TournamentSettings({ tournament, onSaved }: { tournament: Tournament; o
   const [location, setLocation] = useState(tournament.location ?? "");
   const [startsAt, setStartsAt] = useState(toLocalDateTime(tournament.starts_at));
   const [status, setStatus] = useState<TournamentStatus>(tournament.status);
+  const [sport, setSport] = useState<Sport>(tournament.sport);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -138,7 +144,7 @@ function TournamentSettings({ tournament, onSaved }: { tournament: Tournament; o
     const { error } = await supabase.from("tournaments").update({
       name: name.trim(), location: location.trim() || null,
       starts_at: startsAt ? new Date(startsAt).toISOString() : null,
-      status, updated_at: new Date().toISOString(),
+      sport, status, updated_at: new Date().toISOString(),
     }).eq("id", tournament.id).select("id").single();
     setSaving(false);
     if (error) setMessage(error.message);
@@ -151,6 +157,7 @@ function TournamentSettings({ tournament, onSaved }: { tournament: Tournament; o
         <label className="admin-field"><span>Tournament name</span><input value={name} onChange={(event) => setName(event.target.value)} required /></label>
         <label className="admin-field"><span>Location</span><input value={location} onChange={(event) => setLocation(event.target.value)} /></label>
         <label className="admin-field"><span>Starts at</span><input type="datetime-local" value={startsAt} onChange={(event) => setStartsAt(event.target.value)} /></label>
+        <label className="admin-field"><span>Sport</span><select value={sport} onChange={(event) => setSport(event.target.value as Sport)}><option value="tennis">Tennis</option><option value="padel">Padel</option></select></label>
         <label className="admin-field"><span>Visibility / status</span><select value={status} onChange={(event) => setStatus(event.target.value as TournamentStatus)}><option value="draft">Draft · hidden</option><option value="published">Published</option><option value="live">Live now</option><option value="completed">Completed · archive</option></select></label>
       </div>
       <button className="admin-save-button" type="submit" disabled={saving}>{saving ? "Saving…" : "Save tournament"}</button>
@@ -310,6 +317,8 @@ function TeamManager({ tournament, members, onSaved }: { tournament: Tournament;
 }
 
 export default function AdminPage() {
+  const { language } = useLanguage();
+  const adminTitle = { en: ["Tournament", "admin"], uk: ["Адміністрування", "турніру"], de: ["Turnier-", "verwaltung"], ru: ["Управление", "турниром"] }[language];
   const [user, setUser] = useState<User | null>(null);
   const [checking, setChecking] = useState(true);
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
@@ -334,7 +343,7 @@ export default function AdminPage() {
     const membershipRows = (memberships.data ?? []) as { tournament_id: string; role: "owner" | "admin" }[];
     if (!membershipRows.length) { setTournaments([]); setSelectedId(null); setChecking(false); return; }
     const ids = membershipRows.map((item) => item.tournament_id);
-    const result = await supabase.from("tournaments").select("id,slug,name,location,starts_at,bracket_size,status,updated_at").in("id", ids).order("created_at", { ascending: false });
+    const result = await supabase.from("tournaments").select("id,slug,name,sport,location,starts_at,bracket_size,status,updated_at").in("id", ids).order("created_at", { ascending: false });
     const roles = new Map(membershipRows.map((item) => [item.tournament_id, item.role]));
     const managed = ((result.data ?? []) as Omit<Tournament, "role">[]).map((item) => ({ ...item, role: roles.get(item.id) ?? "admin" }));
     setTournaments(managed);
@@ -378,13 +387,13 @@ export default function AdminPage() {
 
   return (
     <main className="admin-page">
-      <header className="admin-header"><a className="brand" href="../"><Wordmark /></a>{user && <button type="button" onClick={() => void supabase.auth.signOut()}>Sign out</button>}</header>
+      {user && <div className="admin-session"><button type="button" onClick={() => void supabase.auth.signOut()}>Sign out</button></div>}
       {checking ? <section className="admin-state" role="status">Checking access…</section> : !user ? (
-        <section className="admin-auth"><div><p className="eyebrow">Protected area</p><h1>Tournament<br />admin<span className="accent-dot">.</span></h1><p>Sign in to create tournaments, manage participants, schedules and live results.</p></div><form onSubmit={submitAuth}><label><span>Email</span><input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required /></label><label><span>Password</span><input type="password" value={password} onChange={(event) => setPassword(event.target.value)} minLength={8} required /></label><button type="submit">{authMode === "signin" ? "Sign in" : "Create account"} <span aria-hidden="true">↗</span></button><button className="auth-switch" type="button" onClick={() => setAuthMode(authMode === "signin" ? "signup" : "signin")}>{authMode === "signin" ? "Create a new account" : "I already have an account"}</button><Feedback message={authMessage} /></form></section>
+        <section className="admin-auth"><div><p className="eyebrow">Protected area</p><h1>{adminTitle[0]}<br />{adminTitle[1]}<span className="accent-dot">.</span></h1><p>Sign in to create tournaments, manage participants, schedules and live results.</p></div><form onSubmit={submitAuth}><label><span>Email</span><input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required /></label><label><span>Password</span><input type="password" value={password} onChange={(event) => setPassword(event.target.value)} minLength={8} required /></label><button type="submit">{authMode === "signin" ? "Sign in" : "Create account"} <span aria-hidden="true">↗</span></button><button className="auth-switch" type="button" onClick={() => setAuthMode(authMode === "signin" ? "signup" : "signin")}>{authMode === "signin" ? "Create a new account" : "I already have an account"}</button><Feedback message={authMessage} /></form></section>
       ) : (
         <section className="admin-dashboard">
           <div className="admin-dashboard-heading"><div><p className="eyebrow">Tournament control centre</p><h1>Match control<span className="accent-dot">.</span></h1></div>{selected && <a href={`../bracket/?tournament=${selected.slug}`} target="_blank" rel="noreferrer">Open public bracket ↗</a>}</div>
-          <div className="admin-toolbar"><label className="admin-field"><span>Current tournament</span><select value={selectedId ?? ""} onChange={(event) => setSelectedId(event.target.value || null)}><option value="">No tournament selected</option>{tournaments.map((tournament) => <option value={tournament.id} key={tournament.id}>{tournament.name} · {tournament.status}</option>)}</select></label>{canCreateTournament && <button type="button" onClick={() => setShowCreate((value) => !value)}>{showCreate ? "Close" : "+ New tournament"}</button>}</div>
+          <div className="admin-toolbar"><label className="admin-field"><span>Current tournament</span><select value={selectedId ?? ""} onChange={(event) => setSelectedId(event.target.value || null)}><option value="">No tournament selected</option>{tournaments.map((tournament) => <option value={tournament.id} key={tournament.id}>{tournament.name} · {tournament.sport} · {tournament.status}</option>)}</select></label>{canCreateTournament && <button type="button" onClick={() => setShowCreate((value) => !value)}>{showCreate ? "Close" : "+ New tournament"}</button>}</div>
           {showCreate && canCreateTournament && <CreateTournament onCreated={(id) => { setShowCreate(false); void loadTournaments(user, id); }} />}
           {!tournaments.length && <div className="admin-muted-note">This account has no tournament access yet. Ask an owner to add your email as an administrator.</div>}
           {selected && <>

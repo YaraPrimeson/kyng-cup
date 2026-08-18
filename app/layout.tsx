@@ -1,12 +1,14 @@
 import type { Metadata } from "next";
-import { Cormorant_Garamond } from "next/font/google";
+import { Lora } from "next/font/google";
+import { LanguageProvider } from "./i18n";
+import SiteHeader from "./site-header";
 import SiteUtilities from "./site-utilities";
 import "./globals.css";
 
-const cormorantGaramond = Cormorant_Garamond({
+const lora = Lora({
   subsets: ["latin", "cyrillic"],
   weight: ["400", "500", "600", "700"],
-  variable: "--font-cormorant-garamond",
+  variable: "--font-lora",
   display: "swap",
 });
 
@@ -31,9 +33,12 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
-      <body className={cormorantGaramond.variable}>
-        {children}
-        <SiteUtilities />
+      <body className={lora.variable}>
+        <LanguageProvider>
+          <SiteHeader />
+          {children}
+          <SiteUtilities />
+        </LanguageProvider>
       </body>
     </html>
   );

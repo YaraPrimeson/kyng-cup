@@ -46,7 +46,7 @@ try {
     await writeFile(cssPath, css.replaceAll("url(/", `url(${basePath}/`));
   }
 
-  for (const route of ["/", "/bracket/", "/admin/", "/cookies/"]) {
+  for (const route of ["/", "/tennis/", "/padel/", "/bracket/", "/admin/", "/cookies/"]) {
     const response = await fetch(`http://127.0.0.1:${port}${route}`);
     if (!response.ok) throw new Error(`Failed to export ${route}: ${response.status}`);
 

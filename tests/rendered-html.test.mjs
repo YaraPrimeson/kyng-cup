@@ -19,19 +19,31 @@ test("server-renders the KYNG CUP landing page", async () => {
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
   const html = await response.text();
   assert.match(html, /<title>KYNG CUP — More Than a Game<\/title>/i);
-  assert.match(html, /More than/);
-  assert.match(html, /Open live bracket/);
+  assert.match(html, /One community\. Two ways to play\./);
+  assert.match(html, /Choose your court/);
   assert.match(html, /brand-wordmark/);
   assert.match(html, /favicon\.png/);
   assert.doesNotMatch(html, /ball-mark/);
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape/i);
 });
 
+test("server-renders distinct tennis and padel pages", async () => {
+  const [tennisResponse, padelResponse] = await Promise.all([render("/tennis"), render("/padel")]);
+  assert.equal(tennisResponse.status, 200);
+  assert.equal(padelResponse.status, 200);
+  const [tennis, padel] = await Promise.all([tennisResponse.text(), padelResponse.text()]);
+  assert.match(tennis, /More than/);
+  assert.match(tennis, /The tennis experience/);
+  assert.match(padel, /Built for/);
+  assert.match(padel, /The padel experience/);
+});
+
 test("ships live bracket and protected tournament controls", async () => {
-  const [admin, bracket, migration] = await Promise.all([
+  const [admin, bracket, migration, sportMigration] = await Promise.all([
     readFile(new URL("../app/admin/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/bracket/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../supabase/migrations/20260814190000_full_tournament_management.sql", import.meta.url), "utf8"),
+    readFile(new URL("../supabase/migrations/20260818120000_add_tournament_sport.sql", import.meta.url), "utf8"),
   ]);
 
   assert.match(admin, /create_tournament_with_bracket/);
@@ -45,4 +57,6 @@ test("ships live bracket and protected tournament controls", async () => {
   assert.match(migration, /enable row level security/i);
   assert.match(migration, /is_tournament_owner/);
   assert.match(migration, /activity_log/);
+  assert.match(sportMigration, /tournaments_sport_check/);
+  assert.match(sportMigration, /p_sport text/);
 });
