@@ -56,9 +56,10 @@ button, input, select { font: inherit; }
 .manifesto { position: relative; min-height: 720px; display: grid; grid-template-columns: 1fr 3.5fr 1fr; gap: 30px; }
 .manifesto-copy h2, .tournament h2, .registration h2 { margin: 42px 0 34px; font: 400 clamp(48px, 6vw, 98px)/.94 var(--font-lora), Georgia, serif; letter-spacing: -.05em; }
 .manifesto-lead { margin-left: 31%; max-width: 640px; font-size: 20px; line-height: 1.55; }
-.principle-card { width: 200px; height: 245px; align-self: end; border-radius: 100px 100px 24px 24px; background: var(--peach); color: #fff; padding: 38px 26px 25px; display: flex; flex-direction: column; justify-content: space-between; }
-.principle-number { font: 400 46px/1 var(--font-lora), Georgia, serif; }
-.principle-card p { margin: 0; font-size: 14px; line-height: 1.45; }
+.principle-ball { width: 200px; aspect-ratio: 1; align-self: end; position: relative; overflow: hidden; border-radius: 50%; background: var(--peach); box-shadow: inset -18px -20px 34px rgba(187,92,50,.18), 0 22px 55px rgba(55,39,27,.14); }
+.principle-ball::before, .principle-ball::after { content: ""; position: absolute; top: -17%; width: 82%; height: 134%; border: 3px solid rgba(255,255,255,.82); border-top-color: transparent; border-bottom-color: transparent; border-radius: 50%; transform: rotate(-7deg); }
+.principle-ball::before { left: -61%; }
+.principle-ball::after { right: -61%; }
 
 .experience { display: grid; grid-template-columns: 1.03fr .97fr; min-height: 850px; background: var(--forest-dark); color: #fff; }
 .experience-visual { min-height: 760px; margin: 22px 0 22px 22px; border-radius: 22px; background: linear-gradient(0deg, rgba(22,46,35,.78), transparent 50%), url('/assets/kyng-hero.png') 65% center/cover no-repeat; position: relative; }
@@ -179,7 +180,7 @@ footer { padding: 28px 42px; display: grid; grid-template-columns: 1fr 1.5fr 1fr
   .manifesto { grid-template-columns: 1fr; min-height: auto; }
   .manifesto-copy h2 { margin-top: 60px; }
   .manifesto-lead { margin-left: 0; }
-  .principle-card { margin: 30px 0 0 auto; }
+  .principle-ball { margin: 30px 0 0 auto; }
   .experience { grid-template-columns: 1fr; }
   .experience-visual { min-height: 620px; margin: 15px; }
   .experience-copy { padding: 65px 24px; min-height: 700px; }
@@ -354,7 +355,7 @@ body { font-size: 18px; }
 .universal-about { min-height: 680px; padding: 125px 42px; display: grid; grid-template-columns: 1fr 4fr; gap: 55px; }
 .universal-about > div:last-child { max-width: 1050px; }
 .universal-about h2, .sport-choice > h2 { margin: 0 0 48px; font: 400 clamp(48px, 6.2vw, 100px)/.94 var(--font-lora), Georgia, serif; letter-spacing: -.045em; }
-.universal-about p { width: min(100%, 630px); margin-left: 33%; line-height: 1.7; }
+.universal-about p { width: min(100%, 630px); margin-left: 33%; line-height: 1.7; white-space: pre-line; }
 .sport-choice { padding: 110px 42px 130px; background: var(--forest-dark); color: #fff; }
 .sport-choice > h2 { margin: 55px 0; }
 .sport-choice-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
@@ -424,8 +425,7 @@ body { font-size: 18px; }
   .sport-page .hero-copy { top: 24%; }
   .sport-page .hero h1 { font-size: 20vw; }
   html:not([lang="en"]) .sport-page .hero h1 { font-size: 16vw; letter-spacing: -.04em; }
-  .principle-card { width: 160px; height: 180px; padding: 29px 21px 19px; border-radius: 80px 80px 20px 20px; }
-  .principle-number { font-size: 39px; }
+  .principle-ball { width: 160px; }
   .upcoming-copy { padding: 26px; }
   .upcoming-date { padding: 26px 20px; gap: 10px; }
   .upcoming-date strong { font-size: clamp(56px, 18vw, 74px); }

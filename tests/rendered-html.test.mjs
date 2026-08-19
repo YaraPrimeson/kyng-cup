@@ -19,7 +19,7 @@ test("server-renders the KYNG CUP landing page", async () => {
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
   const html = await response.text();
   assert.match(html, /<title>KYNG CUP — More Than a Game<\/title>/i);
-  assert.match(html, /One community\. Two ways to play\./);
+  assert.match(html, /More than a game\. A standard\./);
   assert.match(html, /Choose your court/);
   assert.match(html, /brand-wordmark/);
   assert.match(html, /favicon\.png/);
@@ -78,8 +78,11 @@ test("ships live bracket and protected tournament controls", async () => {
   assert.match(bracket, /\["Quarterfinal", "Semifinal", "Final"\]/);
   assert.doesNotMatch(bracket, /Quarterfinals|Semifinals/);
   assert.match(home, /key=\{language\}/);
-  assert.match(home, /honest competition/);
-  assert.doesNotMatch(home, /serious competition/);
+  assert.match(home, /More than a game\. A standard\./);
+  assert.match(home, /High-level play\. Uncompromising organization\. An experience worth repeating\./);
+  assert.match(home, /Competition creates the moment\. Community gives it meaning\./);
+  assert.match(home, /Thoughtful formats\. Attention to detail\. Strong players\./);
+  assert.doesNotMatch(home, /One community\. Two ways to play\.|honest competition/);
   assert.match(upcoming, /t\("participate"\)/);
   assert.match(upcoming, /starts_at,ends_at/);
   assert.match(upcoming, /upcoming-date-point/);
@@ -94,6 +97,12 @@ test("ships live bracket and protected tournament controls", async () => {
   assert.match(sportPage, /home-bracket-actions/);
   assert.match(sportPage, /Strong competition\. A community worth returning to\./);
   assert.match(sportPage, /Fast game\. Shared rhythm\./);
+  assert.match(sportPage, /The match is only part of the experience\./);
+  assert.match(sportPage, /Strong players\. Real competition\. Mutual respect\./);
+  assert.match(sportPage, /Every detail considered\. Nothing left to chance\./);
+  assert.match(sportPage, /Connections that begin on the court and continue beyond it\./);
+  assert.match(sportPage, /principle-ball/);
+  assert.doesNotMatch(sportPage, /principle-card|principle-number|100%/);
   assert.doesNotMatch(sportPage, /fair judging|Social by design|Closer court\. Bigger energy\./);
   assert.doesNotMatch(sportPage, /is-highlighted|className="preview-match is-live"/);
   assert.match(footer, /aria-label="Telegram"/);
