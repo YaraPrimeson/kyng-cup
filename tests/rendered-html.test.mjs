@@ -137,7 +137,12 @@ test("ships live bracket and protected tournament controls", async () => {
   assert.match(register, /uk: \{/);
   assert.match(register, /de: \{/);
   assert.match(register, /ru: \{/);
-  assert.doesNotMatch(register, /from\("tournament_registrations"\)/);
+  assert.match(register, /from\("tournament_registrations"\)\.insert/);
+  assert.match(register, /error\.code === "23505"/);
+  assert.match(register, /error\.code === "23514"/);
+  assert.match(register, /firstEmail === secondEmail/);
+  assert.match(register, /submissionState === "success"/);
+  assert.match(register, /registration-success/);
   assert.match(migration, /enable row level security/i);
   assert.match(migration, /is_tournament_owner/);
   assert.match(migration, /activity_log/);

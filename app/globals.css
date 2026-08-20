@@ -372,6 +372,7 @@ body { font-size: 18px; }
 .registration-message.is-error { color: #f0b197; }
 .registration-application { min-width: 0; display: grid; gap: 18px; }
 .registration-application fieldset { min-width: 0; margin: 0; padding: 34px; border: 1px solid var(--line); border-radius: 24px; background: #fff; }
+.registration-application fieldset:disabled { opacity: .72; }
 .registration-application legend { width: 100%; padding: 0 0 24px; display: flex; align-items: baseline; gap: 20px; font: 500 clamp(28px, 3vw, 44px)/1 var(--font-lora), Georgia, serif; }
 .registration-application legend span { color: var(--clay); font-size: 11px; letter-spacing: .1em; }
 .registration-pair-card > p { margin: -9px 0 30px 31px; color: rgba(20,32,25,.58); font-size: 14px; line-height: 1.55; }
@@ -392,6 +393,13 @@ body { font-size: 18px; }
 .registration-submit-row button:disabled { opacity: .52; cursor: not-allowed; }
 .registration-submit-row small { color: var(--clay); text-transform: uppercase; letter-spacing: .1em; font-size: 9px; }
 .registration-submit-row p { margin: 7px 0 0; color: rgba(20,32,25,.5); font-size: 11px; line-height: 1.45; }
+.registration-submit-error { margin: 26px 0 -10px; padding: 14px 16px; border-left: 3px solid var(--clay); border-radius: 0 10px 10px 0; background: rgba(187,92,50,.08); color: var(--clay); font-size: 13px; line-height: 1.5; }
+.registration-success { min-height: 570px; padding: 48px; border: 1px solid var(--line); border-radius: 24px; background: #fff; display: flex; flex-direction: column; align-items: flex-start; }
+.registration-success-mark { width: 72px; height: 72px; margin-bottom: auto; border-radius: 50%; display: grid; place-items: center; background: var(--forest); color: #fff; font-size: 26px; }
+.registration-success .eyebrow { margin: 60px 0 18px; color: var(--clay); }
+.registration-success h2 { max-width: 740px; margin: 0; font: 400 clamp(54px, 6vw, 96px)/.86 var(--font-lora), Georgia, serif; letter-spacing: -.05em; }
+.registration-success > p:not(.eyebrow) { max-width: 610px; margin: 32px 0; color: rgba(20,32,25,.66); line-height: 1.65; }
+.registration-success > a { min-width: 230px; padding: 15px 18px; border-radius: 999px; display: flex; align-items: center; justify-content: space-between; background: var(--forest); color: #fff; text-transform: uppercase; letter-spacing: .09em; font-size: 11px; }
 
 /* Universal home */
 .universal-page { background: var(--paper); }
@@ -497,6 +505,8 @@ body { font-size: 18px; }
   .registration-field-wide { grid-column: 1; }
   .registration-pair-card > p { margin-left: 0; }
   .registration-submit-row { align-items: stretch; }
+  .registration-success { min-height: 520px; padding: 30px 22px; border-radius: 20px; }
+  .registration-success h2 { font-size: 14vw; }
 }
 
 /* Live bracket */
