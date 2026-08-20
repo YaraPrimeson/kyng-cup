@@ -96,10 +96,10 @@ button, input, select, textarea { font: inherit; }
 .home-bracket-copy h2 { margin: 28px 0 32px; font: 400 clamp(52px, 5.8vw, 94px)/.88 var(--font-lora), Georgia, serif; letter-spacing: -.05em; }
 .home-bracket-copy > p { max-width: 460px; margin: 0; line-height: 1.55; opacity: .66; }
 .home-bracket-actions { margin-top: 38px; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
-.home-bracket-actions a, .home-bracket-actions button { min-height: 50px; border: 1px solid var(--forest); border-radius: 999px; padding: 14px 18px; display: inline-flex; align-items: center; justify-content: center; text-transform: uppercase; letter-spacing: .1em; font: inherit; font-size: 11px; cursor: pointer; transition: background .2s, color .2s, transform .2s; }
+.home-bracket-actions a { min-height: 50px; border: 1px solid var(--forest); border-radius: 999px; padding: 14px 18px; display: inline-flex; align-items: center; justify-content: center; text-transform: uppercase; letter-spacing: .1em; font: inherit; font-size: 11px; cursor: pointer; transition: background .2s, color .2s, transform .2s; }
 .home-bracket-actions a { width: max-content; background: var(--forest); color: #fff; }
-.home-bracket-actions button { width: max-content; background: transparent; color: var(--forest); }
-.home-bracket-actions a:hover, .home-bracket-actions button:hover { background: var(--clay); border-color: var(--clay); color: #fff; transform: translateY(-2px); }
+.home-bracket-actions a.registration-cta { width: max-content; background: transparent; color: var(--forest); }
+.home-bracket-actions a:hover { background: var(--clay); border-color: var(--clay); color: #fff; transform: translateY(-2px); }
 .home-bracket-preview { width: 100%; min-width: 0; padding: 26px; border-radius: 24px; background: #fff; border: 1px solid var(--line); box-shadow: 0 25px 70px rgba(20,32,25,.08); }
 .preview-round-labels { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 42px; padding: 0 5px 6px; color: var(--clay); text-transform: uppercase; letter-spacing: .1em; font-size: 10px; }
 .preview-bracket-grid { --preview-column-gap: 42px; --preview-card-height: 88px; height: 382px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--preview-column-gap); }
@@ -448,9 +448,10 @@ body { font-size: 18px; }
 .upcoming-copy > div:not(.upcoming-actions) span { display: grid; gap: 8px; text-transform: uppercase; letter-spacing: .1em; font-size: 12px; }
 .upcoming-copy > div:not(.upcoming-actions) strong { text-transform: none; letter-spacing: 0; font-size: 18px; }
 .upcoming-actions { align-self: flex-end; margin-top: 32px; display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 10px; }
-.upcoming-actions a, .upcoming-actions button { border: 1px solid var(--forest); border-radius: 999px; padding: 11px 15px; background: transparent; color: var(--forest); text-transform: uppercase; letter-spacing: .1em; font: inherit; font-size: 11px; cursor: pointer; }
-.upcoming-actions a { background: var(--forest); color: #fff; }
-.upcoming-actions a:hover, .upcoming-actions button:hover { background: var(--clay); border-color: var(--clay); color: #fff; }
+.upcoming-actions a, .upcoming-actions .registration-cta { min-height: 41px; box-sizing: border-box; border: 1px solid var(--forest); border-radius: 999px; padding: 11px 15px; background: transparent; color: var(--forest); display: inline-flex; align-items: center; justify-content: center; text-transform: uppercase; letter-spacing: .1em; font: inherit; font-size: 11px; cursor: pointer; }
+.upcoming-actions > a:first-child { background: var(--forest); color: #fff; }
+.upcoming-actions a:hover { background: var(--clay); border-color: var(--clay); color: #fff; }
+.upcoming-actions .registration-cta.is-disabled { cursor: not-allowed; opacity: .45; }
 .upcoming-state { margin: 90px 0; font: 400 clamp(44px, 6vw, 88px)/1 var(--font-lora), Georgia, serif; }
 
 @media (max-width: 900px) {

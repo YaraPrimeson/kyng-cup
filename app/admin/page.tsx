@@ -8,6 +8,7 @@ import { useLanguage } from "../i18n";
 type TournamentStatus = "draft" | "published" | "live" | "completed";
 type MatchStatus = "scheduled" | "live" | "completed";
 type RegistrationStatus = "new" | "reviewing" | "confirmed" | "waitlist" | "rejected";
+type RegistrationAvailability = "open" | "waitlist" | "closed";
 type Sport = "tennis" | "padel";
 
 type Tournament = {
@@ -20,6 +21,7 @@ type Tournament = {
   ends_at: string | null;
   bracket_size: number;
   status: TournamentStatus;
+  registration_status: RegistrationAvailability;
   updated_at: string;
   role: "owner" | "admin";
 };
@@ -190,6 +192,7 @@ function TournamentSettings({ tournament, onSaved }: { tournament: Tournament; o
   const [startsAt, setStartsAt] = useState(toLocalDate(tournament.starts_at));
   const [endsAt, setEndsAt] = useState(toLocalDate(tournament.ends_at));
   const [status, setStatus] = useState<TournamentStatus>(tournament.status);
+  const [registrationStatus, setRegistrationStatus] = useState<RegistrationAvailability>(tournament.registration_status);
   const [sport, setSport] = useState<Sport>(tournament.sport);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -203,7 +206,7 @@ function TournamentSettings({ tournament, onSaved }: { tournament: Tournament; o
     const { error } = await supabase.from("tournaments").update({
       name: name.trim(), location: location.trim() || null,
       starts_at: toIsoDate(startsAt), ends_at: toIsoDate(endsAt),
-      sport, status, updated_at: new Date().toISOString(),
+      sport, status, registration_status: registrationStatus, updated_at: new Date().toISOString(),
     }).eq("id", tournament.id).select("id").single();
     setSaving(false);
     if (error) setMessage(error.message);
@@ -219,6 +222,7 @@ function TournamentSettings({ tournament, onSaved }: { tournament: Tournament; o
         <label className="admin-field"><span>End date</span><input type="date" value={endsAt} min={startsAt || undefined} onChange={(event) => setEndsAt(event.target.value)} required /></label>
         <label className="admin-field"><span>Sport</span><select value={sport} onChange={(event) => setSport(event.target.value as Sport)}><option value="tennis">Tennis</option><option value="padel">Padel</option></select></label>
         <label className="admin-field"><span>Visibility / status</span><select value={status} onChange={(event) => setStatus(event.target.value as TournamentStatus)}><option value="draft">Draft · hidden</option><option value="published">Published</option><option value="live">Live now</option><option value="completed">Completed · archive</option></select></label>
+        <label className="admin-field"><span>Registration</span><select value={registrationStatus} onChange={(event) => setRegistrationStatus(event.target.value as RegistrationAvailability)}><option value="open">Open · accepting pairs</option><option value="waitlist">Waitlist only</option><option value="closed">Closed</option></select></label>
       </div>
       <button className="admin-save-button" type="submit" disabled={saving}>{saving ? "Saving…" : "Save tournament"}</button>
       <Feedback message={message} />
@@ -471,7 +475,7 @@ export default function AdminPage() {
     const membershipRows = (memberships.data ?? []) as { tournament_id: string; role: "owner" | "admin" }[];
     if (!membershipRows.length) { setTournaments([]); setSelectedId(null); setChecking(false); return; }
     const ids = membershipRows.map((item) => item.tournament_id);
-    const result = await supabase.from("tournaments").select("id,slug,name,sport,location,starts_at,ends_at,bracket_size,status,updated_at").in("id", ids).order("created_at", { ascending: false });
+    const result = await supabase.from("tournaments").select("id,slug,name,sport,location,starts_at,ends_at,bracket_size,status,registration_status,updated_at").in("id", ids).order("created_at", { ascending: false });
     const roles = new Map(membershipRows.map((item) => [item.tournament_id, item.role]));
     const managed = ((result.data ?? []) as Omit<Tournament, "role">[]).map((item) => ({ ...item, role: roles.get(item.id) ?? "admin" }));
     setTournaments(managed);

@@ -82,6 +82,9 @@ test("ships live bracket and protected tournament controls", async () => {
   assert.match(admin, /from\("tournament_registrations"\)\.select/);
   assert.match(admin, /from\("tournament_registrations"\)\.update/);
   assert.match(admin, /admin_notes: notes\.trim\(\) \|\| null/);
+  assert.match(admin, /registration_status: registrationStatus/);
+  assert.match(admin, /Open · accepting pairs/);
+  assert.match(admin, /Waitlist only/);
   assert.match(admin, /Review pair applications and keep each status up to date\./);
   assert.match(admin, /Refresh applications/);
   assert.match(admin, /No applications match this filter\./);
@@ -104,6 +107,11 @@ test("ships live bracket and protected tournament controls", async () => {
   assert.match(home, /Thoughtful formats\. Attention to detail\. Strong players\./);
   assert.doesNotMatch(home, /One community\. Two ways to play\.|honest competition/);
   assert.match(upcoming, /t\("participate"\)/);
+  assert.match(upcoming, /t\("joinWaitlist"\)/);
+  assert.match(upcoming, /t\("registrationClosed"\)/);
+  assert.match(upcoming, /\/register\/\?tournament=/);
+  assert.match(upcoming, /registration_status/);
+  assert.doesNotMatch(upcoming, /<button type="button">\{t\("participate"\)\}/);
   assert.match(upcoming, /starts_at,ends_at/);
   assert.match(upcoming, /upcoming-date-point/);
   assert.match(upcoming, /const isSingleDay = Boolean/);
@@ -112,12 +120,16 @@ test("ships live bracket and protected tournament controls", async () => {
   assert.doesNotMatch(upcoming, /bracket_size/);
   assert.match(i18n, /localStorage\.setItem\(languageStorageKey/);
   assert.match(i18n, /Request a place/);
+  assert.match(i18n, /joinWaitlist: "Join waitlist"/);
+  assert.match(i18n, /registrationClosed: "Registration closed"/);
   assert.match(i18n, /"Semifinal": \{ uk: "Півфінал", de: "Halbfinale", ru: "Полуфинал" \}/);
   assert.match(i18n, /addEventListener\("storage"/);
   assert.doesNotMatch(styles, /\.language-select::after/);
   assert.match(styles, /kyng-universal-hero-v3\.png/);
   assert.match(sportPage, /preview-connector/);
   assert.match(sportPage, /home-bracket-actions/);
+  assert.match(sportPage, /\/register\/\?sport=\$\{sport\}/);
+  assert.doesNotMatch(sportPage, /<button type="button">\{t\("participate"\)\}/);
   assert.match(sportPage, /Strong competition\. A community worth returning to\./);
   assert.match(sportPage, /Fast game\. Shared rhythm\./);
   assert.match(sportPage, /The match is only part of the experience\./);
