@@ -39,7 +39,7 @@ test("server-renders distinct tennis and padel pages", async () => {
 });
 
 test("ships live bracket and protected tournament controls", async () => {
-  const [admin, bracket, home, upcoming, i18n, styles, sportPage, footer, exporter, migration, sportMigration, dateMigration] = await Promise.all([
+  const [admin, bracket, home, upcoming, i18n, styles, sportPage, footer, exporter, migration, sportMigration, dateMigration, registrationMigration] = await Promise.all([
     readFile(new URL("../app/admin/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/bracket/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
@@ -52,6 +52,7 @@ test("ships live bracket and protected tournament controls", async () => {
     readFile(new URL("../supabase/migrations/20260814190000_full_tournament_management.sql", import.meta.url), "utf8"),
     readFile(new URL("../supabase/migrations/20260818120000_add_tournament_sport.sql", import.meta.url), "utf8"),
     readFile(new URL("../supabase/migrations/20260818122000_add_tournament_end_date.sql", import.meta.url), "utf8"),
+    readFile(new URL("../supabase/migrations/20260820071715_create_tournament_registrations.sql", import.meta.url), "utf8"),
   ]);
 
   assert.match(admin, /create_tournament_with_bracket/);
@@ -121,4 +122,12 @@ test("ships live bracket and protected tournament controls", async () => {
   assert.match(sportMigration, /p_sport text/);
   assert.match(dateMigration, /add column if not exists ends_at timestamptz/);
   assert.match(dateMigration, /ends_at >= starts_at/);
+  assert.match(registrationMigration, /create table public\.tournament_registrations/);
+  assert.match(registrationMigration, /alter table public\.tournament_registrations enable row level security/);
+  assert.match(registrationMigration, /Public submits registrations for available tournaments/);
+  assert.match(registrationMigration, /Tournament admins read registrations/);
+  assert.match(registrationMigration, /tournament_registrations_pair_emails_unique/);
+  assert.match(registrationMigration, /grant insert \(/);
+  assert.doesNotMatch(registrationMigration, /grant select on public\.tournament_registrations to anon/);
+  assert.doesNotMatch(registrationMigration, /security definer/);
 });
