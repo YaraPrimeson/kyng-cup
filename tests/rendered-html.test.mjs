@@ -38,8 +38,18 @@ test("server-renders distinct tennis and padel pages", async () => {
   assert.match(padel, /The padel experience/);
 });
 
+test("server-renders the four-language pair registration form", async () => {
+  const response = await render("/register");
+  assert.equal(response.status, 200);
+  const html = await response.text();
+  assert.match(html, /Your next match starts here/);
+  assert.match(html, /Player 1/);
+  assert.match(html, /Player 2/);
+  assert.match(html, /Submit pair application/);
+});
+
 test("ships live bracket and protected tournament controls", async () => {
-  const [admin, bracket, home, upcoming, i18n, styles, sportPage, footer, exporter, migration, sportMigration, dateMigration, registrationMigration] = await Promise.all([
+  const [admin, bracket, home, upcoming, i18n, styles, sportPage, footer, exporter, register, migration, sportMigration, dateMigration, registrationMigration] = await Promise.all([
     readFile(new URL("../app/admin/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/bracket/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
@@ -49,6 +59,7 @@ test("ships live bracket and protected tournament controls", async () => {
     readFile(new URL("../app/sport-page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/site-footer.tsx", import.meta.url), "utf8"),
     readFile(new URL("../scripts/export-pages.mjs", import.meta.url), "utf8"),
+    readFile(new URL("../app/register/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../supabase/migrations/20260814190000_full_tournament_management.sql", import.meta.url), "utf8"),
     readFile(new URL("../supabase/migrations/20260818120000_add_tournament_sport.sql", import.meta.url), "utf8"),
     readFile(new URL("../supabase/migrations/20260818122000_add_tournament_end_date.sql", import.meta.url), "utf8"),
@@ -115,6 +126,18 @@ test("ships live bracket and protected tournament controls", async () => {
   assert.doesNotMatch(footer, /basePath}\/tennis|basePath}\/padel/);
   assert.doesNotMatch(exporter, /if\s*\(route === "\/"\)/);
   assert.doesNotMatch(exporter, /replace\(\/<script/);
+  assert.match(exporter, /"\/register\/"/);
+  assert.match(register, /const prefix = number === 1 \? "player_one" : "player_two"/);
+  assert.match(register, /name=\{`\$\{prefix\}_level`\}/);
+  assert.match(register, /partner_consent/);
+  assert.match(register, /rules_privacy_accepted/);
+  assert.match(register, /marketing_opt_in/);
+  assert.match(register, /registration_status/);
+  assert.match(register, /en: \{/);
+  assert.match(register, /uk: \{/);
+  assert.match(register, /de: \{/);
+  assert.match(register, /ru: \{/);
+  assert.doesNotMatch(register, /from\("tournament_registrations"\)/);
   assert.match(migration, /enable row level security/i);
   assert.match(migration, /is_tournament_owner/);
   assert.match(migration, /activity_log/);

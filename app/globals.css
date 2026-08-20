@@ -16,7 +16,7 @@
 html { scroll-behavior: smooth; }
 body { margin: 0; background: var(--paper); color: var(--ink); font-family: var(--font-lora), Georgia, serif; font-weight: 400; }
 a { color: inherit; text-decoration: none; }
-button, input, select { font: inherit; }
+button, input, select, textarea { font: inherit; }
 
 .hero {
   min-height: 960px;
@@ -341,7 +341,57 @@ body { font-size: 18px; }
 .language-select > span { text-transform: uppercase; letter-spacing: .12em; font-size: 12px; color: rgba(255,255,255,.66); }
 .language-select select { width: 52px; height: 34px; min-width: 0; border: 1px solid rgba(255,255,255,.3); border-radius: 999px; padding: 0 10px; color: #fff; background: rgba(255,255,255,.07); appearance: none; cursor: pointer; font-size: 14px; line-height: 1; font-weight: 400; text-align: center; text-align-last: center; }
 .language-select option { color: var(--ink); }
-.admin-page, .bracket-page, .legal-page { padding-top: 74px; }
+.admin-page, .bracket-page, .legal-page, .registration-page { padding-top: 74px; }
+
+/* Ready-pair tournament registration */
+.registration-page { min-height: 100svh; background: var(--paper); }
+.registration-intro { padding: 92px 42px 82px; display: grid; grid-template-columns: .8fr 2.2fr; gap: 36px 7vw; align-items: end; border-bottom: 1px solid var(--line); }
+.registration-intro .eyebrow { align-self: start; color: var(--clay); }
+.registration-intro h1 { grid-column: 2; margin: 0; max-width: 1020px; font: 400 clamp(64px, 7.4vw, 126px)/.84 var(--font-lora), Georgia, serif; letter-spacing: -.055em; }
+.registration-intro > p:last-child { grid-column: 2; width: min(100%, 610px); margin: 4px 0 0 28%; color: rgba(20,32,25,.66); line-height: 1.65; }
+.registration-shell { padding: 64px 42px 120px; display: grid; grid-template-columns: minmax(280px, .67fr) minmax(0, 1.33fr); gap: 18px; align-items: start; }
+.registration-tournament-card { position: sticky; top: 96px; min-height: 570px; padding: 32px; border-radius: 24px; background: var(--forest-dark); color: #fff; display: flex; flex-direction: column; }
+.registration-card-index { display: flex; justify-content: space-between; color: rgba(255,255,255,.58); text-transform: uppercase; letter-spacing: .13em; font-size: 11px; }
+.registration-card-index span:first-child { color: var(--peach); }
+.registration-tournament-select { margin-top: 42px; display: grid; gap: 9px; }
+.registration-tournament-select > span { color: rgba(255,255,255,.55); text-transform: uppercase; letter-spacing: .12em; font-size: 10px; }
+.registration-tournament-select select { width: 100%; border: 0; border-bottom: 1px solid rgba(255,255,255,.35); border-radius: 0; padding: 10px 26px 10px 0; color: #fff; background: transparent; outline: 0; }
+.registration-tournament-select option { color: var(--ink); }
+.registration-status { width: max-content; margin-top: 48px; display: inline-flex; align-items: center; gap: 9px; color: var(--peach); text-transform: uppercase; letter-spacing: .13em; font-size: 10px; }
+.registration-status i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.registration-status.is-waitlist { color: #e7c195; }
+.registration-tournament-name { margin-top: 20px; font: 500 clamp(34px, 3.4vw, 58px)/.98 var(--font-lora), Georgia, serif; }
+.registration-sport { margin-top: 12px; color: rgba(255,255,255,.58); text-transform: uppercase; letter-spacing: .13em; font-size: 11px; }
+.registration-tournament-card dl { margin: auto 0 26px; }
+.registration-tournament-card dl > div { padding: 17px 0; display: grid; grid-template-columns: 95px 1fr; gap: 16px; border-top: 1px solid rgba(255,255,255,.2); }
+.registration-tournament-card dt { color: rgba(255,255,255,.5); text-transform: uppercase; letter-spacing: .1em; font-size: 10px; }
+.registration-tournament-card dd { margin: 0; line-height: 1.45; }
+.registration-tournament-card dd span { margin: 0 5px; opacity: .45; }
+.registration-back-link { width: max-content; padding-bottom: 5px; border-bottom: 1px solid rgba(255,255,255,.45); text-transform: uppercase; letter-spacing: .11em; font-size: 10px; }
+.registration-message { margin: 80px 0; color: rgba(255,255,255,.7); line-height: 1.55; }
+.registration-message.is-error { color: #f0b197; }
+.registration-application { min-width: 0; display: grid; gap: 18px; }
+.registration-application fieldset { min-width: 0; margin: 0; padding: 34px; border: 1px solid var(--line); border-radius: 24px; background: #fff; }
+.registration-application legend { width: 100%; padding: 0 0 24px; display: flex; align-items: baseline; gap: 20px; font: 500 clamp(28px, 3vw, 44px)/1 var(--font-lora), Georgia, serif; }
+.registration-application legend span { color: var(--clay); font-size: 11px; letter-spacing: .1em; }
+.registration-pair-card > p { margin: -9px 0 30px 31px; color: rgba(20,32,25,.58); font-size: 14px; line-height: 1.55; }
+.registration-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 14px; }
+.registration-field-wide { grid-column: 1 / -1; }
+.registration-form-grid label, .registration-comment { min-width: 0; display: grid; gap: 9px; }
+.registration-form-grid label > span, .registration-comment > span { color: rgba(20,32,25,.55); text-transform: uppercase; letter-spacing: .1em; font-size: 9px; }
+.registration-form-grid input, .registration-form-grid select, .registration-comment textarea { width: 100%; min-width: 0; border: 1px solid var(--line); border-radius: 13px; outline: 0; padding: 14px 15px; background: var(--paper); color: var(--ink); font-size: 15px; transition: border-color .2s, box-shadow .2s; }
+.registration-form-grid input, .registration-form-grid select { min-height: 50px; }
+.registration-form-grid input:focus, .registration-form-grid select:focus, .registration-comment textarea:focus { border-color: var(--forest); box-shadow: 0 0 0 3px rgba(55,99,74,.1); }
+.registration-form-grid input::placeholder, .registration-comment textarea::placeholder { color: rgba(20,32,25,.38); }
+.registration-comment textarea { resize: vertical; line-height: 1.5; }
+.registration-consents { margin-top: 28px; display: grid; gap: 14px; }
+.registration-consents label { display: grid; grid-template-columns: 19px 1fr; align-items: start; gap: 12px; cursor: pointer; font-size: 13px; line-height: 1.5; }
+.registration-consents input { width: 18px; height: 18px; margin: 1px 0 0; accent-color: var(--forest); }
+.registration-submit-row { margin-top: 34px; padding-top: 28px; border-top: 1px solid var(--line); display: grid; grid-template-columns: minmax(220px, .72fr) 1.28fr; align-items: center; gap: 22px; }
+.registration-submit-row button { min-height: 54px; border: 0; border-radius: 999px; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; background: var(--forest); color: #fff; text-transform: uppercase; letter-spacing: .08em; font-size: 11px; }
+.registration-submit-row button:disabled { opacity: .52; cursor: not-allowed; }
+.registration-submit-row small { color: var(--clay); text-transform: uppercase; letter-spacing: .1em; font-size: 9px; }
+.registration-submit-row p { margin: 7px 0 0; color: rgba(20,32,25,.5); font-size: 11px; line-height: 1.45; }
 
 /* Universal home */
 .universal-page { background: var(--paper); }
@@ -409,13 +459,18 @@ body { font-size: 18px; }
   .upcoming-dynamic { padding: 90px 22px; }
   .upcoming-layout { grid-template-columns: 1fr; }
   .upcoming-date { min-height: 300px; }
+  .registration-intro { padding: 74px 22px 68px; grid-template-columns: 1fr; }
+  .registration-intro h1, .registration-intro > p:last-child { grid-column: 1; }
+  .registration-intro > p:last-child { margin-left: 18%; }
+  .registration-shell { padding: 42px 22px 90px; grid-template-columns: 1fr; }
+  .registration-tournament-card { position: static; min-height: 480px; }
 }
 
 @media (max-width: 640px) {
   .global-header { grid-template-columns: 1fr auto; min-height: 100px; }
   .global-header nav { grid-column: 1 / -1; grid-row: 2; justify-content: flex-start; flex-wrap: wrap; overflow: visible; gap: 10px 18px; padding-bottom: 2px; }
   .global-header nav a { white-space: nowrap; }
-  .admin-page, .bracket-page, .legal-page { padding-top: 100px; }
+  .admin-page, .bracket-page, .legal-page, .registration-page { padding-top: 100px; }
   .universal-hero { min-height: 720px; }
   .universal-hero h1 { font-size: 16.5vw; }
   .universal-hero > div > p:last-child, .universal-about p { width: 100%; margin-left: 0; }
@@ -433,6 +488,15 @@ body { font-size: 18px; }
   .upcoming-date-point span { font-size: 13px; }
   .upcoming-copy > div:not(.upcoming-actions) { display: grid; gap: 20px; }
   .upcoming-actions { align-self: flex-start; justify-content: flex-start; }
+  .registration-intro { padding-top: 55px; }
+  .registration-intro h1 { font-size: 16vw; }
+  .registration-intro > p:last-child { margin-left: 0; }
+  .registration-shell { padding-left: 14px; padding-right: 14px; }
+  .registration-tournament-card, .registration-application fieldset { padding: 25px 20px; border-radius: 20px; }
+  .registration-form-grid, .registration-submit-row { grid-template-columns: 1fr; }
+  .registration-field-wide { grid-column: 1; }
+  .registration-pair-card > p { margin-left: 0; }
+  .registration-submit-row { align-items: stretch; }
 }
 
 /* Live bracket */
