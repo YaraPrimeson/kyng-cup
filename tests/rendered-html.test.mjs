@@ -86,6 +86,9 @@ test("ships live bracket and protected tournament controls", async () => {
   assert.match(upcoming, /t\("participate"\)/);
   assert.match(upcoming, /starts_at,ends_at/);
   assert.match(upcoming, /upcoming-date-point/);
+  assert.match(upcoming, /const isSingleDay = Boolean/);
+  assert.match(upcoming, /is-single-day/);
+  assert.match(upcoming, /timeZone: "Europe\/Vienna"/);
   assert.doesNotMatch(upcoming, /bracket_size/);
   assert.match(i18n, /localStorage\.setItem\(languageStorageKey/);
   assert.match(i18n, /Request a place/);

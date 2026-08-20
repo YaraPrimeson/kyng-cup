@@ -377,6 +377,7 @@ body { font-size: 18px; }
 .upcoming-dynamic { min-height: 650px; padding: 115px 42px; background: #fff; }
 .upcoming-layout { margin-top: 55px; display: grid; grid-template-columns: minmax(280px,.72fr) 1.28fr; gap: 18px; }
 .upcoming-date { min-height: 410px; border-radius: 24px; padding: 36px; background: var(--clay); color: #fff; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 18px; }
+.upcoming-date.is-single-day { grid-template-columns: 1fr; }
 .padel-page .upcoming-date { background: var(--forest); }
 .upcoming-date-point { min-width: 0; display: grid; justify-items: center; align-content: center; gap: 12px; text-align: center; }
 .upcoming-date-point small { text-transform: uppercase; letter-spacing: .13em; font-size: 10px; opacity: .68; }
