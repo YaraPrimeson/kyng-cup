@@ -78,6 +78,14 @@ test("ships live bracket and protected tournament controls", async () => {
   assert.match(admin, /ends_at/);
   assert.match(admin, /matchesByRound/);
   assert.match(admin, /admin-round-group/);
+  assert.match(admin, /RegistrationManager/);
+  assert.match(admin, /from\("tournament_registrations"\)\.select/);
+  assert.match(admin, /from\("tournament_registrations"\)\.update/);
+  assert.match(admin, /admin_notes: notes\.trim\(\) \|\| null/);
+  assert.match(admin, /Review pair applications and keep each status up to date\./);
+  assert.match(admin, /Refresh applications/);
+  assert.match(admin, /No applications match this filter\./);
+  assert.doesNotMatch(admin, /tournament_registrations"\)\.delete/);
   assert.match(admin, /Team &amp; roles/);
   assert.doesNotMatch(admin, /Activity log/);
   assert.match(bracket, /postgres_changes/);

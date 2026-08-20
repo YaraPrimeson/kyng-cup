@@ -575,7 +575,7 @@ body { font-size: 18px; }
 .admin-toolbar > button { height: 39px; border: 1px solid rgba(255,255,255,.45); border-radius: 999px; padding: 0 16px; background: transparent; color: #fff; cursor: pointer; font-size: 12px; text-transform: uppercase; letter-spacing: .08em; }
 .admin-field select { width: 100%; min-width: 0; border: 1px solid var(--line); border-radius: 10px; background: var(--paper); padding: 10px; outline: 0; font: inherit; font-size: 15px; }
 .admin-field select:focus { border-color: var(--forest); }
-.admin-create-card, .admin-settings-card, .admin-draw-card, .admin-team-card { padding: 22px; border: 1px solid var(--line); border-radius: 20px; background: #fff; }
+.admin-create-card, .admin-settings-card, .admin-draw-card, .admin-team-card, .admin-registration-card { padding: 22px; border: 1px solid var(--line); border-radius: 20px; background: #fff; }
 .admin-create-card { margin-bottom: 50px; }
 .admin-create-actions { margin-top: 24px; display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
 .admin-close-button { border: 1px solid var(--forest); border-radius: 999px; padding: 9px 15px; background: transparent; color: var(--forest); cursor: pointer; font-size: 12px; }
@@ -623,6 +623,33 @@ html[lang="ru"] .admin-round-group:not([open]) > summary::after { content: "По
 .admin-team-list button { border: 0; border-bottom: 1px solid currentColor; background: transparent; color: var(--clay); cursor: pointer; font-size: 11px; }
 .admin-team-form { display: grid; grid-template-columns: 1fr 180px auto; align-items: end; gap: 10px; }
 .admin-team-form .admin-save-button { justify-self: stretch; height: 38px; }
+.admin-registration-manager { display: grid; gap: 16px; }
+.admin-registration-toolbar { display: grid; grid-template-columns: minmax(220px, 360px) auto; align-items: end; justify-content: space-between; gap: 14px; }
+.admin-registration-toolbar > button { height: 39px; border: 1px solid var(--forest); border-radius: 999px; padding: 0 16px; background: transparent; color: var(--forest); cursor: pointer; font: inherit; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; }
+.admin-registration-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 16px; }
+.admin-registration-card { min-width: 0; display: grid; gap: 18px; }
+.admin-registration-head { display: flex; align-items: start; justify-content: space-between; gap: 14px; padding-bottom: 15px; border-bottom: 1px solid var(--line); }
+.admin-registration-head > div { min-width: 0; }
+.admin-registration-head span, .admin-registration-player-label, .admin-registration-comment > span { display: block; color: var(--clay); font-size: 10px; text-transform: uppercase; letter-spacing: .1em; }
+.admin-registration-head h3 { overflow-wrap: anywhere; margin: 5px 0 0; font: 500 28px/1.05 var(--font-lora), Georgia, serif; }
+.admin-registration-status { flex: 0 0 auto; border-radius: 999px; padding: 5px 9px; background: var(--paper); color: var(--ink); font-size: 9px; text-transform: uppercase; letter-spacing: .08em; }
+.admin-registration-status.status-confirmed { background: var(--forest); color: #fff; }
+.admin-registration-status.status-waitlist { background: var(--clay); color: #fff; }
+.admin-registration-status.status-rejected { opacity: .45; }
+.admin-registration-players { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.admin-registration-player { min-width: 0; border-radius: 13px; padding: 14px; background: var(--paper); display: grid; align-content: start; gap: 5px; }
+.admin-registration-player > strong { margin: 2px 0 4px; overflow-wrap: anywhere; font-size: 17px; }
+.admin-registration-player > a { overflow-wrap: anywhere; color: inherit; font-size: 12px; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+.admin-registration-player > small { display: grid; grid-template-columns: minmax(65px, auto) 1fr; gap: 7px; margin-top: 4px; overflow-wrap: anywhere; font-size: 11px; }
+.admin-registration-player > small b, .admin-registration-meta b { opacity: .48; font-weight: 400; text-transform: uppercase; letter-spacing: .06em; font-size: 9px; }
+.admin-registration-meta { display: flex; flex-wrap: wrap; gap: 8px 18px; padding: 0 2px; }
+.admin-registration-meta span { display: grid; gap: 3px; font-size: 11px; }
+.admin-registration-comment { border-left: 2px solid var(--clay); padding-left: 12px; }
+.admin-registration-comment p { margin: 5px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; line-height: 1.45; }
+.admin-registration-controls { display: grid; grid-template-columns: minmax(140px, .55fr) minmax(0, 1fr); align-items: start; gap: 10px; }
+.admin-registration-controls textarea { box-sizing: border-box; width: 100%; min-height: 82px; resize: vertical; border: 1px solid var(--line); border-radius: 10px; background: var(--paper); padding: 10px; outline: 0; font: inherit; font-size: 13px; }
+.admin-registration-controls textarea:focus { border-color: var(--forest); }
+.admin-registration-card > .admin-save-button { justify-self: start; }
 /* Flexible public bracket */
 .bracket-selector { margin-top: 10px; display: grid; gap: 6px; }
 .bracket-selector span { font-size: 10px; text-transform: uppercase; letter-spacing: .1em; opacity: .5; }
@@ -642,11 +669,12 @@ html[lang="ru"] .admin-round-group:not([open]) > summary::after { content: "По
 
 @media (max-width: 1100px) {
   .admin-match-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .admin-registration-grid { grid-template-columns: 1fr; }
   .admin-draw-list { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 760px) {
-  .admin-toolbar, .admin-form-grid, .admin-team-form { grid-template-columns: 1fr; }
+  .admin-toolbar, .admin-form-grid, .admin-team-form, .admin-registration-toolbar { grid-template-columns: 1fr; }
   .admin-create-card, .admin-settings-card { min-width: 0; overflow: hidden; }
   .admin-toolbar > button { justify-self: start; }
   .admin-match-details, .admin-score-row { grid-template-columns: 1fr; }
@@ -676,6 +704,8 @@ html[lang="ru"] .admin-round-group:not([open]) > summary::after { content: "По
 @media (max-width: 520px) {
   .admin-draw-row > div { gap: 2px; }
   .admin-pair-grid, .admin-match-grid { grid-template-columns: 1fr; }
+  .admin-registration-players, .admin-registration-controls { grid-template-columns: 1fr; }
+  .admin-registration-head { align-items: flex-start; }
   .bracket-intro { padding-top: 45px; }
   .bracket-summary { width: 100%; }
   .match-meta { font-size: 9px; }

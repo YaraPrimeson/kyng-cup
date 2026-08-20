@@ -7,6 +7,7 @@ import { useLanguage } from "../i18n";
 
 type TournamentStatus = "draft" | "published" | "live" | "completed";
 type MatchStatus = "scheduled" | "live" | "completed";
+type RegistrationStatus = "new" | "reviewing" | "confirmed" | "waitlist" | "rejected";
 type Sport = "tennis" | "padel";
 
 type Tournament = {
@@ -48,6 +49,42 @@ type Match = {
 };
 
 type AdminMember = { user_id: string; email: string; role: "owner" | "admin"; created_at: string };
+type Registration = {
+  id: string;
+  tournament_id: string;
+  status: RegistrationStatus;
+  pair_name: string | null;
+  player_one_first_name: string;
+  player_one_last_name: string;
+  player_one_email: string;
+  player_one_phone: string;
+  player_one_messenger: string | null;
+  player_one_level: string;
+  player_one_rating_system: string | null;
+  player_one_rating_value: string | null;
+  player_two_first_name: string;
+  player_two_last_name: string;
+  player_two_email: string;
+  player_two_phone: string;
+  player_two_messenger: string | null;
+  player_two_level: string;
+  player_two_rating_system: string | null;
+  player_two_rating_value: string | null;
+  comment: string | null;
+  locale: "en" | "uk" | "de" | "ru";
+  marketing_opt_in: boolean;
+  admin_notes: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+const registrationStatuses: { value: RegistrationStatus; label: string }[] = [
+  { value: "new", label: "New" },
+  { value: "reviewing", label: "Reviewing" },
+  { value: "confirmed", label: "Confirmed" },
+  { value: "waitlist", label: "Waitlist" },
+  { value: "rejected", label: "Rejected" },
+];
 const roundLabels: Record<number, Record<number, string>> = {
   8: { 1: "Quarterfinal", 2: "Semifinal", 3: "Final" },
   16: { 1: "Round of 16", 2: "Quarterfinal", 3: "Semifinal", 4: "Final" },
@@ -319,6 +356,93 @@ function TeamManager({ tournament, members, onSaved }: { tournament: Tournament;
   );
 }
 
+function RegistrationPlayer({ number, firstName, lastName, email, phone, messenger, level, ratingSystem, ratingValue }: {
+  number: 1 | 2;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  messenger: string | null;
+  level: string;
+  ratingSystem: string | null;
+  ratingValue: string | null;
+}) {
+  return (
+    <div className="admin-registration-player">
+      <span className="admin-registration-player-label">Player {number}</span>
+      <strong>{firstName} {lastName}</strong>
+      <a href={`mailto:${email}`}>{email}</a>
+      <a href={`tel:${phone.replace(/\s/g, "")}`}>{phone}</a>
+      {messenger && <small><b>Messenger</b>{messenger}</small>}
+      <small><b>Playing level</b>{level}</small>
+      {(ratingSystem || ratingValue) && <small><b>Rating</b>{[ratingSystem, ratingValue].filter(Boolean).join(" · ")}</small>}
+    </div>
+  );
+}
+
+function RegistrationCard({ registration, onSaved }: { registration: Registration; onSaved: () => void }) {
+  const [status, setStatus] = useState<RegistrationStatus>(registration.status);
+  const [notes, setNotes] = useState(registration.admin_notes ?? "");
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const pairName = registration.pair_name?.trim() || `${registration.player_one_last_name} & ${registration.player_two_last_name}`;
+
+  async function save(event: FormEvent) {
+    event.preventDefault();
+    setSaving(true);
+    setMessage(null);
+    const { error } = await supabase.from("tournament_registrations").update({
+      status,
+      admin_notes: notes.trim() || null,
+    }).eq("id", registration.id).select("id,status,admin_notes,updated_at").single();
+    setSaving(false);
+    if (error) setMessage(error.message);
+    else { setMessage("Registration updated."); onSaved(); }
+  }
+
+  return (
+    <form className="admin-registration-card" onSubmit={save}>
+      <div className="admin-registration-head">
+        <div><span>Pair application</span><h3>{pairName}</h3></div>
+        <strong className={`admin-registration-status status-${registration.status}`}>{registrationStatuses.find((item) => item.value === registration.status)?.label}</strong>
+      </div>
+      <div className="admin-registration-players">
+        <RegistrationPlayer number={1} firstName={registration.player_one_first_name} lastName={registration.player_one_last_name} email={registration.player_one_email} phone={registration.player_one_phone} messenger={registration.player_one_messenger} level={registration.player_one_level} ratingSystem={registration.player_one_rating_system} ratingValue={registration.player_one_rating_value} />
+        <RegistrationPlayer number={2} firstName={registration.player_two_first_name} lastName={registration.player_two_last_name} email={registration.player_two_email} phone={registration.player_two_phone} messenger={registration.player_two_messenger} level={registration.player_two_level} ratingSystem={registration.player_two_rating_system} ratingValue={registration.player_two_rating_value} />
+      </div>
+      <div className="admin-registration-meta">
+        <span><b>Submitted</b>{new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(registration.created_at))}</span>
+        <span><b>Language</b>{registration.locale.toUpperCase()}</span>
+        <span><b>News opt-in</b>{registration.marketing_opt_in ? "Yes" : "No"}</span>
+      </div>
+      {registration.comment && <div className="admin-registration-comment"><span>Applicant message</span><p>{registration.comment}</p></div>}
+      <div className="admin-registration-controls">
+        <label className="admin-field"><span>Status</span><select value={status} onChange={(event) => setStatus(event.target.value as RegistrationStatus)}>{registrationStatuses.map((item) => <option value={item.value} key={item.value}>{item.label}</option>)}</select></label>
+        <label className="admin-field"><span>Admin notes</span><textarea value={notes} onChange={(event) => setNotes(event.target.value)} maxLength={2000} placeholder="Private note for the tournament team" /></label>
+      </div>
+      <button className="admin-save-button" type="submit" disabled={saving}>{saving ? "Saving…" : "Save application"}</button>
+      <Feedback message={message} />
+    </form>
+  );
+}
+
+function RegistrationManager({ registrations, error, onRefresh }: { registrations: Registration[]; error: string | null; onRefresh: () => void }) {
+  const [filter, setFilter] = useState<"all" | RegistrationStatus>("all");
+  const filtered = filter === "all" ? registrations : registrations.filter((registration) => registration.status === filter);
+
+  return (
+    <div className="admin-registration-manager">
+      <div className="admin-registration-toolbar">
+        <label className="admin-field"><span>Filter by status</span><select value={filter} onChange={(event) => setFilter(event.target.value as "all" | RegistrationStatus)}><option value="all">All applications</option>{registrationStatuses.map((item) => <option value={item.value} key={item.value}>{item.label} · {registrations.filter((registration) => registration.status === item.value).length}</option>)}</select></label>
+        <button type="button" onClick={onRefresh}>Refresh applications</button>
+      </div>
+      {error && <Feedback message={error} />}
+      {!error && !filtered.length && <div className="admin-muted-note">No applications match this filter.</div>}
+      <div className="admin-registration-grid">{filtered.map((registration) => <RegistrationCard key={`${registration.id}-${registration.updated_at}`} registration={registration} onSaved={onRefresh} />)}</div>
+    </div>
+  );
+}
+
 export default function AdminPage() {
   const { language } = useLanguage();
   const adminTitle = { en: ["Tournament", "admin"], uk: ["Адміністрування", "турніру"], de: ["Turnier-", "verwaltung"], ru: ["Управление", "турниром"] }[language];
@@ -329,6 +453,8 @@ export default function AdminPage() {
   const [pairs, setPairs] = useState<Pair[]>([]);
   const [matches, setMatches] = useState<Match[]>([]);
   const [members, setMembers] = useState<AdminMember[]>([]);
+  const [registrations, setRegistrations] = useState<Registration[]>([]);
+  const [registrationError, setRegistrationError] = useState<string | null>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [authMode, setAuthMode] = useState<"signin" | "signup">("signin");
@@ -354,19 +480,22 @@ export default function AdminPage() {
   }, []);
 
   const loadTournamentData = useCallback(async () => {
-    if (!selectedId) { setPairs([]); setMatches([]); setMembers([]); return; }
-    const [pairsResult, matchesResult, membersResult] = await Promise.all([
+    if (!selectedId) { setPairs([]); setMatches([]); setMembers([]); setRegistrations([]); setRegistrationError(null); return; }
+    const [pairsResult, matchesResult, membersResult, registrationsResult] = await Promise.all([
       supabase.from("pairs").select("id,name,player_one,player_two,seed,updated_at").eq("tournament_id", selectedId).order("seed"),
       supabase.from("matches").select("id,round,position,pair_one_id,pair_two_id,pair_one_sets,pair_two_sets,winner_id,status,court,scheduled_at,updated_at").eq("tournament_id", selectedId).order("round").order("position"),
       supabase.rpc("list_tournament_admins", { p_tournament_id: selectedId }),
+      supabase.from("tournament_registrations").select("id,tournament_id,status,pair_name,player_one_first_name,player_one_last_name,player_one_email,player_one_phone,player_one_messenger,player_one_level,player_one_rating_system,player_one_rating_value,player_two_first_name,player_two_last_name,player_two_email,player_two_phone,player_two_messenger,player_two_level,player_two_rating_system,player_two_rating_value,comment,locale,marketing_opt_in,admin_notes,created_at,updated_at").eq("tournament_id", selectedId).order("created_at", { ascending: false }),
     ]);
     setPairs((pairsResult.data ?? []) as Pair[]); setMatches((matchesResult.data ?? []) as Match[]);
     setMembers((membersResult.data ?? []) as AdminMember[]);
+    setRegistrations((registrationsResult.data ?? []) as Registration[]);
+    setRegistrationError(registrationsResult.error ? "Loading applications failed." : null);
   }, [selectedId]);
 
   useEffect(() => {
     const timer = window.setTimeout(async () => { const { data } = await supabase.auth.getUser(); await loadTournaments(data.user); }, 0);
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => window.setTimeout(() => void loadTournaments(session?.user ?? null), 0));
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => { window.setTimeout(() => void loadTournaments(session?.user ?? null), 0); });
     return () => { window.clearTimeout(timer); listener.subscription.unsubscribe(); };
   }, [loadTournaments]);
 
@@ -401,15 +530,19 @@ export default function AdminPage() {
           {selected && <>
             <div className="admin-section-heading admin-first-section"><div><span>01</span><h2>Tournament</h2></div><p>Publish, start live coverage or archive the completed tournament.</p></div>
             <TournamentSettings key={selected.updated_at} tournament={selected} onSaved={() => void loadTournaments(user)} />
+            <details className="admin-collapsible admin-matches-heading" open>
+              <summary><div><span>02</span><h2>Registrations</h2></div><p>Review pair applications and keep each status up to date.</p></summary>
+              <div className="admin-collapsible-content"><RegistrationManager registrations={registrations} error={registrationError} onRefresh={() => void loadTournamentData()} /></div>
+            </details>
             <details className="admin-collapsible admin-matches-heading">
-              <summary><div><span>02</span><h2>Participants</h2></div><p>Edit the pair and player names used in the tournament bracket.</p></summary>
+              <summary><div><span>03</span><h2>Participants</h2></div><p>Edit the pair and player names used in the tournament bracket.</p></summary>
               <div className="admin-collapsible-content"><div className="admin-pair-grid">{pairs.map((pair) => <PairEditor key={`${pair.id}-${pair.updated_at}`} pair={pair} onSaved={() => void loadTournamentData()} />)}</div></div>
             </details>
             <details className="admin-collapsible admin-matches-heading" open>
-              <summary><div><span>03</span><h2>Matches &amp; courts</h2></div><p>Schedule matches, switch LIVE on, enter scores and correct results safely.</p></summary>
+              <summary><div><span>04</span><h2>Matches &amp; courts</h2></div><p>Schedule matches, switch LIVE on, enter scores and correct results safely.</p></summary>
               <div className="admin-collapsible-content admin-round-groups">{matchesByRound.map(({ round, matches: roundMatches }) => <details className="admin-round-group" open key={round}><summary><h3>{roundLabels[selected.bracket_size]?.[round] ?? `Round ${round}`}</h3><span>{roundMatches.length}</span></summary><div className="admin-match-grid">{roundMatches.map((match) => <AdminMatch key={`${match.id}-${match.updated_at}`} match={match} pairMap={pairMap} bracketSize={selected.bracket_size} onSaved={() => void loadTournamentData()} />)}</div></details>)}</div>
             </details>
-            <div className="admin-section-heading admin-matches-heading"><div><span>04</span><h2>Team &amp; roles</h2></div><p>Owners control structure and access; administrators manage tournament operations.</p></div>
+            <div className="admin-section-heading admin-matches-heading"><div><span>05</span><h2>Team &amp; roles</h2></div><p>Owners control structure and access; administrators manage tournament operations.</p></div>
             <TeamManager tournament={selected} members={members} onSaved={() => void loadTournamentData()} />
           </>}
         </section>
