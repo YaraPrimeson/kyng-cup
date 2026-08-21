@@ -428,7 +428,7 @@ body { font-size: 18px; }
 
 /* Tennis and padel pages */
 .sport-hero { padding-top: 110px; }
-.tennis-hero { background: linear-gradient(90deg, rgba(5,29,21,.9) 0%, rgba(5,29,21,.55) 45%, rgba(5,29,21,.08) 76%), linear-gradient(0deg, rgba(8,28,21,.62) 0%, transparent 44%), url('/assets/kyng-hero.png') center/cover no-repeat; }
+.tennis-hero { background: linear-gradient(90deg, rgba(5,29,21,.9) 0%, rgba(5,29,21,.55) 45%, rgba(5,29,21,.08) 76%), linear-gradient(0deg, rgba(8,28,21,.62) 0%, transparent 44%), url('/assets/kyng-tennis-hero-clay.jpg') center/cover no-repeat; }
 .padel-hero { background: linear-gradient(90deg, rgba(5,29,21,.9) 0%, rgba(5,29,21,.5) 48%, rgba(5,29,21,.05) 78%), linear-gradient(0deg, rgba(8,28,21,.62) 0%, transparent 44%), url('/assets/kyng-padel-hero.png') center/cover no-repeat; }
 .padel-page .experience-visual { background-image: linear-gradient(0deg, rgba(22,46,35,.78), transparent 50%), url('/assets/kyng-padel-hero.png'); background-position: 58% center; }
 .sport-page .manifesto-copy h2 { max-width: 1060px; }
@@ -465,6 +465,7 @@ body { font-size: 18px; }
   .universal-about p { margin-left: 18%; }
   .sport-choice { padding: 85px 22px 95px; }
   .sport-choice-card { min-height: 500px; }
+  .tennis-hero { background-position: 76% center; }
   .upcoming-dynamic { padding: 90px 22px; }
   .upcoming-layout { grid-template-columns: 1fr; }
   .upcoming-date { min-height: 300px; }
