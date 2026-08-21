@@ -420,8 +420,8 @@ body { font-size: 18px; }
 .sport-choice-card { min-height: 620px; padding: 32px; border-radius: 24px; display: flex; flex-direction: column; justify-content: flex-end; position: relative; overflow: hidden; background-position: center; background-size: cover; }
 .sport-choice-card::before { content: ""; position: absolute; inset: 0; background: linear-gradient(0deg, rgba(10,40,29,.9), rgba(10,40,29,.08) 72%); }
 .sport-choice-card > * { position: relative; z-index: 1; }
-.tennis-choice { background-image: url('/assets/kyng-hero.png'); }
-.padel-choice { background-image: url('/assets/kyng-padel-hero.png'); }
+.tennis-choice { background-image: url('/assets/kyng-tennis-choice.jpg'); background-position: center 20%; }
+.padel-choice { background-image: url('/assets/kyng-padel-choice.jpg'); }
 .sport-choice-card > span { font: 400 clamp(48px, 5.8vw, 92px)/.94 var(--font-lora), Georgia, serif; }
 .sport-choice-card p { max-width: 440px; color: rgba(255,255,255,.72); line-height: 1.5; }
 .sport-choice-card strong { margin-top: 20px; text-transform: uppercase; letter-spacing: .11em; font-size: 13px; font-weight: 500; }
