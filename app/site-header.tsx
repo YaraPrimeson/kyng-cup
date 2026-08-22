@@ -21,7 +21,7 @@ export default function SiteHeader() {
     <header className="global-header">
       <a className="brand" href={`${basePath}/`} aria-label="KYNG CUP home"><Wordmark /></a>
       <nav aria-label="Main navigation">{links.map(([href, label]) => <a href={`${basePath}${href}`} key={href}>{label}</a>)}</nav>
-      <label className="language-select"><span>{t("language")}</span><select value={language} onChange={(event) => setLanguage(event.target.value as Language)}><option value="en">EN</option><option value="uk">UA</option><option value="de">DE</option><option value="ru">RU</option></select></label>
+      <label className="language-select"><span>{t("language")}</span><select value={language} onChange={(event) => setLanguage(event.target.value as Language)}><option value="en">EN</option><option value="uk">UA</option><option value="de">DE</option></select></label>
     </header>
   );
 }
