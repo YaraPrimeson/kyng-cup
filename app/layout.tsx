@@ -20,7 +20,7 @@ export const metadata: Metadata = {
     title: "KYNG CUP — More Than a Game",
     description: "International tennis and padel tournaments built around competition, atmosphere and community.",
     type: "website",
-    images: [{ url: "/og.png", width: 1736, height: 909, alt: "KYNG CUP — More Than a Game" }],
+    images: [{ url: "/og.png", width: 1200, height: 630, alt: "KYNG CUP — More Than a Game" }],
   },
   twitter: {
     card: "summary_large_image",
