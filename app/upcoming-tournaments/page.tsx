@@ -44,8 +44,8 @@ const copy: Record<Language, TournamentCopy> = {
   },
 };
 
-function TournamentCard({ sport, date, label, processLabel, sportLabel }: { sport: "tennis" | "padel"; date: string; label: string; processLabel: string; sportLabel: string }) {
-  return <a className={`upcoming-page__card upcoming-page__card--${sport}`} href={`#${sport}`}><span>{processLabel}</span><div><strong>{sportLabel}</strong><p>{date}</p></div><b>{label} ↗</b></a>;
+function TournamentCard({ sport, date, label, processLabel, sportLabel, registrationHref }: { sport: "tennis" | "padel"; date: string; label: string; processLabel: string; sportLabel: string; registrationHref: string }) {
+  return <a className={`upcoming-page__card upcoming-page__card--${sport}`} href={registrationHref}><span>{processLabel}</span><div><strong>{sportLabel}</strong><p>{date}</p></div><b>{label} →</b></a>;
 }
 
 function TournamentDetail({ sport, title, line, description, date, register, copy: c, registrationHref }: { sport: "tennis" | "padel"; title: string; line: string; description: string; date: string; register: string; copy: TournamentCopy; registrationHref: string }) {
@@ -61,7 +61,7 @@ export default function UpcomingTournamentsPage() {
 
   return <main className="upcoming-page" key={language}>
     <section className="upcoming-page__hero"><div><p>{c.eyebrow}</p><h1>{c.title}</h1><p className="upcoming-page__hero-intro">{c.intro}</p></div><aside><span>{c.month}</span><strong>{c.dates}</strong><a className="upcoming-page__button" href="#choose">{c.choose} <span>↓</span></a></aside></section>
-    <section className="upcoming-page__selector" id="choose"><p className="upcoming-page__label">01 — {c.choose}</p><div><TournamentCard sport="tennis" date={c.tennisDate} label={c.registerTennis} processLabel={c.processLabel} sportLabel={c.tennis} /><TournamentCard sport="padel" date={c.padelDate} label={c.registerPadel} processLabel={c.processLabel} sportLabel={c.padel} /></div></section>
+    <section className="upcoming-page__selector" id="choose"><p className="upcoming-page__label">01 — {c.choose}</p><div><TournamentCard sport="tennis" date={c.tennisDate} label={c.registerTennis} processLabel={c.processLabel} sportLabel={c.tennis} registrationHref={`${basePath}/register/?sport=tennis`} /><TournamentCard sport="padel" date={c.padelDate} label={c.registerPadel} processLabel={c.processLabel} sportLabel={c.padel} registrationHref={`${basePath}/register/?sport=padel`} /></div></section>
     <TournamentDetail sport="tennis" title={c.tennisTitle} line={c.tennisLine} description={c.tennisDescription} date={c.tennisDate} register={c.registerTennis} copy={c} registrationHref={`${basePath}/register/?sport=tennis`} />
     <TournamentDetail sport="padel" title={c.padelTitle} line={c.padelLine} description={c.padelDescription} date={c.padelDate} register={c.registerPadel} copy={c} registrationHref={`${basePath}/register/?sport=padel`} />
     <section className="upcoming-page__process"><p className="upcoming-page__label">04 — {c.processLabel}</p><h2>{c.processTitle}</h2><div>{c.steps.map((step, index) => <article key={step}><span>0{index + 1}</span><h3>{step}</h3><p>{c.stepCopy[index]}</p></article>)}</div></section>
