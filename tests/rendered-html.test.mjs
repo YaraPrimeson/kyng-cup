@@ -38,6 +38,19 @@ test("server-renders distinct tennis and padel pages", async () => {
   assert.match(padel, /The padel experience/);
 });
 
+test("server-renders the reusable upcoming tournaments landing page", async () => {
+  const response = await render("/upcoming-tournaments");
+  assert.equal(response.status, 200);
+  const html = await response.text();
+  assert.match(html, /Upcoming tournaments/);
+  assert.match(html, /Register for Tennis/);
+  assert.match(html, /Register for Padel/);
+  assert.match(html, /id="tennis"/);
+  assert.match(html, /id="padel"/);
+  assert.match(html, /\/register\/\?sport=tennis/);
+  assert.match(html, /\/register\/\?sport=padel/);
+});
+
 test("server-renders the four-language pair registration form", async () => {
   const response = await render("/register");
   assert.equal(response.status, 200);
