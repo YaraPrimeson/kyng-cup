@@ -158,8 +158,9 @@ test("ships live bracket and protected tournament controls", async () => {
   assert.doesNotMatch(footer, /mailto:|t\("contact"\)/);
   assert.doesNotMatch(footer, /basePath}\/tennis|basePath}\/padel/);
   assert.doesNotMatch(exporter, /if\s*\(route === "\/"\)/);
-  assert.doesNotMatch(exporter, /replace\(\/<script/);
   assert.match(exporter, /"\/register\/"/);
+  assert.match(exporter, /"\/upcoming-tournaments\/"/);
+  assert.doesNotMatch(exporter, /replace\(\/<script/);
   assert.match(register, /const prefix = number === 1 \? "player_one" : "player_two"/);
   assert.match(register, /name=\{`\$\{prefix\}_level`\}/);
   assert.match(register, /partner_consent/);
