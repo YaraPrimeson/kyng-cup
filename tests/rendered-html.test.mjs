@@ -62,11 +62,12 @@ test("server-renders the four-language pair registration form", async () => {
 });
 
 test("ships live bracket and protected tournament controls", async () => {
-  const [admin, bracket, home, upcoming, i18n, styles, sportPage, footer, exporter, register, migration, sportMigration, dateMigration, registrationMigration] = await Promise.all([
+  const [admin, bracket, home, upcoming, upcomingPage, i18n, styles, sportPage, footer, exporter, register, migration, sportMigration, dateMigration, registrationMigration] = await Promise.all([
     readFile(new URL("../app/admin/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/bracket/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/upcoming-tournament.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/upcoming-tournaments/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/i18n.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
     readFile(new URL("../app/sport-page.tsx", import.meta.url), "utf8"),
@@ -161,11 +162,15 @@ test("ships live bracket and protected tournament controls", async () => {
   assert.match(exporter, /"\/register\/"/);
   assert.match(exporter, /"\/upcoming-tournaments\/"/);
   assert.doesNotMatch(exporter, /replace\(\/<script/);
+  assert.match(upcomingPage, /function TournamentCard[\s\S]*href=\{registrationHref\}/);
+  assert.match(upcomingPage, /\/register\/\?sport=tennis/);
+  assert.match(upcomingPage, /\/register\/\?sport=padel/);
+  assert.match(styles, /kyng-tennis-hero-clay\.jpg/);
+  assert.match(styles, /kyng-padel-action\.jpg/);
   assert.match(register, /const prefix = number === 1 \? "player_one" : "player_two"/);
   assert.match(register, /name=\{`\$\{prefix\}_level`\}/);
-  assert.match(register, /partner_consent/);
-  assert.match(register, /rules_privacy_accepted/);
-  assert.match(register, /marketing_opt_in/);
+  assert.doesNotMatch(register, /<div className="registration-consents"|<input name="accuracy_confirmed"|<input name="partner_consent"|<input name="rules_privacy_accepted"|<input name="marketing_opt_in"/);
+  assert.match(register, /marketing_opt_in: false/);
   assert.match(register, /registration_status/);
   assert.match(register, /en: \{/);
   assert.match(register, /uk: \{/);
