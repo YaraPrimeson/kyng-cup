@@ -260,6 +260,39 @@ function PairEditor({ pair, onSaved }: { pair: Pair; onSaved: () => void }) {
   );
 }
 
+function TournamentReset({ tournament, onReset }: { tournament: Tournament; onReset: () => void }) {
+  const [resetting, setResetting] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  async function reset() {
+    const approved = window.confirm("Reset this tournament? This permanently removes every registration, clears all results and schedules, and restores placeholder pairs.");
+    if (!approved) return;
+
+    const reconfirmed = window.confirm("Final confirmation: delete the registrations and reset this tournament now?");
+    if (!reconfirmed) return;
+
+    setResetting(true);
+    setMessage(null);
+    const { error } = await supabase.rpc("reset_tournament_data", { p_tournament_id: tournament.id });
+    setResetting(false);
+    if (error) setMessage(error.message);
+    else {
+      setMessage("Tournament reset. Registrations, participants, results and schedules were cleared.");
+      onReset();
+    }
+  }
+
+  if (tournament.role !== "owner") return null;
+
+  return (
+    <section className="admin-reset-card" aria-label="Reset tournament data">
+      <div><strong>Reset tournament data</strong><p>Use only for test data. This clears every registration, participant name, result and scheduled court/time, while preserving the tournament settings and bracket size.</p></div>
+      <button className="admin-reset-button" type="button" onClick={() => void reset()} disabled={resetting}>{resetting ? "Resetting…" : "Reset test data"}</button>
+      <Feedback message={message} />
+    </section>
+  );
+}
+
 function AdminMatch({ match, pairMap, bracketSize, onSaved }: { match: Match; pairMap: Map<string, Pair>; bracketSize: number; onSaved: () => void }) {
   const pairOne = match.pair_one_id ? pairMap.get(match.pair_one_id) : undefined;
   const pairTwo = match.pair_two_id ? pairMap.get(match.pair_two_id) : undefined;
@@ -534,6 +567,7 @@ export default function AdminPage() {
           {selected && <>
             <div className="admin-section-heading admin-first-section"><div><span>01</span><h2>Tournament</h2></div><p>Publish, start live coverage or archive the completed tournament.</p></div>
             <TournamentSettings key={selected.updated_at} tournament={selected} onSaved={() => void loadTournaments(user)} />
+            <TournamentReset tournament={selected} onReset={() => { void loadTournaments(user, selected.id); void loadTournamentData(); }} />
             <details className="admin-collapsible admin-matches-heading" open>
               <summary><div><span>02</span><h2>Registrations</h2></div><p>Review pair applications and keep each status up to date.</p></summary>
               <div className="admin-collapsible-content"><RegistrationManager registrations={registrations} error={registrationError} onRefresh={() => void loadTournamentData()} /></div>
