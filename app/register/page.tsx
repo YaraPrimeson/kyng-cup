@@ -3,7 +3,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import { captureAttribution, trackEvent } from "../analytics";
+import { captureAttribution, getAttribution, trackEvent } from "../analytics";
 import { Language, useLanguage } from "../i18n";
 import SiteFooter from "../site-footer";
 
@@ -134,6 +134,7 @@ export default function RegisterPage() {
     const data = new FormData(form);
     const value = (name: string) => String(data.get(name) ?? "").trim();
     const optional = (name: string) => value(name) || null;
+    const attribution = getAttribution();
     const firstEmail = value("player_one_email").toLowerCase();
     const secondEmail = value("player_two_email").toLowerCase();
     if (firstEmail === secondEmail) {
@@ -168,7 +169,12 @@ export default function RegisterPage() {
       player_two_rating_value: optional("player_two_rating_value"),
       comment: optional("comment"),
       locale: language,
-        marketing_opt_in: false,
+      utm_source: attribution.utm_source ?? null,
+      utm_medium: attribution.utm_medium ?? null,
+      utm_campaign: attribution.utm_campaign ?? null,
+      utm_term: attribution.utm_term ?? null,
+      utm_content: attribution.utm_content ?? null,
+      marketing_opt_in: false,
       });
       error = result.error;
     } catch {
