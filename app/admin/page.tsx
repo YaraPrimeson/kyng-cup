@@ -494,7 +494,7 @@ export default function AdminPage() {
   const [registrationError, setRegistrationError] = useState<string | null>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [authMode, setAuthMode] = useState<"signin" | "signup">("signin");
+  const [authMode, setAuthMode] = useState<"signin" | "signup" | "reset" | "new-password">("signin");
   const [authMessage, setAuthMessage] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
 
@@ -532,7 +532,10 @@ export default function AdminPage() {
 
   useEffect(() => {
     const timer = window.setTimeout(async () => { const { data } = await supabase.auth.getUser(); await loadTournaments(data.user); }, 0);
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => { window.setTimeout(() => void loadTournaments(session?.user ?? null), 0); });
+    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "PASSWORD_RECOVERY") setAuthMode("new-password");
+      window.setTimeout(() => void loadTournaments(session?.user ?? null), 0);
+    });
     return () => { window.clearTimeout(timer); listener.subscription.unsubscribe(); };
   }, [loadTournaments]);
 
@@ -549,15 +552,27 @@ export default function AdminPage() {
 
   async function submitAuth(event: FormEvent) {
     event.preventDefault(); setAuthMessage(null);
-    const result = authMode === "signin" ? await supabase.auth.signInWithPassword({ email, password }) : await supabase.auth.signUp({ email, password, options: { emailRedirectTo: new URL(window.location.pathname, window.location.origin).toString() } });
+    const redirectTo = new URL(window.location.pathname, window.location.origin).toString();
+    if (authMode === "reset") {
+      const result = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo });
+      setAuthMessage(result.error ? result.error.message : "Password reset link sent. Check your inbox and spam folder.");
+      return;
+    }
+    if (authMode === "new-password") {
+      const result = await supabase.auth.updateUser({ password });
+      if (result.error) setAuthMessage(result.error.message);
+      else { setAuthMessage("Password updated. You can now use the admin panel."); setAuthMode("signin"); }
+      return;
+    }
+    const result = authMode === "signin" ? await supabase.auth.signInWithPassword({ email, password }) : await supabase.auth.signUp({ email, password, options: { emailRedirectTo: redirectTo } });
     if (result.error) setAuthMessage(result.error.message); else if (authMode === "signup" && !result.data.session) setAuthMessage("Check your email to confirm the account, then sign in.");
   }
 
   return (
     <main className="admin-page">
       {user && <div className="admin-session"><button type="button" onClick={() => void supabase.auth.signOut()}>Sign out</button></div>}
-      {checking ? <section className="admin-state" role="status">Checking access…</section> : !user ? (
-        <section className="admin-auth"><div><p className="eyebrow">Protected area</p><h1>{adminTitle[0]}<br />{adminTitle[1]}<span className="accent-dot">.</span></h1><p>Sign in to create tournaments, manage participants, schedules and live results.</p></div><form onSubmit={submitAuth}><label><span>Email</span><input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required /></label><label><span>Password</span><input type="password" value={password} onChange={(event) => setPassword(event.target.value)} minLength={8} required /></label><button type="submit">{authMode === "signin" ? "Sign in" : "Create account"} <span aria-hidden="true">↗</span></button><button className="auth-switch" type="button" onClick={() => setAuthMode(authMode === "signin" ? "signup" : "signin")}>{authMode === "signin" ? "Create a new account" : "I already have an account"}</button><Feedback message={authMessage} /></form></section>
+      {checking ? <section className="admin-state" role="status">Checking access…</section> : authMode === "new-password" || !user ? (
+        <section className="admin-auth"><div><p className="eyebrow">Protected area</p><h1>{adminTitle[0]}<br />{adminTitle[1]}<span className="accent-dot">.</span></h1><p>{authMode === "reset" ? "Enter your admin email and we will send a password reset link." : authMode === "new-password" ? "Choose a new password for your administrator account." : "Sign in to create tournaments, manage participants, schedules and live results."}</p></div><form onSubmit={submitAuth}>{authMode !== "new-password" && <label><span>Email</span><input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" required /></label>}{authMode !== "reset" && <label><span>{authMode === "new-password" ? "New password" : "Password"}</span><input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete={authMode === "new-password" ? "new-password" : "current-password"} minLength={8} required /></label>}<button type="submit">{authMode === "signin" ? "Sign in" : authMode === "signup" ? "Create account" : authMode === "reset" ? "Send reset link" : "Save new password"} <span aria-hidden="true">↗</span></button>{authMode === "signin" && <button className="auth-switch" type="button" onClick={() => { setAuthMode("reset"); setAuthMessage(null); }}>Forgot password?</button>}<button className="auth-switch" type="button" onClick={() => { setAuthMode(authMode === "signin" ? "signup" : "signin"); setAuthMessage(null); }}>{authMode === "signin" ? "Create a new account" : "Back to sign in"}</button><Feedback message={authMessage} /></form></section>
       ) : (
         <section className="admin-dashboard">
           <div className="admin-dashboard-heading"><div><p className="eyebrow">Tournament control centre</p><h1>Match control<span className="accent-dot">.</span></h1></div>{selected && <a href={`../bracket/?tournament=${selected.slug}`} target="_blank" rel="noreferrer">Open public bracket ↗</a>}</div>
