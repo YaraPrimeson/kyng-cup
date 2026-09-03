@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { captureAttribution, trackEvent } from "../analytics";
 import { Language, useLanguage } from "../i18n";
 import SiteFooter from "../site-footer";
 
@@ -87,6 +88,7 @@ export default function RegisterPage() {
   const [submissionState, setSubmissionState] = useState<"idle" | "submitting" | "success">("idle");
   const [submissionError, setSubmissionError] = useState<string | null>(null);
   const [submittedPair, setSubmittedPair] = useState("");
+  const [registrationStarted, setRegistrationStarted] = useState(false);
 
   const loadTournaments = useCallback(async () => {
     const result = await supabase.from("tournaments").select("id,slug,name,sport,location,starts_at,ends_at,status,registration_status").in("status", ["published", "live"]).in("registration_status", ["open", "waitlist"]).order("starts_at", { ascending: true, nullsFirst: false });
@@ -102,7 +104,7 @@ export default function RegisterPage() {
     setLoading(false);
   }, []);
 
-  useEffect(() => { const timer = window.setTimeout(() => void loadTournaments(), 0); return () => window.clearTimeout(timer); }, [loadTournaments]);
+  useEffect(() => { captureAttribution(); const timer = window.setTimeout(() => void loadTournaments(), 0); return () => window.clearTimeout(timer); }, [loadTournaments]);
   const tournament = useMemo(() => tournaments.find((item) => item.slug === selectedSlug) ?? null, [selectedSlug, tournaments]);
 
   function selectTournament(slug: string) {
@@ -183,6 +185,7 @@ export default function RegisterPage() {
     }
     setSubmittedPair(pairLabel);
     setSubmissionState("success");
+    trackEvent("registration_complete", { sport: tournament.sport, tournament_slug: tournament.slug });
     window.setTimeout(() => document.getElementById("registration-form")?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
   }
 
@@ -212,7 +215,7 @@ export default function RegisterPage() {
         <h2>{text.successTitle}<span className="accent-dot">.</span></h2>
         <p>{(tournament.registration_status === "waitlist" ? text.waitlistBody : text.successBody).replace("{pair}", submittedPair).replace("{tournament}", tournament.name)}</p>
         <a href={`${basePath}/${tournament.sport}/#tournament`}>{text.backTournament}<span>↗</span></a>
-      </article> : <form className="registration-application" id="registration-form" onSubmit={submitRegistration} onChange={() => submissionError && setSubmissionError(null)}>
+      </article> : <form className="registration-application" id="registration-form" onSubmit={submitRegistration} onFocus={() => { if (!registrationStarted && tournament) { setRegistrationStarted(true); trackEvent("registration_start", { sport: tournament.sport, tournament_slug: tournament.slug }); } }} onChange={() => submissionError && setSubmissionError(null)}>
         <fieldset className="registration-pair-card" disabled={!tournament || submissionState === "submitting"}>
           <legend><span>01</span>{text.pairDetails}</legend>
           <p>{text.pairIntro}</p>
