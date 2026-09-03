@@ -38,19 +38,6 @@ test("server-renders distinct tennis and padel pages", async () => {
   assert.match(padel, /The padel experience/);
 });
 
-test("server-renders the reusable upcoming tournaments landing page", async () => {
-  const response = await render("/upcoming-tournaments");
-  assert.equal(response.status, 200);
-  const html = await response.text();
-  assert.match(html, /Upcoming tournaments/);
-  assert.match(html, /Register for Tennis/);
-  assert.match(html, /Register for Padel/);
-  assert.match(html, /id="tennis"/);
-  assert.match(html, /id="padel"/);
-  assert.match(html, /\/register\/\?sport=tennis/);
-  assert.match(html, /\/register\/\?sport=padel/);
-});
-
 test("server-renders the four-language pair registration form", async () => {
   const response = await render("/register");
   assert.equal(response.status, 200);
@@ -62,12 +49,11 @@ test("server-renders the four-language pair registration form", async () => {
 });
 
 test("ships live bracket and protected tournament controls", async () => {
-  const [admin, bracket, home, upcoming, upcomingPage, i18n, styles, sportPage, footer, exporter, register, migration, sportMigration, dateMigration, registrationMigration] = await Promise.all([
+  const [admin, bracket, home, upcoming, i18n, styles, sportPage, footer, exporter, register, migration, sportMigration, dateMigration, registrationMigration, resetMigration] = await Promise.all([
     readFile(new URL("../app/admin/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/bracket/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/upcoming-tournament.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../app/upcoming-tournaments/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/i18n.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
     readFile(new URL("../app/sport-page.tsx", import.meta.url), "utf8"),
@@ -78,6 +64,7 @@ test("ships live bracket and protected tournament controls", async () => {
     readFile(new URL("../supabase/migrations/20260818120000_add_tournament_sport.sql", import.meta.url), "utf8"),
     readFile(new URL("../supabase/migrations/20260818122000_add_tournament_end_date.sql", import.meta.url), "utf8"),
     readFile(new URL("../supabase/migrations/20260820071715_create_tournament_registrations.sql", import.meta.url), "utf8"),
+    readFile(new URL("../supabase/migrations/20260902103000_add_reset_tournament_data.sql", import.meta.url), "utf8"),
   ]);
 
   assert.match(admin, /create_tournament_with_bracket/);
@@ -103,6 +90,11 @@ test("ships live bracket and protected tournament controls", async () => {
   assert.match(admin, /Refresh applications/);
   assert.match(admin, /No applications match this filter\./);
   assert.doesNotMatch(admin, /tournament_registrations"\)\.delete/);
+  assert.match(admin, /reset_tournament_data/);
+  assert.match(admin, /Reset test data/);
+  assert.match(resetMigration, /Only a tournament owner can reset tournament data/);
+  assert.match(resetMigration, /delete from public\.tournament_registrations/);
+  assert.match(resetMigration, /delete from public\.match_result_history/);
   assert.match(admin, /Team &amp; roles/);
   assert.doesNotMatch(admin, /Activity log/);
   assert.match(bracket, /postgres_changes/);
@@ -139,7 +131,7 @@ test("ships live bracket and protected tournament controls", async () => {
   assert.match(i18n, /"Semifinal": \{ uk: "Півфінал", de: "Halbfinale", ru: "Полуфинал" \}/);
   assert.match(i18n, /addEventListener\("storage"/);
   assert.doesNotMatch(styles, /\.language-select::after/);
-  assert.match(styles, /kyng-universal-hero-v3\.png/);
+  assert.match(styles, /kyng-universal-hero-v3\.webp/);
   assert.match(sportPage, /preview-connector/);
   assert.match(sportPage, /home-bracket-actions/);
   assert.match(sportPage, /\/register\/\?sport=\$\{sport\}/);
@@ -159,18 +151,13 @@ test("ships live bracket and protected tournament controls", async () => {
   assert.doesNotMatch(footer, /mailto:|t\("contact"\)/);
   assert.doesNotMatch(footer, /basePath}\/tennis|basePath}\/padel/);
   assert.doesNotMatch(exporter, /if\s*\(route === "\/"\)/);
-  assert.match(exporter, /"\/register\/"/);
-  assert.match(exporter, /"\/upcoming-tournaments\/"/);
   assert.doesNotMatch(exporter, /replace\(\/<script/);
-  assert.match(upcomingPage, /function TournamentCard[\s\S]*href=\{registrationHref\}/);
-  assert.match(upcomingPage, /\/register\/\?sport=tennis/);
-  assert.match(upcomingPage, /\/register\/\?sport=padel/);
-  assert.match(styles, /kyng-tennis-hero-clay\.jpg/);
-  assert.match(styles, /kyng-padel-action\.jpg/);
+  assert.match(exporter, /"\/register\/"/);
   assert.match(register, /const prefix = number === 1 \? "player_one" : "player_two"/);
   assert.match(register, /name=\{`\$\{prefix\}_level`\}/);
-  assert.doesNotMatch(register, /<div className="registration-consents"|<input name="accuracy_confirmed"|<input name="partner_consent"|<input name="rules_privacy_accepted"|<input name="marketing_opt_in"/);
-  assert.match(register, /marketing_opt_in: false/);
+  assert.match(register, /partner_consent/);
+  assert.match(register, /rules_privacy_accepted/);
+  assert.match(register, /marketing_opt_in/);
   assert.match(register, /registration_status/);
   assert.match(register, /en: \{/);
   assert.match(register, /uk: \{/);

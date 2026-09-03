@@ -274,6 +274,10 @@ html[lang="ru"] .admin-collapsible[open] > summary::after { content: "Скрыт
 .admin-field input:focus { border-color: var(--forest); }
 .admin-save-button { justify-self: start; border: 0; border-radius: 999px; padding: 10px 15px; background: var(--forest); color: #fff; cursor: pointer; font-size: 12px; }
 .admin-save-button:disabled { opacity: .4; cursor: not-allowed; }
+.admin-reset-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 14px 24px; align-items: center; margin-top: 16px; padding: 16px; border: 1px solid color-mix(in srgb, var(--clay) 42%, transparent); border-radius: 12px; background: color-mix(in srgb, var(--sand) 45%, #fff); }
+.admin-reset-card strong { display: block; font-size: 14px; }
+.admin-reset-card p { margin: 5px 0 0; color: var(--forest); opacity: .72; font-size: 13px; line-height: 1.45; }
+.admin-reset-card .admin-message { grid-column: 1 / -1; margin: 0; }
 .admin-match-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
 .admin-match { border-radius: 18px; background: #fff; border: 1px solid var(--line); padding: 18px; display: grid; gap: 0; }
 .admin-match-title { display: flex; justify-content: space-between; padding-bottom: 13px; text-transform: uppercase; letter-spacing: .09em; font-size: 11px; }
@@ -390,24 +394,13 @@ body { font-size: 18px; }
 
 /* Universal home */
 .universal-page { background: var(--paper); }
-.universal-hero { position: relative; isolation: isolate; min-height: 920px; height: 100svh; padding: 150px 42px 44px; display: flex; align-items: center; overflow: hidden; color: #fff; background: url('/assets/kyng-universal-hero-v3.png') 58% center/cover no-repeat; }
+.universal-hero { position: relative; isolation: isolate; min-height: 920px; height: 100svh; padding: 150px 42px 44px; display: flex; align-items: center; overflow: hidden; color: #fff; background: url('/assets/kyng-universal-hero-v3.webp') 58% center/cover no-repeat; }
 .universal-hero::before { display: none; }
 .universal-hero::after { content: ""; position: absolute; z-index: -1; inset: 0; background: linear-gradient(90deg, rgba(12,45,33,.88), rgba(12,45,33,.48) 50%, rgba(12,45,33,.34)), linear-gradient(0deg, rgba(8,28,21,.68), transparent 60%); }
 .universal-hero > div { max-width: 1100px; }
 .universal-hero h1 { max-width: 900px; margin: 32px 0; font: 400 clamp(70px, 8.4vw, 145px)/.83 var(--font-lora), Georgia, serif; letter-spacing: -.055em; }
 .universal-hero > div > p:last-child { width: min(100%, 610px); margin-left: 29%; color: rgba(255,255,255,.8); line-height: 1.65; }
 .universal-scroll { position: absolute; left: 42px; bottom: 34px; text-transform: uppercase; letter-spacing: .14em; font-size: 12px; }
-.vienna-tournament-banner { padding: 104px 42px; display: grid; grid-template-columns: minmax(190px, .66fr) minmax(280px, 1fr) minmax(430px, 1.18fr); gap: 36px; align-items: end; background: #fff; border-bottom: 1px solid var(--line); }
-.vienna-tournament-banner-copy h2 { max-width: 440px; margin: 0; font: 400 clamp(48px, 5.4vw, 84px)/.9 var(--font-lora), Georgia, serif; letter-spacing: -.05em; }
-.vienna-tournament-banner-copy p { max-width: 370px; margin: 26px 0 0; color: rgba(20,32,25,.66); line-height: 1.55; }
-.vienna-tournament-banner-dates { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-.vienna-tournament-date { min-height: 300px; padding: 23px; border-radius: 20px; display: flex; flex-direction: column; color: #fff; transition: transform .2s ease, box-shadow .2s ease; }
-.vienna-tournament-date:hover { transform: translateY(-4px); box-shadow: 0 18px 38px rgba(20,32,25,.16); }
-.vienna-tournament-date.is-tennis { background: var(--clay); }
-.vienna-tournament-date.is-padel { background: var(--forest); }
-.vienna-tournament-date > span, .vienna-tournament-date small { text-transform: uppercase; letter-spacing: .1em; font-size: 10px; }
-.vienna-tournament-date strong { margin: auto 0 10px; font: 400 clamp(84px, 8vw, 134px)/.72 var(--font-lora), Georgia, serif; letter-spacing: -.07em; }
-.vienna-tournament-date small { padding-top: 12px; border-top: 1px solid rgba(255,255,255,.35); }
 .universal-about { min-height: 680px; padding: 125px 42px; display: grid; grid-template-columns: 1fr 4fr; gap: 55px; }
 .universal-about > div:last-child { max-width: 1050px; }
 .universal-about h2, .sport-choice > h2 { margin: 0 0 48px; font: 400 clamp(48px, 6.2vw, 100px)/.94 var(--font-lora), Georgia, serif; letter-spacing: -.045em; }
@@ -418,18 +411,18 @@ body { font-size: 18px; }
 .sport-choice-card { min-height: 620px; padding: 32px; border-radius: 24px; display: flex; flex-direction: column; justify-content: flex-end; position: relative; overflow: hidden; background-position: center; background-size: cover; }
 .sport-choice-card::before { content: ""; position: absolute; inset: 0; background: linear-gradient(0deg, rgba(10,40,29,.9), rgba(10,40,29,.08) 72%); }
 .sport-choice-card > * { position: relative; z-index: 1; }
-.tennis-choice { background-image: url('/assets/kyng-tennis-choice.jpg'); background-position: center 20%; }
-.padel-choice { background-image: url('/assets/kyng-padel-choice.jpg'); }
+.tennis-choice { background-image: url('/assets/kyng-tennis-choice.webp'); background-position: center 20%; }
+.padel-choice { background-image: url('/assets/kyng-padel-choice.webp'); }
 .sport-choice-card > span { font: 400 clamp(48px, 5.8vw, 92px)/.94 var(--font-lora), Georgia, serif; }
 .sport-choice-card p { max-width: 440px; color: rgba(255,255,255,.72); line-height: 1.5; }
 .sport-choice-card strong { margin-top: 20px; text-transform: uppercase; letter-spacing: .11em; font-size: 13px; font-weight: 500; }
 
 /* Tennis and padel pages */
 .sport-hero { padding-top: 110px; }
-.tennis-hero { background: linear-gradient(90deg, rgba(5,29,21,.9) 0%, rgba(5,29,21,.55) 45%, rgba(5,29,21,.08) 76%), linear-gradient(0deg, rgba(8,28,21,.62) 0%, transparent 44%), url('/assets/kyng-tennis-hero-clay.jpg') center/cover no-repeat; }
-.padel-hero { background: linear-gradient(90deg, rgba(5,29,21,.9) 0%, rgba(5,29,21,.5) 48%, rgba(5,29,21,.05) 78%), linear-gradient(0deg, rgba(8,28,21,.62) 0%, transparent 44%), url('/assets/kyng-padel-action.jpg') center 30%/cover no-repeat; }
-.tennis-page .experience-visual { background-image: linear-gradient(0deg, rgba(22,46,35,.78), transparent 50%), url('/assets/kyng-tennis-hero-clay.jpg'); background-position: 82% center; }
-.padel-page .experience-visual { background-image: linear-gradient(0deg, rgba(22,46,35,.78), transparent 50%), url('/assets/kyng-padel-action.jpg'); background-position: center; }
+.tennis-hero { background: linear-gradient(90deg, rgba(5,29,21,.9) 0%, rgba(5,29,21,.55) 45%, rgba(5,29,21,.08) 76%), linear-gradient(0deg, rgba(8,28,21,.62) 0%, transparent 44%), url('/assets/kyng-tennis-hero-clay.webp') center/cover no-repeat; }
+.padel-hero { background: linear-gradient(90deg, rgba(5,29,21,.9) 0%, rgba(5,29,21,.5) 48%, rgba(5,29,21,.05) 78%), linear-gradient(0deg, rgba(8,28,21,.62) 0%, transparent 44%), url('/assets/kyng-padel-action.webp') center 30%/cover no-repeat; }
+.tennis-page .experience-visual { background-image: linear-gradient(0deg, rgba(22,46,35,.78), transparent 50%), url('/assets/kyng-tennis-hero-clay.webp'); background-position: 82% center; }
+.padel-page .experience-visual { background-image: linear-gradient(0deg, rgba(22,46,35,.78), transparent 50%), url('/assets/kyng-padel-action.webp'); background-position: center; }
 .sport-page .manifesto-copy h2 { max-width: 1060px; }
 .upcoming-dynamic { min-height: 650px; padding: 115px 42px; background: #fff; }
 .upcoming-layout { margin-top: 55px; display: grid; grid-template-columns: minmax(280px,.72fr) 1.28fr; gap: 18px; }
@@ -460,10 +453,6 @@ body { font-size: 18px; }
   .universal-hero { min-height: 760px; padding: 125px 22px 34px; }
   .universal-hero > div > p:last-child { margin-left: 15%; }
   .universal-scroll { left: 22px; }
-  .vienna-tournament-banner { padding: 82px 22px; grid-template-columns: 1fr 1.4fr; gap: 34px 22px; }
-  .vienna-tournament-banner-copy { grid-column: 2; }
-  .vienna-tournament-banner-dates { grid-column: 1 / -1; }
-  .vienna-tournament-date { min-height: 250px; }
   .universal-about { padding: 90px 22px; grid-template-columns: 1fr; }
   .universal-about p { margin-left: 18%; }
   .sport-choice { padding: 85px 22px 95px; }
@@ -487,11 +476,6 @@ body { font-size: 18px; }
   .admin-page, .bracket-page, .legal-page, .registration-page { padding-top: 100px; }
   .universal-hero { min-height: 720px; }
   .universal-hero h1 { font-size: 16.5vw; }
-  .vienna-tournament-banner { padding: 70px 22px; grid-template-columns: 1fr; }
-  .vienna-tournament-banner-copy { grid-column: auto; }
-  .vienna-tournament-banner-dates { grid-column: auto; grid-template-columns: 1fr; }
-  .vienna-tournament-date { min-height: 215px; }
-  .vienna-tournament-date strong { font-size: 92px; }
   .universal-hero > div > p:last-child, .universal-about p { width: 100%; margin-left: 0; }
   .universal-about { min-height: auto; }
   .sport-choice-grid { grid-template-columns: 1fr; }
@@ -750,8 +734,8 @@ html[lang="ru"] .admin-round-group:not([open]) > summary::after { content: "По
 .upcoming-page__detail-intro p { max-width: 350px; margin: 0; color: rgba(20,32,25,.66); line-height: 1.6; }
 .upcoming-page__detail-body { display: grid; grid-template-columns: minmax(220px, .85fr) minmax(250px, 1fr); gap: 18px; }
 .upcoming-page__texture { min-height: 368px; overflow: hidden; border-radius: 20px; }
-.upcoming-page__texture--tennis { background: url('/assets/kyng-tennis-hero-clay.jpg') center / cover no-repeat; }
-.upcoming-page__texture--padel { background: url('/assets/kyng-padel-action.jpg') 72% 28% / cover no-repeat; }
+.upcoming-page__texture--tennis { background: url('/assets/kyng-tennis-hero-clay.webp') center / cover no-repeat; }
+.upcoming-page__texture--padel { background: url('/assets/kyng-padel-action.webp') 72% 28% / cover no-repeat; }
 .upcoming-page__date { margin: 2px 0 14px; color: var(--clay); text-transform: uppercase; letter-spacing: .13em; font-size: 11px; }
 .upcoming-page__detail-body h3 { margin: 0; font: 400 clamp(30px, 3.2vw, 48px)/.96 var(--font-lora), Georgia, serif; letter-spacing: -.035em; }
 .upcoming-page__detail-body dl { margin: 32px 0 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
@@ -769,7 +753,3 @@ html[lang="ru"] .admin-round-group:not([open]) > summary::after { content: "По
 .upcoming-page__process article p { max-width: 280px; margin: 0; color: rgba(255,255,255,.66); font-size: 14px; line-height: 1.55; }
 @media (max-width: 900px) { .upcoming-page__hero { min-height: 0; padding: 140px 22px 70px; grid-template-columns: 1fr; gap: 55px; } .upcoming-page__hero-intro { margin-left: 18%; } .upcoming-page__hero aside { min-height: 205px; } .upcoming-page__selector, .upcoming-page__detail, .upcoming-page__process { padding-left: 22px; padding-right: 22px; } .upcoming-page__detail { grid-template-columns: 1fr; gap: 45px; } .upcoming-page__detail-body { grid-template-columns: 1fr 1fr; } }
 @media (max-width: 640px) { .upcoming-page__hero { padding-top: 142px; } .upcoming-page__hero h1 { font-size: 17vw; } .upcoming-page__hero-intro { margin-left: 0; } .upcoming-page__hero aside { padding-left: 20px; } .upcoming-page__hero aside > strong { font-size: 24px; } .upcoming-page__selector { padding-top: 70px; padding-bottom: 72px; } .upcoming-page__selector > div, .upcoming-page__detail-body, .upcoming-page__process > div { grid-template-columns: 1fr; } .upcoming-page__card { min-height: 290px; } .upcoming-page__detail { padding-top: 65px; padding-bottom: 65px; } .upcoming-page__texture { min-height: 245px; } .upcoming-page__process { padding-top: 68px; padding-bottom: 68px; } .upcoming-page__process h2 { margin-bottom: 45px; } }
-.admin-reset-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 14px 24px; align-items: center; margin-top: 16px; padding: 16px; border: 1px solid color-mix(in srgb, var(--clay) 42%, transparent); border-radius: 12px; background: color-mix(in srgb, var(--sand) 45%, #fff); }
-.admin-reset-card strong { display: block; font-size: 14px; }
-.admin-reset-card p { margin: 5px 0 0; color: var(--forest); opacity: .72; font-size: 13px; line-height: 1.45; }
-.admin-reset-card .admin-message { grid-column: 1 / -1; margin: 0; }

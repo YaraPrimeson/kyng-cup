@@ -5,11 +5,11 @@ import { join } from "node:path";
 const port = 4173;
 const repository = process.env.GITHUB_REPOSITORY?.split("/")[1] || "kyng-cup";
 const owner = process.env.GITHUB_REPOSITORY_OWNER || "YaraPrimeson";
-const basePath = process.env.PAGES_BASE_PATH || `/${repository}`;
+const basePath = process.env.PAGES_BASE_PATH ?? `/${repository}`;
 const pagesOrigin = `https://${owner.toLowerCase()}.github.io`;
 const outputDir = join(process.cwd(), "_site");
 
-const server = spawn(join(process.cwd(), "node_modules", ".bin", "vinext"), ["start"], {
+const server = spawn(process.execPath, [join(process.cwd(), "node_modules", "vinext", "dist", "cli.js"), "start"], {
   env: { ...process.env, PORT: String(port) },
   stdio: ["ignore", "pipe", "pipe"],
 });

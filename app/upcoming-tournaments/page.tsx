@@ -59,7 +59,6 @@ export default function UpcomingTournamentsPage() {
   const basePath = pathname.startsWith("/kyng-cup") ? "/kyng-cup" : "";
   const { language } = useLanguage();
   const c = copy[language];
-
   return <main className="upcoming-page" key={language}>
     <section className="upcoming-page__hero"><div><p>{c.eyebrow}</p><h1>{c.title}</h1><p className="upcoming-page__hero-intro">{c.intro}</p></div><aside><span>{c.month}</span><strong>{c.dates}</strong><a className="upcoming-page__button" href="#choose">{c.choose} <span>↓</span></a></aside></section>
     <section className="upcoming-page__selector" id="choose"><p className="upcoming-page__label">01 — {c.choose}</p><div><TournamentCard sport="tennis" date={c.tennisDate} label={c.registerTennis} processLabel={c.processLabel} sportLabel={c.tennis} registrationHref={`${basePath}/register/?sport=tennis`} /><TournamentCard sport="padel" date={c.padelDate} label={c.registerPadel} processLabel={c.processLabel} sportLabel={c.padel} registrationHref={`${basePath}/register/?sport=padel`} /></div></section>

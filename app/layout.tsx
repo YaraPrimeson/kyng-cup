@@ -14,9 +14,11 @@ const lora = Lora({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://kyngcup.com"),
   title: "KYNG CUP — More Than a Game",
   description: "International tennis and padel tournaments built around competition, atmosphere and community.",
   icons: { icon: "/favicon.png", shortcut: "/favicon.png", apple: "/favicon.png" },
+  alternates: { canonical: "/" },
   openGraph: {
     title: "KYNG CUP — More Than a Game",
     description: "International tennis and padel tournaments built around competition, atmosphere and community.",
@@ -35,8 +37,8 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en">
       <body className={lora.variable}>
-        <Analytics />
         <LanguageProvider>
+          <Analytics />
           <SiteHeader />
           {children}
           <SiteUtilities />

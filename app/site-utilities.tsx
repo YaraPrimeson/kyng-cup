@@ -2,10 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useLanguage } from "./i18n";
+import { ANALYTICS_CONSENT_EVENT, ANALYTICS_CONSENT_KEY } from "./analytics";
 
 type Consent = "all" | "necessary";
-const CONSENT_KEY = "kyng-cookie-consent-v2";
-
 const copy = {
   en: { preferences: "Cookie preferences", privacy: "Privacy & cookies", cookieBody: "We use essential browser storage for secure admin sign-in and your preferences. Optional cookies will only be used with your permission.", policy: "Read cookie policy", necessary: "Necessary only", accept: "Accept all" },
   uk: { preferences: "Налаштування cookies", privacy: "Приватність і cookies", cookieBody: "Ми використовуємо необхідне сховище браузера для безпечного входу адміністратора та ваших налаштувань. Необов’язкові cookies — лише з вашого дозволу.", policy: "Політика cookies", necessary: "Лише необхідні", accept: "Прийняти всі" },
@@ -17,11 +16,6 @@ function getSiteRoot() {
   return window.location.pathname.includes("/kyng-cup/") ? "/kyng-cup/" : "/";
 }
 
-function isHomePage() {
-  const pathname = window.location.pathname.replace(/\/+$/, "");
-  return pathname === "" || pathname === "/kyng-cup";
-}
-
 export default function SiteUtilities() {
   const { language } = useLanguage();
   const text = copy[language];
@@ -29,13 +23,8 @@ export default function SiteUtilities() {
 
   useEffect(() => {
     const cookieTimer = window.setTimeout(() => {
-      if (!isHomePage()) {
-        setShowCookies(false);
-        return;
-      }
-
       try {
-        setShowCookies(!window.localStorage.getItem(CONSENT_KEY));
+        setShowCookies(!window.localStorage.getItem(ANALYTICS_CONSENT_KEY));
       } catch {
         setShowCookies(true);
       }
@@ -58,7 +47,8 @@ export default function SiteUtilities() {
 
   function saveConsent(value: Consent) {
     try {
-      window.localStorage.setItem(CONSENT_KEY, value);
+      window.localStorage.setItem(ANALYTICS_CONSENT_KEY, value);
+      window.dispatchEvent(new CustomEvent(ANALYTICS_CONSENT_EVENT, { detail: value }));
     } finally {
       setShowCookies(false);
     }
