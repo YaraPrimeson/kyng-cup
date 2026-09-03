@@ -2,6 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import SiteFooter from "./site-footer";
+import { trackEvent, withAttribution } from "./analytics";
 import { Language, useLanguage } from "./i18n";
 
 const copy: Record<Language, { eyebrow: string; title: string; intro: string; bannerLabel: string; bannerTitle: string; bannerIntro: string; tennisDate: string; padelDate: string; viewTennis: string; viewPadel: string; aboutLabel: string; aboutTitle: string; aboutText: string; choose: string; chooseTitle: string; tennisText: string; padelText: string; enter: string }> = {
@@ -22,14 +23,14 @@ export default function Home() {
       <div className="section-index"><span>01</span><span>{c.bannerLabel}</span></div>
       <div className="vienna-tournament-banner-copy"><h2>{c.bannerTitle}</h2><p>{c.bannerIntro}</p></div>
       <div className="vienna-tournament-banner-dates">
-        <a className="vienna-tournament-date is-tennis" href={`${basePath}/upcoming-tournaments/#tennis`}><span>{c.tennisDate}</span><strong>20</strong><small>{c.viewTennis} ↗</small></a>
-        <a className="vienna-tournament-date is-padel" href={`${basePath}/upcoming-tournaments/#padel`}><span>{c.padelDate}</span><strong>26</strong><small>{c.viewPadel} ↗</small></a>
+        <a className="vienna-tournament-date is-tennis" href={`${basePath}/upcoming-tournaments/#tennis`} onClick={(event) => { event.currentTarget.href = withAttribution(event.currentTarget.href); trackEvent("select_tournament", { sport: "tennis", placement: "home_dates" }); }}><span>{c.tennisDate}</span><strong>20</strong><small>{c.viewTennis} ↗</small></a>
+        <a className="vienna-tournament-date is-padel" href={`${basePath}/upcoming-tournaments/#padel`} onClick={(event) => { event.currentTarget.href = withAttribution(event.currentTarget.href); trackEvent("select_tournament", { sport: "padel", placement: "home_dates" }); }}><span>{c.padelDate}</span><strong>26</strong><small>{c.viewPadel} ↗</small></a>
       </div>
     </section>
     <section className="universal-about"><div className="section-index"><span>02</span><span>{c.aboutLabel}</span></div><div><h2>{c.aboutTitle}</h2><p>{c.aboutText}</p></div></section>
     <section className="sport-choice"><div className="section-index"><span>03</span><span>{c.choose}</span></div><h2>{c.chooseTitle}</h2><div className="sport-choice-grid">
-      <a className="sport-choice-card tennis-choice" href={`${basePath}/tennis/`}><span>Tennis</span><p>{c.tennisText}</p><strong>{c.enter} ↗</strong></a>
-      <a className="sport-choice-card padel-choice" href={`${basePath}/padel/`}><span>Padel</span><p>{c.padelText}</p><strong>{c.enter} ↗</strong></a>
+      <a className="sport-choice-card tennis-choice" href={`${basePath}/tennis/`} onClick={(event) => { event.currentTarget.href = withAttribution(event.currentTarget.href); trackEvent("select_tournament", { sport: "tennis", placement: "home_sport" }); }}><span>Tennis</span><p>{c.tennisText}</p><strong>{c.enter} ↗</strong></a>
+      <a className="sport-choice-card padel-choice" href={`${basePath}/padel/`} onClick={(event) => { event.currentTarget.href = withAttribution(event.currentTarget.href); trackEvent("select_tournament", { sport: "padel", placement: "home_sport" }); }}><span>Padel</span><p>{c.padelText}</p><strong>{c.enter} ↗</strong></a>
     </div></section>
     <SiteFooter />
   </main>;

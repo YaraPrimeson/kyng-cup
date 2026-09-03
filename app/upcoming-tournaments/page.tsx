@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation";
 import SiteFooter from "../site-footer";
 import { Language, useLanguage } from "../i18n";
+import { trackEvent, withAttribution } from "../analytics";
 
 type TournamentCopy = {
   eyebrow: string; title: string; intro: string; month: string; dates: string; choose: string;
@@ -45,12 +46,12 @@ const copy: Record<Language, TournamentCopy> = {
 };
 
 function TournamentCard({ sport, date, label, processLabel, sportLabel, registrationHref }: { sport: "tennis" | "padel"; date: string; label: string; processLabel: string; sportLabel: string; registrationHref: string }) {
-  return <a className={`upcoming-page__card upcoming-page__card--${sport}`} href={registrationHref}><span>{processLabel}</span><div><strong>{sportLabel}</strong><p>{date}</p></div><b>{label} →</b></a>;
+  return <a className={`upcoming-page__card upcoming-page__card--${sport}`} href={registrationHref} onClick={(event) => { event.currentTarget.href = withAttribution(registrationHref); trackEvent("select_tournament", { sport, placement: "tournament_card" }); }}><span>{processLabel}</span><div><strong>{sportLabel}</strong><p>{date}</p></div><b>{label} →</b></a>;
 }
 
 function TournamentDetail({ sport, title, line, description, date, register, copy: c, registrationHref }: { sport: "tennis" | "padel"; title: string; line: string; description: string; date: string; register: string; copy: TournamentCopy; registrationHref: string }) {
   const sportLabel = sport === "tennis" ? c.tennis : c.padel;
-  return <section className="upcoming-page__detail" id={sport}><div className="upcoming-page__detail-intro"><span>{sport === "tennis" ? "02" : "03"} — {sportLabel}</span><h2>{line}</h2><p>{description}</p></div><div className="upcoming-page__detail-body"><div className={`upcoming-page__texture upcoming-page__texture--${sport}`} aria-hidden="true" /><div><p className="upcoming-page__date">{date}</p><h3>{title}</h3><dl><div><dt>{c.venue}</dt><dd>{c.venueValue}</dd></div><div><dt>{c.registration}</dt><dd>{c.registrationValue}</dd></div></dl><p className="upcoming-page__note">{c.note}</p><a className="upcoming-page__button" href={registrationHref}>{register} <span>↗</span></a></div></div></section>;
+  return <section className="upcoming-page__detail" id={sport}><div className="upcoming-page__detail-intro"><span>{sport === "tennis" ? "02" : "03"} — {sportLabel}</span><h2>{line}</h2><p>{description}</p></div><div className="upcoming-page__detail-body"><div className={`upcoming-page__texture upcoming-page__texture--${sport}`} aria-hidden="true" /><div><p className="upcoming-page__date">{date}</p><h3>{title}</h3><dl><div><dt>{c.venue}</dt><dd>{c.venueValue}</dd></div><div><dt>{c.registration}</dt><dd>{c.registrationValue}</dd></div></dl><p className="upcoming-page__note">{c.note}</p><a className="upcoming-page__button" href={registrationHref} onClick={(event) => { event.currentTarget.href = withAttribution(registrationHref); trackEvent("select_tournament", { sport, placement: "tournament_detail" }); }}>{register} <span>↗</span></a></div></div></section>;
 }
 
 export default function UpcomingTournamentsPage() {

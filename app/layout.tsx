@@ -3,6 +3,7 @@ import { Lora } from "next/font/google";
 import { LanguageProvider } from "./i18n";
 import SiteHeader from "./site-header";
 import SiteUtilities from "./site-utilities";
+import Analytics from "./analytics";
 import "./globals.css";
 
 const lora = Lora({
@@ -34,6 +35,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en">
       <body className={lora.variable}>
+        <Analytics />
         <LanguageProvider>
           <SiteHeader />
           {children}
