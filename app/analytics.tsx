@@ -14,7 +14,7 @@ declare global {
   }
 }
 
-function readAttribution() {
+export function getAttribution() {
   if (typeof window === "undefined") return {} as Partial<Record<AttributionKey, string>>;
   return attributionKeys.reduce<Partial<Record<AttributionKey, string>>>((values, key) => {
     const value = window.sessionStorage.getItem(`kyng_${key}`);
@@ -33,13 +33,13 @@ export function captureAttribution() {
 }
 
 export function trackEvent(name: string, params: EventParams = {}) {
-  window.gtag?.("event", name, { ...readAttribution(), ...params });
+  window.gtag?.("event", name, { ...getAttribution(), ...params });
 }
 
 export function withAttribution(href: string) {
   if (typeof window === "undefined") return href;
   const url = new URL(href, window.location.origin);
-  Object.entries(readAttribution()).forEach(([key, value]) => url.searchParams.set(key, value));
+  Object.entries(getAttribution()).forEach(([key, value]) => url.searchParams.set(key, value));
   return `${url.pathname}${url.search}${url.hash}`;
 }
 
