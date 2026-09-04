@@ -753,3 +753,31 @@ html[lang="ru"] .admin-round-group:not([open]) > summary::after { content: "По
 .upcoming-page__process article p { max-width: 280px; margin: 0; color: rgba(255,255,255,.66); font-size: 14px; line-height: 1.55; }
 @media (max-width: 900px) { .upcoming-page__hero { min-height: 0; padding: 140px 22px 70px; grid-template-columns: 1fr; gap: 55px; } .upcoming-page__hero-intro { margin-left: 18%; } .upcoming-page__hero aside { min-height: 205px; } .upcoming-page__selector, .upcoming-page__detail, .upcoming-page__process { padding-left: 22px; padding-right: 22px; } .upcoming-page__detail { grid-template-columns: 1fr; gap: 45px; } .upcoming-page__detail-body { grid-template-columns: 1fr 1fr; } }
 @media (max-width: 640px) { .upcoming-page__hero { padding-top: 142px; } .upcoming-page__hero h1 { font-size: 17vw; } .upcoming-page__hero-intro { margin-left: 0; } .upcoming-page__hero aside { padding-left: 20px; } .upcoming-page__hero aside > strong { font-size: 24px; } .upcoming-page__selector { padding-top: 70px; padding-bottom: 72px; } .upcoming-page__selector > div, .upcoming-page__detail-body, .upcoming-page__process > div { grid-template-columns: 1fr; } .upcoming-page__card { min-height: 290px; } .upcoming-page__detail { padding-top: 65px; padding-bottom: 65px; } .upcoming-page__texture { min-height: 245px; } .upcoming-page__process { padding-top: 68px; padding-bottom: 68px; } .upcoming-page__process h2 { margin-bottom: 45px; } }
+
+
+/* Vienna tournament announcement */
+.vienna-tournament-banner { padding: 92px 42px 42px; display: grid; grid-template-columns: minmax(170px, .72fr) minmax(300px, 1.25fr) minmax(420px, 2fr); gap: 34px 5vw; align-items: start; background: #fff; border-bottom: 1px solid var(--line); }
+.vienna-tournament-banner-copy h2 { max-width: 520px; margin: -8px 0 23px; font: 400 clamp(46px, 4.4vw, 76px)/.9 var(--font-lora), Georgia, serif; letter-spacing: -.05em; }
+.vienna-tournament-banner-copy p { max-width: 470px; margin: 0; color: rgba(20,32,25,.64); line-height: 1.55; }
+.vienna-tournament-banner-dates { display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid var(--line); }
+.vienna-tournament-date { min-width: 0; min-height: 230px; padding: 23px 25px 21px; display: flex; flex-direction: column; border-bottom: 1px solid var(--line); transition: background .2s, color .2s; }
+.vienna-tournament-date + .vienna-tournament-date { border-left: 1px solid var(--line); }
+.vienna-tournament-date:hover { background: var(--forest); color: #fff; }
+.vienna-tournament-date > span { text-transform: uppercase; letter-spacing: .13em; font-size: 11px; }
+.vienna-tournament-date strong { margin: auto 0 25px; font: 400 clamp(56px, 6vw, 92px)/.78 var(--font-lora), Georgia, serif; letter-spacing: -.06em; }
+.vienna-tournament-date small { padding-top: 16px; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid currentColor; text-transform: uppercase; letter-spacing: .12em; font-size: 10px; }
+
+@media (max-width: 900px) {
+  .vienna-tournament-banner { padding: 76px 22px 30px; grid-template-columns: 1fr 2fr; }
+  .vienna-tournament-banner-copy { grid-column: 2; }
+  .vienna-tournament-banner-dates { grid-column: 1 / -1; }
+}
+
+@media (max-width: 640px) {
+  .vienna-tournament-banner { padding-top: 64px; grid-template-columns: 1fr; gap: 34px; }
+  .vienna-tournament-banner-copy, .vienna-tournament-banner-dates { grid-column: 1; }
+  .vienna-tournament-banner-copy h2 { margin-top: 0; font-size: 14vw; }
+  .vienna-tournament-banner-dates { grid-template-columns: 1fr; }
+  .vienna-tournament-date { min-height: 190px; padding-left: 18px; padding-right: 18px; }
+  .vienna-tournament-date + .vienna-tournament-date { border-left: 0; }
+}
