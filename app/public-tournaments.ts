@@ -10,6 +10,8 @@ export type PublicTournament = {
   name: string;
   sport: "tennis" | "padel";
   location: string | null;
+  format_description: string | null;
+  prize_pool: string | null;
   starts_at: string | null;
   ends_at: string | null;
   status: "published" | "live";
@@ -31,7 +33,7 @@ export function usePublicTournaments() {
   const load = useCallback(async () => {
     const result = await supabase
       .from("tournaments")
-      .select("id,slug,name,sport,location,starts_at,ends_at,status,registration_status")
+      .select("id,slug,name,sport,location,format_description,prize_pool,starts_at,ends_at,status,registration_status")
       .in("status", ["published", "live"])
       .order("starts_at", { ascending: true, nullsFirst: false });
 
