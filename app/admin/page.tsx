@@ -75,6 +75,13 @@ type Registration = {
   comment: string | null;
   locale: "en" | "uk" | "de" | "ru";
   marketing_opt_in: boolean;
+  utm_source: string | null;
+  utm_medium: string | null;
+  utm_campaign: string | null;
+  utm_term: string | null;
+  utm_content: string | null;
+  landing_page: string | null;
+  referrer: string | null;
   admin_notes: string | null;
   created_at: string;
   updated_at: string;
@@ -451,6 +458,8 @@ function RegistrationCard({ registration, onSaved }: { registration: Registratio
         <span><b>Submitted</b>{new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(registration.created_at))}</span>
         <span><b>Language</b>{registration.locale.toUpperCase()}</span>
         <span><b>News opt-in</b>{registration.marketing_opt_in ? "Yes" : "No"}</span>
+        {registration.utm_source && <span><b>Source</b>{registration.utm_source}{registration.utm_medium ? ` / ${registration.utm_medium}` : ""}</span>}
+        {registration.utm_campaign && <span><b>Campaign</b>{registration.utm_campaign}</span>}
       </div>
       {registration.comment && <div className="admin-registration-comment"><span>Applicant message</span><p>{registration.comment}</p></div>}
       <div className="admin-registration-controls">
@@ -522,7 +531,7 @@ export default function AdminPage() {
       supabase.from("pairs").select("id,name,player_one,player_two,seed,updated_at").eq("tournament_id", selectedId).order("seed"),
       supabase.from("matches").select("id,round,position,pair_one_id,pair_two_id,pair_one_sets,pair_two_sets,winner_id,status,court,scheduled_at,updated_at").eq("tournament_id", selectedId).order("round").order("position"),
       supabase.rpc("list_tournament_admins", { p_tournament_id: selectedId }),
-      supabase.from("tournament_registrations").select("id,tournament_id,status,pair_name,player_one_first_name,player_one_last_name,player_one_email,player_one_phone,player_one_messenger,player_one_level,player_one_rating_system,player_one_rating_value,player_two_first_name,player_two_last_name,player_two_email,player_two_phone,player_two_messenger,player_two_level,player_two_rating_system,player_two_rating_value,comment,locale,marketing_opt_in,admin_notes,created_at,updated_at").eq("tournament_id", selectedId).order("created_at", { ascending: false }),
+      supabase.from("tournament_registrations").select("id,tournament_id,status,pair_name,player_one_first_name,player_one_last_name,player_one_email,player_one_phone,player_one_messenger,player_one_level,player_one_rating_system,player_one_rating_value,player_two_first_name,player_two_last_name,player_two_email,player_two_phone,player_two_messenger,player_two_level,player_two_rating_system,player_two_rating_value,comment,locale,marketing_opt_in,utm_source,utm_medium,utm_campaign,utm_term,utm_content,landing_page,referrer,admin_notes,created_at,updated_at").eq("tournament_id", selectedId).order("created_at", { ascending: false }),
     ]);
     setPairs((pairsResult.data ?? []) as Pair[]); setMatches((matchesResult.data ?? []) as Match[]);
     setMembers((membersResult.data ?? []) as AdminMember[]);

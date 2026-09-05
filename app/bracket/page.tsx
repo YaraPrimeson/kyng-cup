@@ -117,6 +117,6 @@ export default function BracketPage() {
       </div></section>
       <div className="round-mobile-controls"><button type="button" onClick={() => setActiveRound((value) => Math.max(1, value - 1))} disabled={activeRound === 1}>← {text.previous}</button><span>{activeRound} / {rounds.length}</span><button type="button" onClick={() => setActiveRound((value) => Math.min(rounds.length, value + 1))} disabled={activeRound === rounds.length}>{text.next} →</button></div>
     </>}
-    <footer className="bracket-footer"><span>Results update automatically</span><span>KYNG CUP · 2026</span></footer>
+    <footer className="bracket-footer"><span>Results update automatically</span><span>KYNG CUP{tournament?.starts_at ? ` · ${new Intl.DateTimeFormat("en", { timeZone: "Europe/Vienna", year: "numeric" }).format(new Date(tournament.starts_at))}` : ""}</span></footer>
   </main>;
 }

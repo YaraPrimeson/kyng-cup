@@ -7,12 +7,20 @@ export const ANALYTICS_CONSENT_EVENT = "kyng:cookie-consent";
 const GA_ID = "G-SNE2TFJ536";
 const attributionKeys = ["utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content"] as const;
 
-function getAttribution() {
+export function getAttribution() {
   return attributionKeys.reduce<Record<string, string>>((values, key) => {
     const value = window.sessionStorage.getItem(`kyng_${key}`);
     if (value) values[key] = value;
     return values;
   }, {});
+}
+
+export function getLeadAttribution() {
+  return {
+    ...getAttribution(),
+    landing_page: window.sessionStorage.getItem("kyng_landing_page"),
+    referrer: window.sessionStorage.getItem("kyng_referrer"),
+  };
 }
 
 function captureAttribution() {
@@ -21,6 +29,10 @@ function captureAttribution() {
     const value = params.get(key);
     if (value) window.sessionStorage.setItem(`kyng_${key}`, value);
   });
+  if (!window.sessionStorage.getItem("kyng_landing_page")) {
+    window.sessionStorage.setItem("kyng_landing_page", window.location.href);
+    if (document.referrer) window.sessionStorage.setItem("kyng_referrer", document.referrer);
+  }
 }
 
 export function withAttribution(href: string) {

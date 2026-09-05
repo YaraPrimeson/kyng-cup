@@ -29,7 +29,6 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
-
       - name: Build static Pages site
         run: npm run build:pages
 
@@ -40,7 +39,6 @@ jobs:
         uses: actions/upload-pages-artifact@v4
         with:
           path: _site
-
   deploy:
     environment:
       name: github-pages
@@ -61,7 +59,6 @@ jobs:
         with:
           name: github-pages
           path: artifact
-
       - name: Extract and adapt for kyngcup.com
         run: |
           mkdir _site
@@ -70,7 +67,6 @@ jobs:
             xargs -0 sed -i \
               -e 's#https://yaraprimeson.github.io/kyng-cup#https://kyngcup.com#g' \
               -e 's#/kyng-cup/#/#g'
-
       - name: Publish Hostinger branch
         uses: peaceiris/actions-gh-pages@v4
         with:

@@ -1,11 +1,11 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { Language, useLanguage } from "../i18n";
 import SiteFooter from "../site-footer";
-import { trackEvent } from "../analytics";
+import { getLeadAttribution, trackEvent } from "../analytics";
 
 type Sport = "tennis" | "padel";
 type RegistrationStatus = "open" | "waitlist" | "closed";
@@ -28,7 +28,7 @@ const copy = {
     tennis: "Tennis", padel: "Padel", open: "Registration open", waitlist: "Waitlist", location: "Location", dates: "Dates", singleDate: "Tournament date", to: "to",
     pairDetails: "Pair details", pairIntro: "We accept complete pairs only. A pair name is optional.", pairName: "Pair name (optional)", pairPlaceholder: "For example, Vienna Pair", comment: "Message to the organisers (optional)", commentPlaceholder: "Anything we should know about your pair?",
     playerOne: "Player 1", playerTwo: "Player 2", firstName: "First name", lastName: "Last name", email: "Email", phone: "Phone number", messenger: "Telegram or WhatsApp (optional)", level: "Playing level", chooseLevel: "Choose level", beginner: "Beginner", intermediate: "Intermediate", advanced: "Advanced", competitive: "Tournament / competitive", ratingSystem: "Rating system (optional)", ratingValue: "Rating (optional)", tennisRating: "ITN, UTR or LK", padelRating: "Playtomic or other", ratingExample: "For example, 7.5",
-    review: "Confirmation", accurate: "I confirm that the information provided is accurate.", partner: "My partner has agreed to this application and the use of their contact details.", rules: "I agree to the tournament rules and have read the", privacyNotice: "privacy notice", marketing: "Send me occasional KYNG CUP tournament news (optional).", submit: "Submit pair application", submitting: "Sending application…", privacy: "Your application is sent securely to the KYNG CUP team.", required: "Required fields", sameEmail: "Use a different email address for each player.", duplicate: "This pair has already applied for the selected tournament.", unavailableError: "Registration for this tournament is no longer available. Please choose another tournament.", invalidError: "Please check the highlighted fields and try again.", submitError: "The application could not be sent. Please try again.", success: "Application received", successTitle: "Your pair is in the game", successBody: "Thank you, {pair}. We received your application for {tournament}. The KYNG CUP team will contact Player 1 by email after reviewing it.", waitlistBody: "Thank you, {pair}. Your pair has been added to the waiting list for {tournament}. The KYNG CUP team will contact Player 1 if a place becomes available.", backTournament: "Back to tournament",
+    review: "Confirmation", accurate: "I confirm that the information provided is accurate.", partner: "My partner has agreed to this application and the use of their contact details.", rulesPrefix: "I agree to the", rulesLink: "Tournament Rules", privacyPrefix: "and have read the", privacyNotice: "privacy notice", marketing: "Send me occasional KYNG CUP tournament news (optional).", submit: "Submit pair application", submitting: "Sending application…", privacy: "Your application is sent securely to the KYNG CUP team.", required: "Required fields", sameEmail: "Use a different email address for each player.", duplicate: "This pair has already applied for the selected tournament.", unavailableError: "Registration for this tournament is no longer available. Please choose another tournament.", invalidError: "Please check the highlighted fields and try again.", submitError: "The application could not be sent. Please try again.", success: "Application received", successTitle: "Your pair is in the game", successBody: "Thank you, {pair}. We received your application for {tournament}. The KYNG CUP team will contact Player 1 by email after reviewing it.", waitlistBody: "Thank you, {pair}. Your pair has been added to the waiting list for {tournament}. The KYNG CUP team will contact Player 1 if a place becomes available.", backTournament: "Back to tournament",
   },
   uk: {
     eyebrow: "Реєстрація пари", title: "Ваш наступний матч починається тут", intro: "Ми приймаємо заявки лише від сформованих пар. Заповніть дані обох гравців — і ми особисто підтвердимо вашу участь.",
@@ -36,7 +36,7 @@ const copy = {
     tennis: "Теніс", padel: "Падел", open: "Реєстрацію відкрито", waitlist: "Лист очікування", location: "Локація", dates: "Дати", singleDate: "Дата проведення", to: "—",
     pairDetails: "Дані пари", pairIntro: "Ми приймаємо лише готові пари. Назва пари — за бажанням.", pairName: "Назва пари (за бажанням)", pairPlaceholder: "Наприклад, Vienna Pair", comment: "Повідомлення організаторам (за бажанням)", commentPlaceholder: "Що нам варто знати про вашу пару?",
     playerOne: "Гравець 1", playerTwo: "Гравець 2", firstName: "Ім’я", lastName: "Прізвище", email: "Email", phone: "Номер телефону", messenger: "Telegram або WhatsApp (за бажанням)", level: "Рівень гри", chooseLevel: "Оберіть рівень", beginner: "Початковий", intermediate: "Середній", advanced: "Просунутий", competitive: "Турнірний / змагальний", ratingSystem: "Система рейтингу (за бажанням)", ratingValue: "Рейтинг (за бажанням)", tennisRating: "ITN, UTR або LK", padelRating: "Playtomic або інша", ratingExample: "Наприклад, 7.5",
-    review: "Підтвердження", accurate: "Підтверджую, що надані дані правильні.", partner: "Мій партнер погодився на цю заявку та використання його контактних даних.", rules: "Я погоджуюся з правилами турніру та ознайомився(-лася) з", privacyNotice: "повідомленням про приватність", marketing: "Надсилайте мені новини про турніри KYNG CUP (за бажанням).", submit: "Подати заявку пари", submitting: "Надсилаємо заявку…", privacy: "Ваша заявка безпечно передається команді KYNG CUP.", required: "Обов’язкові поля", sameEmail: "Вкажіть різні email для кожного гравця.", duplicate: "Ця пара вже подала заявку на обраний турнір.", unavailableError: "Реєстрація на цей турнір уже недоступна. Оберіть інший турнір.", invalidError: "Перевірте виділені поля та спробуйте ще раз.", submitError: "Не вдалося надіслати заявку. Спробуйте ще раз.", success: "Заявку отримано", successTitle: "Ваша пара у грі", successBody: "Дякуємо, {pair}. Ми отримали вашу заявку на {tournament}. Після перевірки команда KYNG CUP зв’яжеться з першим гравцем електронною поштою.", waitlistBody: "Дякуємо, {pair}. Вашу пару додано до листа очікування на {tournament}. Команда KYNG CUP зв’яжеться з першим гравцем, якщо з’явиться місце.", backTournament: "До турніру",
+    review: "Підтвердження", accurate: "Підтверджую, що надані дані правильні.", partner: "Мій партнер погодився на цю заявку та використання його контактних даних.", rulesPrefix: "Я погоджуюся з", rulesLink: "правилами турніру", privacyPrefix: "та ознайомився(-лася) з", privacyNotice: "повідомленням про приватність", marketing: "Надсилайте мені новини про турніри KYNG CUP (за бажанням).", submit: "Подати заявку пари", submitting: "Надсилаємо заявку…", privacy: "Ваша заявка безпечно передається команді KYNG CUP.", required: "Обов’язкові поля", sameEmail: "Вкажіть різні email для кожного гравця.", duplicate: "Ця пара вже подала заявку на обраний турнір.", unavailableError: "Реєстрація на цей турнір уже недоступна. Оберіть інший турнір.", invalidError: "Перевірте виділені поля та спробуйте ще раз.", submitError: "Не вдалося надіслати заявку. Спробуйте ще раз.", success: "Заявку отримано", successTitle: "Ваша пара у грі", successBody: "Дякуємо, {pair}. Ми отримали вашу заявку на {tournament}. Після перевірки команда KYNG CUP зв’яжеться з першим гравцем електронною поштою.", waitlistBody: "Дякуємо, {pair}. Вашу пару додано до листа очікування на {tournament}. Команда KYNG CUP зв’яжеться з першим гравцем, якщо з’явиться місце.", backTournament: "До турніру",
   },
   de: {
     eyebrow: "Paaranmeldung", title: "Euer nächstes Match beginnt hier", intro: "Anmeldungen sind nur für vollständige Paare möglich. Tragt die Daten beider Spieler ein — wir bestätigen euren Platz persönlich.",
@@ -44,7 +44,7 @@ const copy = {
     tennis: "Tennis", padel: "Padel", open: "Anmeldung geöffnet", waitlist: "Warteliste", location: "Ort", dates: "Zeitraum", singleDate: "Turniertag", to: "bis",
     pairDetails: "Angaben zum Paar", pairIntro: "Wir nehmen nur vollständige Paare an. Ein Paarname ist optional.", pairName: "Paarname (optional)", pairPlaceholder: "Zum Beispiel Vienna Pair", comment: "Nachricht an die Organisation (optional)", commentPlaceholder: "Was sollten wir über euer Paar wissen?",
     playerOne: "Spieler 1", playerTwo: "Spieler 2", firstName: "Vorname", lastName: "Nachname", email: "E-Mail", phone: "Telefonnummer", messenger: "Telegram oder WhatsApp (optional)", level: "Spielniveau", chooseLevel: "Niveau wählen", beginner: "Einsteiger", intermediate: "Fortgeschritten", advanced: "Sehr fortgeschritten", competitive: "Turnier / Wettkampf", ratingSystem: "Ratingsystem (optional)", ratingValue: "Rating (optional)", tennisRating: "ITN, UTR oder LK", padelRating: "Playtomic oder anderes", ratingExample: "Zum Beispiel 7,5",
-    review: "Bestätigung", accurate: "Ich bestätige, dass die Angaben korrekt sind.", partner: "Mein Partner stimmt dieser Anmeldung und der Nutzung seiner Kontaktdaten zu.", rules: "Ich akzeptiere die Turnierregeln und habe den", privacyNotice: "Datenschutzhinweis", marketing: "Ich möchte gelegentlich KYNG CUP Turniernews erhalten (optional).", submit: "Paar anmelden", submitting: "Anmeldung wird gesendet…", privacy: "Eure Anmeldung wird sicher an das KYNG CUP Team übermittelt.", required: "Pflichtfelder", sameEmail: "Bitte verwendet für jeden Spieler eine andere E-Mail-Adresse.", duplicate: "Dieses Paar ist bereits für das gewählte Turnier angemeldet.", unavailableError: "Die Anmeldung für dieses Turnier ist nicht mehr verfügbar. Bitte wählt ein anderes Turnier.", invalidError: "Bitte überprüft die markierten Felder und versucht es erneut.", submitError: "Die Anmeldung konnte nicht gesendet werden. Bitte versucht es erneut.", success: "Anmeldung eingegangen", successTitle: "Euer Paar ist im Spiel", successBody: "Danke, {pair}. Wir haben eure Anmeldung für {tournament} erhalten. Das KYNG CUP Team meldet sich nach der Prüfung per E-Mail bei Spieler 1.", waitlistBody: "Danke, {pair}. Euer Paar steht auf der Warteliste für {tournament}. Das KYNG CUP Team meldet sich bei Spieler 1, sobald ein Platz frei wird.", backTournament: "Zurück zum Turnier",
+    review: "Bestätigung", accurate: "Ich bestätige, dass die Angaben korrekt sind.", partner: "Mein Partner stimmt dieser Anmeldung und der Nutzung seiner Kontaktdaten zu.", rulesPrefix: "Ich akzeptiere die", rulesLink: "Turnierregeln", privacyPrefix: "und habe den", privacyNotice: "Datenschutzhinweis", marketing: "Ich möchte gelegentlich KYNG CUP Turniernews erhalten (optional).", submit: "Paar anmelden", submitting: "Anmeldung wird gesendet…", privacy: "Eure Anmeldung wird sicher an das KYNG CUP Team übermittelt.", required: "Pflichtfelder", sameEmail: "Bitte verwendet für jeden Spieler eine andere E-Mail-Adresse.", duplicate: "Dieses Paar ist bereits für das gewählte Turnier angemeldet.", unavailableError: "Die Anmeldung für dieses Turnier ist nicht mehr verfügbar. Bitte wählt ein anderes Turnier.", invalidError: "Bitte überprüft die markierten Felder und versucht es erneut.", submitError: "Die Anmeldung konnte nicht gesendet werden. Bitte versucht es erneut.", success: "Anmeldung eingegangen", successTitle: "Euer Paar ist im Spiel", successBody: "Danke, {pair}. Wir haben eure Anmeldung für {tournament} erhalten. Das KYNG CUP Team meldet sich nach der Prüfung per E-Mail bei Spieler 1.", waitlistBody: "Danke, {pair}. Euer Paar steht auf der Warteliste für {tournament}. Das KYNG CUP Team meldet sich bei Spieler 1, sobald ein Platz frei wird.", backTournament: "Zurück zum Turnier",
   },
   ru: {
     eyebrow: "Регистрация пары", title: "Ваш следующий матч начинается здесь", intro: "Мы принимаем заявки только от готовых пар. Заполните данные обоих игроков — и мы лично подтвердим ваше участие.",
@@ -52,7 +52,7 @@ const copy = {
     tennis: "Теннис", padel: "Падел", open: "Регистрация открыта", waitlist: "Лист ожидания", location: "Локация", dates: "Даты", singleDate: "Дата проведения", to: "—",
     pairDetails: "Данные пары", pairIntro: "Мы принимаем только готовые пары. Название пары — по желанию.", pairName: "Название пары (по желанию)", pairPlaceholder: "Например, Vienna Pair", comment: "Сообщение организаторам (по желанию)", commentPlaceholder: "Что нам стоит знать о вашей паре?",
     playerOne: "Игрок 1", playerTwo: "Игрок 2", firstName: "Имя", lastName: "Фамилия", email: "Email", phone: "Номер телефона", messenger: "Telegram или WhatsApp (по желанию)", level: "Уровень игры", chooseLevel: "Выберите уровень", beginner: "Начальный", intermediate: "Средний", advanced: "Продвинутый", competitive: "Турнирный / соревновательный", ratingSystem: "Система рейтинга (по желанию)", ratingValue: "Рейтинг (по желанию)", tennisRating: "ITN, UTR или LK", padelRating: "Playtomic или другая", ratingExample: "Например, 7.5",
-    review: "Подтверждение", accurate: "Подтверждаю, что указанные данные верны.", partner: "Мой партнёр согласился на эту заявку и использование его контактных данных.", rules: "Я согласен с правилами турнира и ознакомился с", privacyNotice: "уведомлением о конфиденциальности", marketing: "Присылайте мне новости о турнирах KYNG CUP (по желанию).", submit: "Подать заявку пары", submitting: "Отправляем заявку…", privacy: "Ваша заявка безопасно передаётся команде KYNG CUP.", required: "Обязательные поля", sameEmail: "Укажите разные email для каждого игрока.", duplicate: "Эта пара уже подала заявку на выбранный турнир.", unavailableError: "Регистрация на этот турнир уже недоступна. Выберите другой турнир.", invalidError: "Проверьте выделенные поля и попробуйте ещё раз.", submitError: "Не удалось отправить заявку. Попробуйте ещё раз.", success: "Заявка получена", successTitle: "Ваша пара в игре", successBody: "Спасибо, {pair}. Мы получили вашу заявку на {tournament}. После проверки команда KYNG CUP свяжется с первым игроком по электронной почте.", waitlistBody: "Спасибо, {pair}. Ваша пара добавлена в лист ожидания на {tournament}. Команда KYNG CUP свяжется с первым игроком, если появится место.", backTournament: "К турниру",
+    review: "Подтверждение", accurate: "Подтверждаю, что указанные данные верны.", partner: "Мой партнёр согласился на эту заявку и использование его контактных данных.", rulesPrefix: "Я согласен с", rulesLink: "правилами турнира", privacyPrefix: "и ознакомился с", privacyNotice: "уведомлением о конфиденциальности", marketing: "Присылайте мне новости о турнирах KYNG CUP (по желанию).", submit: "Подать заявку пары", submitting: "Отправляем заявку…", privacy: "Ваша заявка безопасно передаётся команде KYNG CUP.", required: "Обязательные поля", sameEmail: "Укажите разные email для каждого игрока.", duplicate: "Эта пара уже подала заявку на выбранный турнир.", unavailableError: "Регистрация на этот турнир уже недоступна. Выберите другой турнир.", invalidError: "Проверьте выделенные поля и попробуйте ещё раз.", submitError: "Не удалось отправить заявку. Попробуйте ещё раз.", success: "Заявка получена", successTitle: "Ваша пара в игре", successBody: "Спасибо, {pair}. Мы получили вашу заявку на {tournament}. После проверки команда KYNG CUP свяжется с первым игроком по электронной почте.", waitlistBody: "Спасибо, {pair}. Ваша пара добавлена в лист ожидания на {tournament}. Команда KYNG CUP свяжется с первым игроком, если появится место.", backTournament: "К турниру",
   },
 } as const;
 
@@ -88,6 +88,7 @@ export default function RegisterPage() {
   const [submissionState, setSubmissionState] = useState<"idle" | "submitting" | "success">("idle");
   const [submissionError, setSubmissionError] = useState<string | null>(null);
   const [submittedPair, setSubmittedPair] = useState("");
+  const formOpenedAt = useRef<number | null>(null);
 
   const loadTournaments = useCallback(async () => {
     const result = await supabase.from("tournaments").select("id,slug,name,sport,location,starts_at,ends_at,status,registration_status").in("status", ["published", "live"]).in("registration_status", ["open", "waitlist"]).order("starts_at", { ascending: true, nullsFirst: false });
@@ -103,7 +104,11 @@ export default function RegisterPage() {
     setLoading(false);
   }, []);
 
-  useEffect(() => { const timer = window.setTimeout(() => void loadTournaments(), 0); return () => window.clearTimeout(timer); }, [loadTournaments]);
+  useEffect(() => {
+    formOpenedAt.current = Date.now();
+    const timer = window.setTimeout(() => void loadTournaments(), 0);
+    return () => window.clearTimeout(timer);
+  }, [loadTournaments]);
   const tournament = useMemo(() => tournaments.find((item) => item.slug === selectedSlug) ?? null, [selectedSlug, tournaments]);
 
   function selectTournament(slug: string) {
@@ -131,6 +136,11 @@ export default function RegisterPage() {
     if (!form.reportValidity()) { setSubmissionError(text.invalidError); return; }
 
     const data = new FormData(form);
+    if (String(data.get("website") ?? "").trim() || formOpenedAt.current === null || Date.now() - formOpenedAt.current < 1500) {
+      setSubmissionError(text.submitError);
+      trackEvent("form_submit_error", { reason: "spam_check", sport: tournament.sport });
+      return;
+    }
     const value = (name: string) => String(data.get(name) ?? "").trim();
     const optional = (name: string) => value(name) || null;
     const firstEmail = value("player_one_email").toLowerCase();
@@ -168,6 +178,7 @@ export default function RegisterPage() {
       comment: optional("comment"),
       locale: language,
         marketing_opt_in: data.get("marketing_opt_in") === "on",
+        ...getLeadAttribution(),
       });
       error = result.error;
     } catch {
@@ -180,6 +191,7 @@ export default function RegisterPage() {
       const message = error.code === "23505" ? text.duplicate : error.code === "23514" ? text.invalidError : error.code === "42501" || error.code?.startsWith("PGRST") ? text.unavailableError : text.submitError;
       setSubmissionError(message);
       setSubmissionState("idle");
+      trackEvent("form_submit_error", { reason: error.code ?? "unknown", sport: tournament.sport, tournament_slug: tournament.slug });
       return;
     }
     setSubmittedPair(pairLabel);
@@ -215,6 +227,7 @@ export default function RegisterPage() {
         <p>{(tournament.registration_status === "waitlist" ? text.waitlistBody : text.successBody).replace("{pair}", submittedPair).replace("{tournament}", tournament.name)}</p>
         <a href={`${basePath}/${tournament.sport}/#tournament`}>{text.backTournament}<span>↗</span></a>
       </article> : <form className="registration-application" id="registration-form" onSubmit={submitRegistration} onChange={() => submissionError && setSubmissionError(null)}>
+        <div className="registration-honeypot" aria-hidden="true"><label>Website<input name="website" type="text" tabIndex={-1} autoComplete="off" /></label></div>
         <fieldset className="registration-pair-card" disabled={!tournament || submissionState === "submitting"}>
           <legend><span>01</span>{text.pairDetails}</legend>
           <p>{text.pairIntro}</p>
@@ -230,7 +243,7 @@ export default function RegisterPage() {
           <div className="registration-consents">
             <label><input name="accuracy_confirmed" type="checkbox" required /><span>{text.accurate}</span></label>
             <label><input name="partner_consent" type="checkbox" required /><span>{text.partner}</span></label>
-            <label><input name="rules_privacy_accepted" type="checkbox" required /><span>{text.rules} <a href={`${basePath}/cookies/`} target="_blank" rel="noreferrer">{text.privacyNotice}</a>.</span></label>
+            <label><input name="rules_privacy_accepted" type="checkbox" required /><span>{text.rulesPrefix} <a href={`${basePath}/rules/`} target="_blank" rel="noreferrer">{text.rulesLink}</a> {text.privacyPrefix} <a href={`${basePath}/cookies/`} target="_blank" rel="noreferrer">{text.privacyNotice}</a>.</span></label>
             <label><input name="marketing_opt_in" type="checkbox" /><span>{text.marketing}</span></label>
           </div>
           {submissionError && <p className="registration-submit-error" role="alert">{submissionError}</p>}
