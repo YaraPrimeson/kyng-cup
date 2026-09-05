@@ -1,0 +1,1 @@
+import{i as e}from"./framework-DwLAuXAD.js";var t=e();function n(){return(0,t.jsx)(`span`,{className:`brand-wordmark`,children:`KYNG CUP`})}export{n as t};
