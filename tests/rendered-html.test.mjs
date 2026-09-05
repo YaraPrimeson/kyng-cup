@@ -44,7 +44,7 @@ test("server-renders the four-language pair registration form", async () => {
   const html = await response.text();
   assert.match(html, /Your next match starts here/);
   assert.match(html, /Player 1/);
-  assert.match(html, /Player 2/);
+  assert.match(html, /Pair details/);
   assert.match(html, /Submit pair application/);
 });
 
@@ -153,8 +153,9 @@ test("ships live bracket and protected tournament controls", async () => {
   assert.doesNotMatch(exporter, /if\s*\(route === "\/"\)/);
   assert.doesNotMatch(exporter, /replace\(\/<script/);
   assert.match(exporter, /"\/register\/"/);
-  assert.match(register, /const prefix = number === 1 \? "player_one" : "player_two"/);
-  assert.match(register, /name=\{`\$\{prefix\}_level`\}/);
+  assert.match(register, /function ContactFields/);
+  assert.match(register, /function PairFields/);
+  assert.match(register, /player_two_email: null/);
   assert.match(register, /partner_consent/);
   assert.match(register, /rules_privacy_accepted/);
   assert.match(register, /marketing_opt_in/);
@@ -166,7 +167,7 @@ test("ships live bracket and protected tournament controls", async () => {
   assert.match(register, /from\("tournament_registrations"\)\.insert/);
   assert.match(register, /error\.code === "23505"/);
   assert.match(register, /error\.code === "23514"/);
-  assert.match(register, /firstEmail === secondEmail/);
+  assert.match(register, /We will get back to you shortly/);
   assert.match(register, /submissionState === "success"/);
   assert.match(register, /registration-success/);
   assert.match(migration, /enable row level security/i);
