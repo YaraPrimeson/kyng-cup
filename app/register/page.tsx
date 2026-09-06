@@ -243,10 +243,7 @@ export default function RegisterPage() {
         <fieldset className="registration-review-card" disabled={!tournament || submissionState === "submitting"}>
           <legend><span>03</span>{text.review}</legend>
           <div className="registration-consents">
-            <label><input name="accuracy_confirmed" type="checkbox" required /><span>{text.accurate}</span></label>
-            <label><input name="partner_consent" type="checkbox" required /><span>{text.partner}</span></label>
             <label><input name="rules_privacy_accepted" type="checkbox" required /><span>{text.rulesPrefix} <a href={`${basePath}/rules/`} target="_blank" rel="noreferrer">{text.rulesLink}</a> {text.privacyPrefix} <a href={`${basePath}/cookies/`} target="_blank" rel="noreferrer">{text.privacyNotice}</a>.</span></label>
-            <label><input name="marketing_opt_in" type="checkbox" /><span>{text.marketing}</span></label>
           </div>
           {submissionError && <p className="registration-submit-error" role="alert">{submissionError}</p>}
           <div className="registration-submit-row"><button type="submit" disabled={!tournament || submissionState === "submitting"}>{submissionState === "submitting" ? text.submitting : text.submit}<span>{submissionState === "submitting" ? "…" : "↗"}</span></button><div><small>* {text.required}</small><p>{text.privacy}</p></div></div>
