@@ -45,7 +45,15 @@ declare global {
   interface Window {
     dataLayer: unknown[];
     gtag?: (...args: unknown[]) => void;
+    kyngGaInitialized?: boolean;
   }
+}
+
+function ensureGtag() {
+  window.dataLayer = window.dataLayer || [];
+  // Google Tag expects the native Arguments object used by its official snippet.
+  // eslint-disable-next-line prefer-rest-params
+  window.gtag = window.gtag || function gtag() { window.dataLayer.push(arguments); };
 }
 
 export function trackEvent(name: string, parameters: Record<string, unknown> = {}) {
@@ -53,34 +61,28 @@ export function trackEvent(name: string, parameters: Record<string, unknown> = {
 }
 
 function enableAnalytics() {
-  window.dataLayer = window.dataLayer || [];
-  window.gtag = window.gtag || function gtag(...args: unknown[]) { window.dataLayer.push(args); };
+  ensureGtag();
   window.gtag("consent", "update", { analytics_storage: "granted", ad_storage: "denied", ad_user_data: "denied", ad_personalization: "denied" });
-  const existingScript = document.querySelector<HTMLScriptElement>(`script[data-kyng-ga="${GA_ID}"]`);
-  if (existingScript) return;
 
-  const script = document.createElement("script");
-  script.async = true;
-  script.src = `https://www.googletagmanager.com/gtag/js?id=${GA_ID}`;
-  script.dataset.kyngGa = GA_ID;
-  script.addEventListener("load", () => {
-    window.gtag?.("js", new Date());
-    window.gtag?.("config", GA_ID, { anonymize_ip: true, send_page_view: false });
-    window.gtag?.("event", "page_view", {
-      page_location: window.location.href,
-      page_path: `${window.location.pathname}${window.location.search}`,
-      page_title: document.title,
-      send_to: GA_ID,
-    });
-  }, { once: true });
-  document.head.appendChild(script);
+  if (!window.kyngGaInitialized) {
+    window.kyngGaInitialized = true;
+    window.gtag("js", new Date());
+    window.gtag("config", GA_ID, { anonymize_ip: true });
+  }
+
+  if (!document.querySelector<HTMLScriptElement>(`script[data-kyng-ga="${GA_ID}"]`)) {
+    const script = document.createElement("script");
+    script.async = true;
+    script.src = `https://www.googletagmanager.com/gtag/js?id=${GA_ID}`;
+    script.dataset.kyngGa = GA_ID;
+    document.head.appendChild(script);
+  }
 }
 
 export default function Analytics() {
   useEffect(() => {
     captureAttribution();
-    window.dataLayer = window.dataLayer || [];
-    window.gtag = window.gtag || function gtag(...args: unknown[]) { window.dataLayer.push(args); };
+    ensureGtag();
     window.gtag("consent", "default", { analytics_storage: "denied", ad_storage: "denied", ad_user_data: "denied", ad_personalization: "denied", wait_for_update: 500 });
     if (window.localStorage.getItem(ANALYTICS_CONSENT_KEY) === "all") enableAnalytics();
 
