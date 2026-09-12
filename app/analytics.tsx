@@ -56,15 +56,24 @@ function enableAnalytics() {
   window.dataLayer = window.dataLayer || [];
   window.gtag = window.gtag || function gtag(...args: unknown[]) { window.dataLayer.push(args); };
   window.gtag("consent", "update", { analytics_storage: "granted", ad_storage: "denied", ad_user_data: "denied", ad_personalization: "denied" });
-  if (!document.querySelector(`script[data-kyng-ga="${GA_ID}"]`)) {
-    const script = document.createElement("script");
-    script.async = true;
-    script.src = `https://www.googletagmanager.com/gtag/js?id=${GA_ID}`;
-    script.dataset.kyngGa = GA_ID;
-    document.head.appendChild(script);
-  }
-  window.gtag("js", new Date());
-  window.gtag("config", GA_ID, { anonymize_ip: true, send_page_view: true });
+  const existingScript = document.querySelector<HTMLScriptElement>(`script[data-kyng-ga="${GA_ID}"]`);
+  if (existingScript) return;
+
+  const script = document.createElement("script");
+  script.async = true;
+  script.src = `https://www.googletagmanager.com/gtag/js?id=${GA_ID}`;
+  script.dataset.kyngGa = GA_ID;
+  script.addEventListener("load", () => {
+    window.gtag?.("js", new Date());
+    window.gtag?.("config", GA_ID, { anonymize_ip: true, send_page_view: false });
+    window.gtag?.("event", "page_view", {
+      page_location: window.location.href,
+      page_path: `${window.location.pathname}${window.location.search}`,
+      page_title: document.title,
+      send_to: GA_ID,
+    });
+  }, { once: true });
+  document.head.appendChild(script);
 }
 
 export default function Analytics() {
