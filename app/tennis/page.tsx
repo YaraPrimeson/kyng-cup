@@ -1,3 +1,3 @@
-import SportPage from "../sport-page";
+import { redirect } from "next/navigation";
 
-export default function TennisPage() { return <SportPage sport="tennis" />; }
+export default function TennisPage() { redirect("/padel/"); }

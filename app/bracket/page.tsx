@@ -69,7 +69,7 @@ export default function BracketPage() {
   const [error, setError] = useState<string | null>(null);
 
   const loadBracket = useCallback(async (requestedSlug?: string) => {
-    const tournamentResult = await supabase.from("tournaments").select("id,slug,name,sport,location,starts_at,bracket_size,status").in("status", ["published", "live"]).order("starts_at", { ascending: false, nullsFirst: false });
+    const tournamentResult = await supabase.from("tournaments").select("id,slug,name,sport,location,starts_at,bracket_size,status").eq("sport", "padel").in("status", ["published", "live"]).order("starts_at", { ascending: false, nullsFirst: false });
     if (tournamentResult.error || !tournamentResult.data?.length) { setError(text.noBracket); setLoading(false); return; }
     const available = tournamentResult.data as Tournament[];
     const urlSlug = requestedSlug ?? new URLSearchParams(window.location.search).get("tournament") ?? undefined;

@@ -16,19 +16,19 @@ const lora = Lora({
 export const metadata: Metadata = {
   metadataBase: new URL("https://kyngcup.com"),
   title: "KYNG CUP — More Than a Game",
-  description: "International tennis and padel tournaments built around competition, atmosphere and community.",
+  description: "International padel tournaments built around competition, atmosphere and community.",
   icons: { icon: "/favicon.png", shortcut: "/favicon.png", apple: "/favicon.png" },
   alternates: { canonical: "/" },
   openGraph: {
     title: "KYNG CUP — More Than a Game",
-    description: "International tennis and padel tournaments built around competition, atmosphere and community.",
+    description: "International padel tournaments built around competition, atmosphere and community.",
     type: "website",
     images: [{ url: "/og.png", width: 1200, height: 630, alt: "KYNG CUP — More Than a Game" }],
   },
   twitter: {
     card: "summary_large_image",
     title: "KYNG CUP — More Than a Game",
-    description: "International tennis and padel tournaments built around competition, atmosphere and community.",
+    description: "International padel tournaments built around competition, atmosphere and community.",
     images: ["/og.png"],
   },
 };

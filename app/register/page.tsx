@@ -108,7 +108,7 @@ export default function RegisterPage() {
   const formOpenedAt = useRef<number | null>(null);
 
   const loadTournaments = useCallback(async () => {
-    const result = await supabase.from("tournaments").select("id,slug,name,sport,location,format_description,prize_pool,starts_at,ends_at,status,registration_status").in("status", ["published", "live"]).in("registration_status", ["open", "waitlist"]).order("starts_at", { ascending: true, nullsFirst: false });
+    const result = await supabase.from("tournaments").select("id,slug,name,sport,location,format_description,prize_pool,starts_at,ends_at,status,registration_status").eq("sport", "padel").in("status", ["published", "live"]).in("registration_status", ["open", "waitlist"]).order("starts_at", { ascending: true, nullsFirst: false });
     if (result.error) { setLoadError(true); setLoading(false); return; }
     const available = (result.data ?? []) as Tournament[];
     const params = new URLSearchParams(window.location.search);
@@ -239,7 +239,7 @@ export default function RegisterPage() {
       </article> : <form className="registration-application" id="registration-form" onSubmit={submitRegistration} onChange={() => submissionError && setSubmissionError(null)}>
         <div className="registration-honeypot" aria-hidden="true"><label>Website<input name="website" type="text" tabIndex={-1} autoComplete="off" /></label></div>
         <ContactFields language={language} disabled={!tournament || submissionState === "submitting"} />
-        <PairFields sport={tournament?.sport ?? "tennis"} language={language} disabled={!tournament || submissionState === "submitting"} />
+        <PairFields sport={tournament?.sport ?? "padel"} language={language} disabled={!tournament || submissionState === "submitting"} />
         <fieldset className="registration-review-card" disabled={!tournament || submissionState === "submitting"}>
           <legend><span>03</span>{text.review}</legend>
           <div className="registration-consents">

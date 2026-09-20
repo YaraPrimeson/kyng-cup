@@ -764,6 +764,10 @@ html[lang="ru"] .admin-round-group:not([open]) > summary::after { content: "По
 .upcoming-page__detail-body dt { color: rgba(20,32,25,.52); text-transform: uppercase; letter-spacing: .11em; font-size: 9px; }
 .upcoming-page__detail-body dd { margin: 7px 0 0; font-size: 15px; }
 .upcoming-page__note { margin: 0 0 25px; color: rgba(20,32,25,.57); font-size: 13px; line-height: 1.5; }
+.upcoming-page__invitation { margin: 28px 0; display: grid; gap: 28px; }
+.upcoming-page__invitation section { padding-top: 18px; border-top: 1px solid var(--line); }
+.upcoming-page__invitation h4 { margin: 0 0 14px; text-transform: uppercase; letter-spacing: .1em; font-size: 11px; }
+.upcoming-page__invitation p { margin: 0 0 14px; color: rgba(20,32,25,.72); font-size: 14px; line-height: 1.55; }
 .upcoming-page__process { padding: 90px 42px; background: var(--forest-dark); color: #fff; }
 .upcoming-page__process .upcoming-page__label { color: rgba(255,255,255,.66); }
 .upcoming-page__process h2 { max-width: 850px; margin: 35px 0 62px; font: 400 clamp(48px, 5.8vw, 94px)/.9 var(--font-lora), Georgia, serif; letter-spacing: -.055em; }
