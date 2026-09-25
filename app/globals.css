@@ -659,6 +659,7 @@ html[lang="ru"] .admin-round-group:not([open]) > summary::after { content: "По
 .admin-group-pair-list { margin: 18px 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 .admin-group-pair-list .admin-field { padding: 10px; border: 1px solid var(--line); border-radius: 12px; }
 .admin-group-pair-list .admin-field > span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.admin-group-actions { display: flex; flex-wrap: wrap; gap: 9px; }
 .admin-group-standings { margin: 15px 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 7px; }
 .admin-group-standings > div { display: grid; grid-template-columns: 24px 1fr; gap: 4px 8px; padding: 10px; border: 1px solid var(--line); border-radius: 10px; font-size: 12px; }
 .admin-group-standings > div.is-qualified { border-color: var(--clay); }
