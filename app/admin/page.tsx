@@ -4,7 +4,6 @@ import type { User } from "@supabase/supabase-js";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useLanguage } from "../i18n";
-import { buildFairDraw, calculateStandings, GroupMatch, GroupMember, TournamentGroup } from "../group-stage";
 
 type TournamentStatus = "draft" | "published" | "live" | "completed";
 type MatchStatus = "scheduled" | "live" | "completed";
@@ -21,8 +20,6 @@ type Tournament = {
   starts_at: string | null;
   ends_at: string | null;
   bracket_size: number;
-  format: "knockout" | "group_knockout";
-  participant_count: number;
   status: TournamentStatus;
   registration_status: RegistrationAvailability;
   updated_at: string;
@@ -54,6 +51,8 @@ type Match = {
 };
 
 type AdminMember = { user_id: string; email: string; role: "owner" | "admin"; created_at: string };
+type GlobalAccess = { role: "superadmin" | "admin"; status: "pending" | "approved" | "revoked"; requested_at: string; approved_at: string | null };
+type AdminRequest = { user_id: string; email: string; requested_at: string };
 type Registration = {
   id: string;
   tournament_id: string;
@@ -375,91 +374,6 @@ function AdminMatch({ match, pairMap, bracketSize, onSaved }: { match: Match; pa
   );
 }
 
-function AdminGroupMatch({ match, pairMap, groupCode, onSaved }: { match: GroupMatch; pairMap: Map<string, Pair>; groupCode: string; onSaved: () => void }) {
-  const pairOne = pairMap.get(match.pair_one_id);
-  const pairTwo = pairMap.get(match.pair_two_id);
-  const [score, setScore] = useState(match.pair_one_sets.map((value, index) => `${value}-${match.pair_two_sets[index]}`).join(", "));
-  const [winner, setWinner] = useState(match.winner_id ?? "");
-  const [court, setCourt] = useState(match.court ?? "");
-  const [scheduledAt, setScheduledAt] = useState(toLocalDateTime(match.scheduled_at));
-  const [status, setStatus] = useState<"scheduled" | "live">(match.status === "live" ? "live" : "scheduled");
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-
-  async function saveDetails() {
-    setSaving(true); setMessage(null);
-    const { error } = await supabase.from("group_matches").update({ court: court.trim() || null, scheduled_at: scheduledAt ? new Date(scheduledAt).toISOString() : null, status: match.status === "completed" ? "completed" : status, updated_at: new Date().toISOString() }).eq("id", match.id).select("id").single();
-    setSaving(false); if (error) setMessage(error.message); else { setMessage("Group match schedule saved."); onSaved(); }
-  }
-  async function saveResult(event: FormEvent) {
-    event.preventDefault(); const parsed = parseScore(score);
-    if (!parsed || !winner) { setMessage("Use score format 6-4, 3-6, 10-8 and select a winner."); return; }
-    if (match.winner_id && !window.confirm("Replace the saved group result?")) return;
-    setSaving(true); setMessage(null);
-    const { error } = await supabase.rpc("record_group_match_result", { p_match_id: match.id, p_pair_one_sets: parsed.pairOne, p_pair_two_sets: parsed.pairTwo, p_winner_id: winner });
-    setSaving(false); if (error) setMessage(error.message); else { setMessage("Result saved. The table was recalculated."); onSaved(); }
-  }
-  async function resetResult() {
-    if (!window.confirm("Reset this group result?")) return;
-    setSaving(true); const { error } = await supabase.rpc("reset_group_match_result", { p_match_id: match.id }); setSaving(false);
-    if (error) setMessage(error.message); else { setMessage("Group result reset."); onSaved(); }
-  }
-  return <form className={`admin-match status-${match.status}`} onSubmit={saveResult}>
-    <div className="admin-match-title"><span>Group {groupCode} · Match {match.position}</span><strong>{match.status}</strong></div>
-    <div className="admin-match-details"><label className="admin-field"><span>Date &amp; time</span><input type="datetime-local" value={scheduledAt} onChange={(event) => setScheduledAt(event.target.value)} /></label><label className="admin-field"><span>Court</span><input value={court} onChange={(event) => setCourt(event.target.value)} /></label><label className="admin-field"><span>Status</span><select value={status} onChange={(event) => setStatus(event.target.value as "scheduled" | "live")} disabled={match.status === "completed"}><option value="scheduled">Scheduled</option><option value="live">Live now</option></select></label><button type="button" onClick={() => void saveDetails()} disabled={saving}>Save schedule</button></div>
-    {[pairOne, pairTwo].map((pair, index) => <label htmlFor={`group-winner-${match.id}-${index}`} aria-label={`Select ${pair?.name ?? `pair ${index + 1}`} as winner`} key={pair?.id} className={!pair ? "is-disabled" : ""}><input id={`group-winner-${match.id}-${index}`} type="radio" name={`group-winner-${match.id}`} value={pair?.id ?? ""} checked={winner === pair?.id} onChange={(event) => setWinner(event.target.value)} /><span><strong>{pair?.name}</strong><small>{pair?.player_one} · {pair?.player_two}</small></span></label>)}
-    <div className="admin-score-row"><input value={score} onChange={(event) => setScore(event.target.value)} placeholder="6-4, 3-6, 10-8" /><div><button type="submit" disabled={saving}>{saving ? "Saving…" : match.winner_id ? "Correct result" : "Save result"}</button></div></div>
-    {match.winner_id && <button className="admin-reset-button" type="button" onClick={() => void resetResult()} disabled={saving}>Reset result</button>}<Feedback message={message} />
-  </form>;
-}
-
-function GroupStageManager({ tournament, pairs, groups, members, matches, pairMap, onSaved }: { tournament: Tournament; pairs: Pair[]; groups: TournamentGroup[]; members: GroupMember[]; matches: GroupMatch[]; pairMap: Map<string, Pair>; onSaved: () => void }) {
-  const memberGroup = useMemo(() => new Map(members.map((member) => [member.pair_id, groups.find((group) => group.id === member.group_id)?.code ?? "A"])), [groups, members]);
-  const [assignments, setAssignments] = useState<Record<string, string>>(Object.fromEntries(pairs.map((pair) => [pair.id, memberGroup.get(pair.id) ?? "A"])));
-  const [draw, setDraw] = useState<string[]>([]);
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-
-  async function configure() {
-    if (!window.confirm("Enable the 18-pair group stage and rebuild this tournament's knockout bracket as an 8-pair draw? Existing scheduled bracket positions will be cleared.")) return;
-    setSaving(true); setMessage(null); const { error } = await supabase.rpc("configure_group_stage", { p_tournament_id: tournament.id }); setSaving(false);
-    if (error) setMessage(error.message); else {
-      const seeded = await supabase.rpc("seed_announced_group_pairs", { p_tournament_id: tournament.id });
-      if (seeded.error) setMessage(`Group stage created, but loading the announced pairs failed: ${seeded.error.message}`);
-      else setMessage("Group stage created with all 18 announced pairs.");
-      onSaved();
-    }
-  }
-  async function seedAnnouncedPairs() {
-    if (!window.confirm("Replace the 18 pair and player names with the announced lineup from the group posters?")) return;
-    setSaving(true); setMessage(null);
-    const { error } = await supabase.rpc("seed_announced_group_pairs", { p_tournament_id: tournament.id });
-    setSaving(false);
-    if (error) setMessage(error.message); else { setMessage("All 18 announced pairs were loaded into groups A–E."); onSaved(); }
-  }
-  async function saveAssignments() {
-    const counts = Object.values(assignments).reduce<Record<string, number>>((total, code) => ({ ...total, [code]: (total[code] ?? 0) + 1 }), {});
-    if (["A", "B", "C"].some((code) => counts[code] !== 4) || ["D", "E"].some((code) => counts[code] !== 3)) { setMessage("Groups A–C need four pairs and D–E need three pairs."); return; }
-    setSaving(true); setMessage(null); const pairIds = pairs.map((pair) => pair.id); const { error } = await supabase.rpc("set_group_assignments", { p_tournament_id: tournament.id, p_pair_ids: pairIds, p_group_codes: pairIds.map((id) => assignments[id]) }); setSaving(false);
-    if (error) setMessage(error.message); else { setMessage("Groups saved and matches regenerated."); onSaved(); }
-  }
-  const qualifiers = groups.flatMap((group) => calculateStandings(members.filter((member) => member.group_id === group.id), matches.filter((match) => match.group_id === group.id)).slice(0, group.qualify_count).map((row) => ({ pairId: row.pairId, groupCode: group.code, place: row.place })));
-  const allCompleted = matches.length === 24 && matches.every((match) => match.status === "completed");
-  function generateDraw() { setDraw(buildFairDraw(qualifiers)); setMessage("A draw was generated without same-group quarterfinals. Review it before confirming."); }
-  async function confirmDraw() {
-    if (draw.length !== 8) return; if (!window.confirm("Confirm these eight qualifiers and publish the quarterfinal bracket?")) return;
-    setSaving(true); setMessage(null); const { error } = await supabase.rpc("confirm_group_qualifiers", { p_tournament_id: tournament.id, p_pair_ids: draw }); setSaving(false);
-    if (error) setMessage(error.message); else { setMessage("Quarterfinal bracket confirmed and published."); onSaved(); }
-  }
-
-  if (tournament.format !== "group_knockout") return <div className="admin-group-setup"><p>This tournament currently uses a knockout-only format.</p>{tournament.role === "owner" ? <button className="admin-save-button" type="button" onClick={() => void configure()} disabled={saving}>{saving ? "Creating…" : "Enable 18-pair group stage"}</button> : <small>Ask the tournament owner to enable the group stage.</small>}<Feedback message={message} /></div>;
-  return <div className="admin-group-manager">
-    <section className="admin-group-assignments"><div><h3>Group assignments</h3><p>A–C: four pairs each. D–E: three pairs each.</p></div><div className="admin-group-pair-list">{pairs.map((pair) => <label className="admin-field" key={pair.id}><span>{pair.name} · {pair.player_one} / {pair.player_two}</span><select value={assignments[pair.id] ?? "A"} onChange={(event) => setAssignments((current) => ({ ...current, [pair.id]: event.target.value }))}>{["A", "B", "C", "D", "E"].map((code) => <option value={code} key={code}>Group {code}</option>)}</select></label>)}</div><div className="admin-group-actions"><button className="admin-save-button" type="button" onClick={() => void seedAnnouncedPairs()} disabled={saving}>Load announced pairs</button><button className="admin-save-button" type="button" onClick={() => void saveAssignments()} disabled={saving}>Save groups &amp; regenerate matches</button></div></section>
-    <div className="admin-round-groups">{groups.map((group) => { const standings = calculateStandings(members.filter((member) => member.group_id === group.id), matches.filter((match) => match.group_id === group.id)); return <details className="admin-round-group" open key={group.id}><summary><h3>Group {group.code}</h3><span>{matches.filter((match) => match.group_id === group.id && match.status === "completed").length}/{matches.filter((match) => match.group_id === group.id).length}</span></summary><div className="admin-group-standings">{standings.map((row) => <div className={row.place <= group.qualify_count ? "is-qualified" : ""} key={row.pairId}><b>{row.place}</b><strong>{pairMap.get(row.pairId)?.name}</strong><span>{row.won}W · {row.lost}L · {row.points} pts</span></div>)}</div><div className="admin-match-grid">{matches.filter((match) => match.group_id === group.id).map((match) => <AdminGroupMatch match={match} pairMap={pairMap} groupCode={group.code} onSaved={onSaved} key={`${match.id}-${match.updated_at}`} />)}</div></details>; })}</div>
-    <section className="admin-qualifier-card"><div><h3>Quarterfinal draw</h3><p>{allCompleted ? "All 24 group matches are complete. Generate and review the draw." : "Complete all 24 group matches to unlock the draw."}</p></div><button className="admin-save-button" type="button" onClick={generateDraw} disabled={!allCompleted}>Generate fair draw</button>{draw.length === 8 && <div className="admin-quarterfinal-list">{[0, 2, 4, 6].map((index) => <div key={index}><span>QF {index / 2 + 1}</span><strong>{pairMap.get(draw[index])?.name}</strong><i>vs</i><strong>{pairMap.get(draw[index + 1])?.name}</strong></div>)}</div>}{draw.length === 8 && <button className="admin-save-button" type="button" onClick={() => void confirmDraw()} disabled={saving}>Confirm &amp; publish quarterfinals</button>}<Feedback message={message} /></section>
-  </div>;
-}
-
 function TeamManager({ tournament, members, onSaved }: { tournament: Tournament; members: AdminMember[]; onSaved: () => void }) {
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<"owner" | "admin">("admin");
@@ -486,6 +400,25 @@ function TeamManager({ tournament, members, onSaved }: { tournament: Tournament;
       <Feedback message={message} />
     </div>
   );
+}
+
+function TournamentDelete({ tournament, onDeleted }: { tournament: Tournament; onDeleted: () => void }) {
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  async function remove() {
+    const confirmation = window.prompt(`Type the exact tournament name to delete it permanently:\n\n${tournament.name}`);
+    if (confirmation === null) return;
+    if (confirmation !== tournament.name) { setMessage("Tournament name does not match."); return; }
+    if (!window.confirm("Final confirmation: delete this tournament, its bracket, matches and registrations?")) return;
+    setSaving(true); setMessage(null);
+    const { error } = await supabase.rpc("delete_tournament", { p_tournament_id: tournament.id, p_confirmation_name: confirmation });
+    setSaving(false);
+    if (error) setMessage(error.message);
+    else onDeleted();
+  }
+
+  return <div className="admin-danger-card"><div><strong>Delete tournament</strong><p>Permanently removes the tournament, bracket, matches and registrations.</p></div><button type="button" onClick={() => void remove()} disabled={saving}>{saving ? "Deleting…" : "Delete tournament"}</button><Feedback message={message} /></div>;
 }
 
 function RegistrationPlayer({ number, firstName, lastName, email, phone, messenger, level, ratingSystem, ratingValue }: {
@@ -586,9 +519,6 @@ export default function AdminPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [pairs, setPairs] = useState<Pair[]>([]);
   const [matches, setMatches] = useState<Match[]>([]);
-  const [groups, setGroups] = useState<TournamentGroup[]>([]);
-  const [groupMembers, setGroupMembers] = useState<GroupMember[]>([]);
-  const [groupMatches, setGroupMatches] = useState<GroupMatch[]>([]);
   const [members, setMembers] = useState<AdminMember[]>([]);
   const [registrations, setRegistrations] = useState<Registration[]>([]);
   const [registrationError, setRegistrationError] = useState<string | null>(null);
@@ -597,38 +527,48 @@ export default function AdminPage() {
   const [authMode, setAuthMode] = useState<"signin" | "signup" | "reset" | "new-password">("signin");
   const [authMessage, setAuthMessage] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [globalAccess, setGlobalAccess] = useState<GlobalAccess | null>(null);
+  const [adminRequests, setAdminRequests] = useState<AdminRequest[]>([]);
 
   const selected = tournaments.find((tournament) => tournament.id === selectedId) ?? null;
-  const canCreateTournament = tournaments.some((tournament) => tournament.role === "owner");
+  const canCreateTournament = (globalAccess?.status === "approved" && globalAccess.role === "superadmin") || tournaments.some((tournament) => tournament.role === "owner");
 
   const loadTournaments = useCallback(async (currentUser: User | null, preferredId?: string) => {
     setUser(currentUser);
-    if (!currentUser) { setTournaments([]); setSelectedId(null); setChecking(false); return; }
-    const memberships = await supabase.from("tournament_admins").select("tournament_id,role").eq("user_id", currentUser.id);
-    const membershipRows = (memberships.data ?? []) as { tournament_id: string; role: "owner" | "admin" }[];
-    if (!membershipRows.length) { setTournaments([]); setSelectedId(null); setChecking(false); return; }
-    const ids = membershipRows.map((item) => item.tournament_id);
-    const result = await supabase.from("tournaments").select("id,slug,name,sport,location,starts_at,ends_at,bracket_size,format,participant_count,status,registration_status,updated_at").in("id", ids).order("created_at", { ascending: false });
-    const roles = new Map(membershipRows.map((item) => [item.tournament_id, item.role]));
-    const managed = ((result.data ?? []) as Omit<Tournament, "role">[]).map((item) => ({ ...item, role: roles.get(item.id) ?? "admin" }));
+    if (!currentUser) { setTournaments([]); setSelectedId(null); setGlobalAccess(null); setAdminRequests([]); setChecking(false); return; }
+    await supabase.rpc("request_global_admin_access");
+    const [accessResult, tournamentResult] = await Promise.all([
+      supabase.rpc("get_global_admin_access"),
+      supabase.rpc("list_managed_tournaments"),
+    ]);
+    const access = ((accessResult.data ?? []) as GlobalAccess[])[0] ?? null;
+    const managed = (tournamentResult.data ?? []) as Tournament[];
+    setGlobalAccess(access);
+    if (access?.status === "approved" && access.role === "superadmin") {
+      const requestsResult = await supabase.rpc("list_global_admin_requests");
+      setAdminRequests((requestsResult.data ?? []) as AdminRequest[]);
+    } else setAdminRequests([]);
     setTournaments(managed);
     setSelectedId((current) => preferredId && managed.some((item) => item.id === preferredId) ? preferredId : current && managed.some((item) => item.id === current) ? current : managed[0]?.id ?? null);
     setChecking(false);
   }, []);
 
+  async function approveAdmin(request: AdminRequest) {
+    if (!window.confirm(`Approve ${request.email} as an administrator for all tournaments?`)) return;
+    const { error } = await supabase.rpc("approve_global_admin", { p_user_id: request.user_id });
+    if (error) setAuthMessage(error.message);
+    else { setAuthMessage(`${request.email} approved.`); if (user) await loadTournaments(user); }
+  }
+
   const loadTournamentData = useCallback(async () => {
-    if (!selectedId) { setPairs([]); setMatches([]); setGroups([]); setGroupMembers([]); setGroupMatches([]); setMembers([]); setRegistrations([]); setRegistrationError(null); return; }
-    const groupsResult = await supabase.from("tournament_groups").select("id,code,qualify_count").eq("tournament_id", selectedId).order("code");
-    const groupIds = (groupsResult.data ?? []).map((item) => item.id);
-    const [pairsResult, matchesResult, groupMembersResult, groupMatchesResult, membersResult, registrationsResult] = await Promise.all([
+    if (!selectedId) { setPairs([]); setMatches([]); setMembers([]); setRegistrations([]); setRegistrationError(null); return; }
+    const [pairsResult, matchesResult, membersResult, registrationsResult] = await Promise.all([
       supabase.from("pairs").select("id,name,player_one,player_two,seed,updated_at").eq("tournament_id", selectedId).order("seed"),
       supabase.from("matches").select("id,round,position,pair_one_id,pair_two_id,pair_one_sets,pair_two_sets,winner_id,status,court,scheduled_at,updated_at").eq("tournament_id", selectedId).order("round").order("position"),
-      groupIds.length ? supabase.from("group_members").select("group_id,pair_id,position").in("group_id", groupIds) : Promise.resolve({ data: [], error: null }),
-      supabase.from("group_matches").select("id,tournament_id,group_id,position,pair_one_id,pair_two_id,pair_one_sets,pair_two_sets,winner_id,status,court,scheduled_at,updated_at").eq("tournament_id", selectedId).order("group_id").order("position"),
       supabase.rpc("list_tournament_admins", { p_tournament_id: selectedId }),
       supabase.from("tournament_registrations").select("id,tournament_id,status,pair_name,player_one_first_name,player_one_last_name,player_one_email,player_one_phone,player_one_messenger,player_one_level,player_one_rating_system,player_one_rating_value,player_two_first_name,player_two_last_name,player_two_email,player_two_phone,player_two_messenger,player_two_level,player_two_rating_system,player_two_rating_value,comment,locale,marketing_opt_in,utm_source,utm_medium,utm_campaign,utm_term,utm_content,landing_page,referrer,admin_notes,created_at,updated_at").eq("tournament_id", selectedId).order("created_at", { ascending: false }),
     ]);
-    setPairs((pairsResult.data ?? []) as Pair[]); setMatches((matchesResult.data ?? []) as Match[]); setGroups((groupsResult.data ?? []) as TournamentGroup[]); setGroupMembers((groupMembersResult.data ?? []) as GroupMember[]); setGroupMatches((groupMatchesResult.data ?? []) as GroupMatch[]);
+    setPairs((pairsResult.data ?? []) as Pair[]); setMatches((matchesResult.data ?? []) as Match[]);
     setMembers((membersResult.data ?? []) as AdminMember[]);
     setRegistrations((registrationsResult.data ?? []) as Registration[]);
     setRegistrationError(registrationsResult.error ? "Loading applications failed." : null);
@@ -647,7 +587,7 @@ export default function AdminPage() {
 
   useEffect(() => {
     if (!selectedId) return;
-    const channel = supabase.channel(`admin:${selectedId}`).on("postgres_changes", { event: "*", schema: "public", table: "matches", filter: `tournament_id=eq.${selectedId}` }, () => void loadTournamentData()).on("postgres_changes", { event: "*", schema: "public", table: "group_matches", filter: `tournament_id=eq.${selectedId}` }, () => void loadTournamentData()).on("postgres_changes", { event: "*", schema: "public", table: "pairs", filter: `tournament_id=eq.${selectedId}` }, () => void loadTournamentData()).on("postgres_changes", { event: "*", schema: "public", table: "tournaments", filter: `id=eq.${selectedId}` }, () => { void loadTournamentData(); void loadTournaments(user); }).subscribe();
+    const channel = supabase.channel(`admin:${selectedId}`).on("postgres_changes", { event: "*", schema: "public", table: "matches", filter: `tournament_id=eq.${selectedId}` }, () => void loadTournamentData()).on("postgres_changes", { event: "*", schema: "public", table: "pairs", filter: `tournament_id=eq.${selectedId}` }, () => void loadTournamentData()).on("postgres_changes", { event: "*", schema: "public", table: "tournaments", filter: `id=eq.${selectedId}` }, () => { void loadTournamentData(); void loadTournaments(user); }).subscribe();
     return () => { void supabase.removeChannel(channel); };
   }, [loadTournamentData, loadTournaments, selectedId, user]);
 
@@ -680,30 +620,30 @@ export default function AdminPage() {
       ) : (
         <section className="admin-dashboard">
           <div className="admin-dashboard-heading"><div><p className="eyebrow">Tournament control centre</p><h1>Match control<span className="accent-dot">.</span></h1></div>{selected && <a href={`../bracket/?tournament=${selected.slug}`} target="_blank" rel="noreferrer">Open public bracket ↗</a>}</div>
+          {globalAccess?.status === "pending" && <div className="admin-muted-note">Your administrator account is awaiting approval. You can sign in, but global tournament access will remain locked until a super administrator approves it.</div>}
+          {globalAccess?.status === "revoked" && <div className="admin-muted-note">Global administrator access for this account has been revoked.</div>}
+          {globalAccess?.status === "approved" && globalAccess.role === "superadmin" && <div className="admin-team-card admin-approval-card"><div className="admin-section-heading compact-heading"><div><span>+</span><h2>Administrator approvals</h2></div><p>New accounts remain locked until you approve them here.</p></div>{!adminRequests.length ? <div className="admin-muted-note">No pending administrator requests.</div> : <div className="admin-team-list">{adminRequests.map((request) => <div key={request.user_id}><span><strong>{request.email}</strong><small>Requested {new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(request.requested_at))}</small></span><button type="button" onClick={() => void approveAdmin(request)}>Approve</button></div>)}</div>}<Feedback message={authMessage} /></div>}
           <div className="admin-toolbar"><label className="admin-field"><span>Current tournament</span><select value={selectedId ?? ""} onChange={(event) => { const tournamentId = event.target.value || null; setSelectedId(tournamentId); if (tournamentId) setShowCreate(false); }}><option value="">No tournament selected</option>{tournaments.map((tournament) => <option value={tournament.id} key={tournament.id}>{tournament.name} · {tournament.sport} · {tournament.status}</option>)}</select></label>{canCreateTournament && <button type="button" onClick={() => { setSelectedId(null); setShowCreate(true); }}>+ New tournament</button>}</div>
           {showCreate && !selectedId && canCreateTournament && <CreateTournament onClose={() => setShowCreate(false)} onCreated={(id) => { setShowCreate(false); void loadTournaments(user, id); }} />}
-          {!tournaments.length && <div className="admin-muted-note">This account has no tournament access yet. Ask an owner to add your email as an administrator.</div>}
+          {!tournaments.length && globalAccess?.status !== "pending" && <div className="admin-muted-note">This account has no tournament access yet.</div>}
           {selected && <>
             <div className="admin-section-heading admin-first-section"><div><span>01</span><h2>Tournament</h2></div><p>Publish, start live coverage or archive the completed tournament.</p></div>
             <TournamentSettings key={selected.updated_at} tournament={selected} onSaved={() => void loadTournaments(user)} />
             <TournamentReset tournament={selected} onReset={() => { void loadTournaments(user, selected.id); void loadTournamentData(); }} />
+            {globalAccess?.status === "approved" && <TournamentDelete tournament={selected} onDeleted={() => { setSelectedId(null); void loadTournaments(user); }} />}
             <details className="admin-collapsible admin-matches-heading" open>
               <summary><div><span>02</span><h2>Registrations</h2></div><p>Review pair applications and keep each status up to date.</p></summary>
               <div className="admin-collapsible-content"><RegistrationManager registrations={registrations} error={registrationError} onRefresh={() => void loadTournamentData()} /></div>
             </details>
             <details className="admin-collapsible admin-matches-heading">
-              <summary><div><span>03</span><h2>Participants</h2></div><p>Edit the pair and player names used in the tournament.</p></summary>
+              <summary><div><span>03</span><h2>Participants</h2></div><p>Edit the pair and player names used in the tournament bracket.</p></summary>
               <div className="admin-collapsible-content"><div className="admin-pair-grid">{pairs.map((pair) => <PairEditor key={`${pair.id}-${pair.updated_at}`} pair={pair} onSaved={() => void loadTournamentData()} />)}</div></div>
             </details>
             <details className="admin-collapsible admin-matches-heading" open>
-              <summary><div><span>04</span><h2>Group stage</h2></div><p>Assign 18 pairs, manage 24 matches and confirm the eight qualifiers.</p></summary>
-              <div className="admin-collapsible-content"><GroupStageManager key={`${selected.id}-${pairs.length}-${groupMembers.map((member) => `${member.pair_id}:${member.group_id}:${member.position}`).join("|")}`} tournament={selected} pairs={pairs} groups={groups} members={groupMembers} matches={groupMatches} pairMap={pairMap} onSaved={() => { void loadTournamentData(); void loadTournaments(user, selected.id); }} /></div>
-            </details>
-            <details className="admin-collapsible admin-matches-heading" open>
-              <summary><div><span>05</span><h2>Playoffs &amp; courts</h2></div><p>Schedule knockout matches, switch LIVE on and enter results.</p></summary>
+              <summary><div><span>04</span><h2>Matches &amp; courts</h2></div><p>Schedule matches, switch LIVE on, enter scores and correct results safely.</p></summary>
               <div className="admin-collapsible-content admin-round-groups">{matchesByRound.map(({ round, matches: roundMatches }) => <details className="admin-round-group" open key={round}><summary><h3>{roundLabels[selected.bracket_size]?.[round] ?? `Round ${round}`}</h3><span>{roundMatches.length}</span></summary><div className="admin-match-grid">{roundMatches.map((match) => <AdminMatch key={`${match.id}-${match.updated_at}`} match={match} pairMap={pairMap} bracketSize={selected.bracket_size} onSaved={() => void loadTournamentData()} />)}</div></details>)}</div>
             </details>
-            <div className="admin-section-heading admin-matches-heading"><div><span>06</span><h2>Team &amp; roles</h2></div><p>Owners control structure and access; administrators manage tournament operations.</p></div>
+            <div className="admin-section-heading admin-matches-heading"><div><span>05</span><h2>Team &amp; roles</h2></div><p>Owners control structure and access; administrators manage tournament operations.</p></div>
             <TeamManager tournament={selected} members={members} onSaved={() => void loadTournamentData()} />
           </>}
         </section>
