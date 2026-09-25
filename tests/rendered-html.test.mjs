@@ -49,7 +49,7 @@ test("server-renders the four-language pair registration form", async () => {
 });
 
 test("ships live bracket and protected tournament controls", async () => {
-  const [admin, bracket, home, upcoming, i18n, styles, sportPage, footer, exporter, register, migration, sportMigration, dateMigration, registrationMigration, resetMigration] = await Promise.all([
+  const [admin, bracket, home, upcoming, i18n, styles, sportPage, footer, exporter, register, migration, sportMigration, dateMigration, registrationMigration, resetMigration, globalAdminMigration] = await Promise.all([
     readFile(new URL("../app/admin/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/bracket/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
@@ -65,6 +65,7 @@ test("ships live bracket and protected tournament controls", async () => {
     readFile(new URL("../supabase/migrations/20260818122000_add_tournament_end_date.sql", import.meta.url), "utf8"),
     readFile(new URL("../supabase/migrations/20260820071715_create_tournament_registrations.sql", import.meta.url), "utf8"),
     readFile(new URL("../supabase/migrations/20260902103000_add_reset_tournament_data.sql", import.meta.url), "utf8"),
+    readFile(new URL("../supabase/migrations/20260925132950_add_global_admin_approval_and_tournament_deletion.sql", import.meta.url), "utf8"),
   ]);
 
   assert.match(admin, /create_tournament_with_bracket/);
@@ -96,6 +97,15 @@ test("ships live bracket and protected tournament controls", async () => {
   assert.match(resetMigration, /delete from public\.tournament_registrations/);
   assert.match(resetMigration, /delete from public\.match_result_history/);
   assert.match(admin, /Team &amp; roles/);
+  assert.match(admin, /request_global_admin_access/);
+  assert.match(admin, /list_global_admin_requests/);
+  assert.match(admin, /approve_global_admin/);
+  assert.match(admin, /delete_tournament/);
+  assert.match(admin, /Type the exact tournament name/);
+  assert.match(globalAdminMigration, /create table public\.global_admins/);
+  assert.match(globalAdminMigration, /is_global_superadmin/);
+  assert.match(globalAdminMigration, /list_managed_tournaments/);
+  assert.match(globalAdminMigration, /delete_tournament/);
   assert.doesNotMatch(admin, /Activity log/);
   assert.match(bracket, /postgres_changes/);
   assert.match(bracket, /match-connector/);

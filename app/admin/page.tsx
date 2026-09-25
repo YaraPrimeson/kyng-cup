@@ -51,6 +51,8 @@ type Match = {
 };
 
 type AdminMember = { user_id: string; email: string; role: "owner" | "admin"; created_at: string };
+type GlobalAccess = { role: "superadmin" | "admin"; status: "pending" | "approved" | "revoked"; requested_at: string; approved_at: string | null };
+type AdminRequest = { user_id: string; email: string; requested_at: string };
 type Registration = {
   id: string;
   tournament_id: string;
@@ -400,6 +402,25 @@ function TeamManager({ tournament, members, onSaved }: { tournament: Tournament;
   );
 }
 
+function TournamentDelete({ tournament, onDeleted }: { tournament: Tournament; onDeleted: () => void }) {
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  async function remove() {
+    const confirmation = window.prompt(`Type the exact tournament name to delete it permanently:\n\n${tournament.name}`);
+    if (confirmation === null) return;
+    if (confirmation !== tournament.name) { setMessage("Tournament name does not match."); return; }
+    if (!window.confirm("Final confirmation: delete this tournament, its bracket, matches and registrations?")) return;
+    setSaving(true); setMessage(null);
+    const { error } = await supabase.rpc("delete_tournament", { p_tournament_id: tournament.id, p_confirmation_name: confirmation });
+    setSaving(false);
+    if (error) setMessage(error.message);
+    else onDeleted();
+  }
+
+  return <div className="admin-danger-card"><div><strong>Delete tournament</strong><p>Permanently removes the tournament, bracket, matches and registrations.</p></div><button type="button" onClick={() => void remove()} disabled={saving}>{saving ? "Deleting…" : "Delete tournament"}</button><Feedback message={message} /></div>;
+}
+
 function RegistrationPlayer({ number, firstName, lastName, email, phone, messenger, level, ratingSystem, ratingValue }: {
   number: 1 | 2;
   firstName: string;
@@ -506,24 +527,38 @@ export default function AdminPage() {
   const [authMode, setAuthMode] = useState<"signin" | "signup" | "reset" | "new-password">("signin");
   const [authMessage, setAuthMessage] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [globalAccess, setGlobalAccess] = useState<GlobalAccess | null>(null);
+  const [adminRequests, setAdminRequests] = useState<AdminRequest[]>([]);
 
   const selected = tournaments.find((tournament) => tournament.id === selectedId) ?? null;
-  const canCreateTournament = tournaments.some((tournament) => tournament.role === "owner");
+  const canCreateTournament = (globalAccess?.status === "approved" && globalAccess.role === "superadmin") || tournaments.some((tournament) => tournament.role === "owner");
 
   const loadTournaments = useCallback(async (currentUser: User | null, preferredId?: string) => {
     setUser(currentUser);
-    if (!currentUser) { setTournaments([]); setSelectedId(null); setChecking(false); return; }
-    const memberships = await supabase.from("tournament_admins").select("tournament_id,role").eq("user_id", currentUser.id);
-    const membershipRows = (memberships.data ?? []) as { tournament_id: string; role: "owner" | "admin" }[];
-    if (!membershipRows.length) { setTournaments([]); setSelectedId(null); setChecking(false); return; }
-    const ids = membershipRows.map((item) => item.tournament_id);
-    const result = await supabase.from("tournaments").select("id,slug,name,sport,location,starts_at,ends_at,bracket_size,status,registration_status,updated_at").in("id", ids).order("created_at", { ascending: false });
-    const roles = new Map(membershipRows.map((item) => [item.tournament_id, item.role]));
-    const managed = ((result.data ?? []) as Omit<Tournament, "role">[]).map((item) => ({ ...item, role: roles.get(item.id) ?? "admin" }));
+    if (!currentUser) { setTournaments([]); setSelectedId(null); setGlobalAccess(null); setAdminRequests([]); setChecking(false); return; }
+    await supabase.rpc("request_global_admin_access");
+    const [accessResult, tournamentResult] = await Promise.all([
+      supabase.rpc("get_global_admin_access"),
+      supabase.rpc("list_managed_tournaments"),
+    ]);
+    const access = ((accessResult.data ?? []) as GlobalAccess[])[0] ?? null;
+    const managed = (tournamentResult.data ?? []) as Tournament[];
+    setGlobalAccess(access);
+    if (access?.status === "approved" && access.role === "superadmin") {
+      const requestsResult = await supabase.rpc("list_global_admin_requests");
+      setAdminRequests((requestsResult.data ?? []) as AdminRequest[]);
+    } else setAdminRequests([]);
     setTournaments(managed);
     setSelectedId((current) => preferredId && managed.some((item) => item.id === preferredId) ? preferredId : current && managed.some((item) => item.id === current) ? current : managed[0]?.id ?? null);
     setChecking(false);
   }, []);
+
+  async function approveAdmin(request: AdminRequest) {
+    if (!window.confirm(`Approve ${request.email} as an administrator for all tournaments?`)) return;
+    const { error } = await supabase.rpc("approve_global_admin", { p_user_id: request.user_id });
+    if (error) setAuthMessage(error.message);
+    else { setAuthMessage(`${request.email} approved.`); if (user) await loadTournaments(user); }
+  }
 
   const loadTournamentData = useCallback(async () => {
     if (!selectedId) { setPairs([]); setMatches([]); setMembers([]); setRegistrations([]); setRegistrationError(null); return; }
@@ -585,13 +620,17 @@ export default function AdminPage() {
       ) : (
         <section className="admin-dashboard">
           <div className="admin-dashboard-heading"><div><p className="eyebrow">Tournament control centre</p><h1>Match control<span className="accent-dot">.</span></h1></div>{selected && <a href={`../bracket/?tournament=${selected.slug}`} target="_blank" rel="noreferrer">Open public bracket ↗</a>}</div>
+          {globalAccess?.status === "pending" && <div className="admin-muted-note">Your administrator account is awaiting approval. You can sign in, but global tournament access will remain locked until a super administrator approves it.</div>}
+          {globalAccess?.status === "revoked" && <div className="admin-muted-note">Global administrator access for this account has been revoked.</div>}
+          {globalAccess?.status === "approved" && globalAccess.role === "superadmin" && <div className="admin-team-card admin-approval-card"><div className="admin-section-heading compact-heading"><div><span>+</span><h2>Administrator approvals</h2></div><p>New accounts remain locked until you approve them here.</p></div>{!adminRequests.length ? <div className="admin-muted-note">No pending administrator requests.</div> : <div className="admin-team-list">{adminRequests.map((request) => <div key={request.user_id}><span><strong>{request.email}</strong><small>Requested {new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(request.requested_at))}</small></span><button type="button" onClick={() => void approveAdmin(request)}>Approve</button></div>)}</div>}<Feedback message={authMessage} /></div>}
           <div className="admin-toolbar"><label className="admin-field"><span>Current tournament</span><select value={selectedId ?? ""} onChange={(event) => { const tournamentId = event.target.value || null; setSelectedId(tournamentId); if (tournamentId) setShowCreate(false); }}><option value="">No tournament selected</option>{tournaments.map((tournament) => <option value={tournament.id} key={tournament.id}>{tournament.name} · {tournament.sport} · {tournament.status}</option>)}</select></label>{canCreateTournament && <button type="button" onClick={() => { setSelectedId(null); setShowCreate(true); }}>+ New tournament</button>}</div>
           {showCreate && !selectedId && canCreateTournament && <CreateTournament onClose={() => setShowCreate(false)} onCreated={(id) => { setShowCreate(false); void loadTournaments(user, id); }} />}
-          {!tournaments.length && <div className="admin-muted-note">This account has no tournament access yet. Ask an owner to add your email as an administrator.</div>}
+          {!tournaments.length && globalAccess?.status !== "pending" && <div className="admin-muted-note">This account has no tournament access yet.</div>}
           {selected && <>
             <div className="admin-section-heading admin-first-section"><div><span>01</span><h2>Tournament</h2></div><p>Publish, start live coverage or archive the completed tournament.</p></div>
             <TournamentSettings key={selected.updated_at} tournament={selected} onSaved={() => void loadTournaments(user)} />
             <TournamentReset tournament={selected} onReset={() => { void loadTournaments(user, selected.id); void loadTournamentData(); }} />
+            {globalAccess?.status === "approved" && <TournamentDelete tournament={selected} onDeleted={() => { setSelectedId(null); void loadTournaments(user); }} />}
             <details className="admin-collapsible admin-matches-heading" open>
               <summary><div><span>02</span><h2>Registrations</h2></div><p>Review pair applications and keep each status up to date.</p></summary>
               <div className="admin-collapsible-content"><RegistrationManager registrations={registrations} error={registrationError} onRefresh={() => void loadTournamentData()} /></div>

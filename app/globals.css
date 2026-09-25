@@ -620,6 +620,13 @@ html[lang="ru"] .admin-round-group:not([open]) > summary::after { content: "По
 .admin-match-details > button { align-self: end; height: 37px; border: 1px solid var(--forest); border-radius: 10px; padding: 0 12px; background: transparent; color: var(--forest); cursor: pointer; font-size: 12px; }
 .admin-match-details > button:disabled { opacity: .4; }
 .admin-reset-button { justify-self: start; margin-top: 9px; border: 0; border-bottom: 1px solid currentColor; padding: 0 0 3px; background: transparent; color: var(--clay); cursor: pointer; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; }
+.admin-danger-card { margin-top: 16px; padding: 18px 22px; border: 1px solid color-mix(in srgb, var(--clay) 45%, transparent); border-radius: 16px; background: color-mix(in srgb, var(--clay) 7%, #fff); display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px 20px; }
+.admin-danger-card strong { color: var(--clay); font-size: 15px; }
+.admin-danger-card p { margin: 5px 0 0; font-size: 12px; opacity: .68; }
+.admin-danger-card > button { grid-column: 2; grid-row: 1; border: 1px solid var(--clay); border-radius: 999px; padding: 9px 15px; background: transparent; color: var(--clay); cursor: pointer; font: inherit; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }
+.admin-danger-card > button:disabled { opacity: .45; cursor: wait; }
+.admin-danger-card .admin-message { grid-column: 1 / -1; }
+.admin-approval-card { margin-bottom: 22px; }
 .admin-muted-note { padding: 18px; border: 1px solid var(--line); border-radius: 14px; background: #fff; opacity: .6; }
 .admin-draw-card { display: grid; gap: 18px; }
 .admin-draw-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 18px; }
@@ -694,6 +701,8 @@ html[lang="ru"] .admin-round-group:not([open]) > summary::after { content: "По
   .admin-create-card, .admin-settings-card { min-width: 0; overflow: hidden; }
   .admin-toolbar > button { justify-self: start; }
   .admin-match-details, .admin-score-row { grid-template-columns: 1fr; }
+  .admin-danger-card { grid-template-columns: 1fr; }
+  .admin-danger-card > button { grid-column: 1; grid-row: auto; justify-self: start; }
   .admin-score-row > div { display: grid; grid-template-columns: 1fr 1fr; }
   .admin-match-details > label:first-child { grid-column: auto; }
   .admin-draw-row { grid-template-columns: 25px minmax(0, 1fr) auto; }
