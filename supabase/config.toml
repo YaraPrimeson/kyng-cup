@@ -1,0 +1,2 @@
+[functions.telegram-bracket]
+verify_jwt = false
