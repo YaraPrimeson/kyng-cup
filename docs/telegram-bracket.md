@@ -1,6 +1,6 @@
 # Telegram bracket management
 
-The `telegram-bracket` Supabase Edge Function lets the authorised organiser update match results from Telegram. It accepts messages only from Telegram user `169658777` and verifies Telegram's webhook secret header before processing an update.
+The `telegram-bracket` Supabase Edge Function lets Telegram users update match results. Access is temporarily open to every Telegram user; each change records the sender's Telegram ID. The function verifies Telegram's webhook secret header before processing an update.
 
 ## Setup
 

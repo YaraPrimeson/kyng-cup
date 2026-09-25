@@ -1,5 +1,3 @@
-const ADMIN_TELEGRAM_ID = 169658777;
-
 type TelegramUpdate = {
   message?: {
     chat?: { id?: number };
@@ -186,7 +184,7 @@ async function listMatches(chatId: number, slug: string | undefined) {
   await reply(chatId, [`${tournament.name}:`, ...lines].join("\n").slice(0, 4000));
 }
 
-async function recordResult(chatId: number, args: string[]) {
+async function recordResult(chatId: number, userId: number, args: string[]) {
   const [slug, roundValue, positionValue, winnerValue, scoreValue] = args;
   const round = parsePositiveInteger(roundValue);
   const position = parsePositiveInteger(positionValue);
@@ -205,7 +203,7 @@ async function recordResult(chatId: number, args: string[]) {
   await supabase("rpc/telegram_record_match_result", {
     method: "POST",
     body: JSON.stringify({
-      p_telegram_user_id: ADMIN_TELEGRAM_ID,
+      p_telegram_user_id: userId,
       p_match_id: match.id,
       p_pair_one_sets: score.pairOne,
       p_pair_two_sets: score.pairTwo,
@@ -215,7 +213,7 @@ async function recordResult(chatId: number, args: string[]) {
   await reply(chatId, `Готово: ${tournament.name}, раунд ${round}, матч ${position}. Сетка обновлена.`);
 }
 
-async function resetResult(chatId: number, args: string[]) {
+async function resetResult(chatId: number, userId: number, args: string[]) {
   const [slug, roundValue, positionValue] = args;
   const round = parsePositiveInteger(roundValue);
   const position = parsePositiveInteger(positionValue);
@@ -229,7 +227,7 @@ async function resetResult(chatId: number, args: string[]) {
   if (!match) throw new Error("Матч не найден");
   await supabase("rpc/telegram_reset_match_result", {
     method: "POST",
-    body: JSON.stringify({ p_telegram_user_id: ADMIN_TELEGRAM_ID, p_match_id: match.id }),
+    body: JSON.stringify({ p_telegram_user_id: userId, p_match_id: match.id }),
   });
   await reply(chatId, `Результат сброшен: ${tournament.name}, раунд ${round}, матч ${position}.`);
 }
@@ -238,7 +236,7 @@ async function handleUpdate(update: TelegramUpdate) {
   const userId = update.message?.from?.id;
   const chatId = update.message?.chat?.id;
   const text = update.message?.text?.trim();
-  if (userId !== ADMIN_TELEGRAM_ID || !chatId || !text) return;
+  if (!userId || !chatId || !text) return;
 
   const [rawCommand, ...args] = text.split(/\s+/);
   const command = rawCommand.toLowerCase().split("@")[0];
@@ -246,8 +244,8 @@ async function handleUpdate(update: TelegramUpdate) {
     if (command === "/start" || command === "/help") await reply(chatId, helpText);
     else if (command === "/tournaments") await listTournaments(chatId);
     else if (command === "/matches") await listMatches(chatId, args[0]);
-    else if (command === "/result") await recordResult(chatId, args);
-    else if (command === "/reset") await resetResult(chatId, args);
+    else if (command === "/result") await recordResult(chatId, userId, args);
+    else if (command === "/reset") await resetResult(chatId, userId, args);
     else await reply(chatId, `Неизвестная команда.\n\n${helpText}`);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Неизвестная ошибка";
