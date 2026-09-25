@@ -27,10 +27,11 @@ type DenoRuntime = {
 };
 
 const deno = (globalThis as unknown as { Deno: DenoRuntime }).Deno;
-const botToken = deno.env.get("TELEGRAM_BOT_TOKEN");
-const webhookSecret = deno.env.get("TELEGRAM_WEBHOOK_SECRET");
 const supabaseUrl = deno.env.get("SUPABASE_URL");
 const serviceRoleKey = deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+
+type BotSecrets = { bot_token: string; webhook_secret: string };
+let secretsPromise: Promise<BotSecrets> | null = null;
 
 const helpText = [
   "Управление сеткой KYNG CUP",
@@ -54,8 +55,8 @@ function jsonResponse(status = 200) {
 }
 
 async function telegram(method: string, payload: Record<string, unknown>) {
-  if (!botToken) throw new Error("TELEGRAM_BOT_TOKEN is not configured");
-  const response = await fetch(`https://api.telegram.org/bot${botToken}/${method}`, {
+  const secrets = await loadSecrets();
+  const response = await fetch(`https://api.telegram.org/bot${secrets.bot_token}/${method}`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(payload),
@@ -84,6 +85,21 @@ async function supabase(path: string, init?: RequestInit) {
     throw new Error(String(message));
   }
   return body ? JSON.parse(body) : null;
+}
+
+async function loadSecrets() {
+  if (!secretsPromise) {
+    secretsPromise = (async () => {
+      const rows = await supabase("rpc/telegram_bot_secrets", { method: "POST", body: "{}" }) as BotSecrets[];
+      const secrets = rows[0];
+      if (!secrets?.bot_token || !secrets?.webhook_secret) throw new Error("Telegram secrets are not configured");
+      return secrets;
+    })().catch((error) => {
+      secretsPromise = null;
+      throw error;
+    });
+  }
+  return secretsPromise;
 }
 
 async function findTournament(slug: string) {
@@ -241,8 +257,9 @@ async function handleUpdate(update: TelegramUpdate) {
 
 deno.serve(async (request) => {
   if (request.method !== "POST") return jsonResponse(405);
-  if (!webhookSecret || request.headers.get("x-telegram-bot-api-secret-token") !== webhookSecret) return jsonResponse(401);
   try {
+    const secrets = await loadSecrets();
+    if (request.headers.get("x-telegram-bot-api-secret-token") !== secrets.webhook_secret) return jsonResponse(401);
     const update = await request.json() as TelegramUpdate;
     await handleUpdate(update);
     return jsonResponse();

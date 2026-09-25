@@ -4,18 +4,17 @@ The `telegram-bracket` Supabase Edge Function lets the authorised organiser upda
 
 ## Setup
 
-Set these production secrets. Never commit their values:
+The production token and webhook secret are stored encrypted in Supabase Vault under these names:
 
 ```text
-TELEGRAM_BOT_TOKEN
-TELEGRAM_WEBHOOK_SECRET
+telegram_bot_token
+telegram_webhook_secret
 ```
 
-Deploy the database migration and Edge Function, then register the webhook:
+Deploy the database migrations and Edge Function, then register the webhook using the decrypted values in a trusted local environment:
 
 ```bash
 supabase db push
-supabase secrets set TELEGRAM_BOT_TOKEN=... TELEGRAM_WEBHOOK_SECRET=...
 supabase functions deploy telegram-bracket --no-verify-jwt
 curl -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook" \
   -H "Content-Type: application/json" \
