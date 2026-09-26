@@ -67,7 +67,7 @@ test("ships live bracket and protected tournament controls", async () => {
     readFile(new URL("../supabase/migrations/20260902103000_add_reset_tournament_data.sql", import.meta.url), "utf8"),
     readFile(new URL("../supabase/migrations/20260925132950_add_global_admin_approval_and_tournament_deletion.sql", import.meta.url), "utf8"),
     readFile(new URL("../app/group-stage.ts", import.meta.url), "utf8"),
-    readFile(new URL("../supabase/migrations/20260925180000_add_group_stage.sql", import.meta.url), "utf8"),
+    readFile(new URL("../supabase/migrations/20260925201516_add_safe_group_stage.sql", import.meta.url), "utf8"),
   ]);
 
   assert.match(admin, /create_tournament_with_bracket/);
