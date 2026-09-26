@@ -59,6 +59,9 @@ create table if not exists public.group_matches (
 create index if not exists tournament_groups_tournament_idx on public.tournament_groups (tournament_id, code);
 create index if not exists group_members_group_idx on public.group_members (group_id, position);
 create index if not exists group_matches_tournament_idx on public.group_matches (tournament_id, group_id, position);
+create index if not exists group_matches_pair_one_idx on public.group_matches (pair_one_id);
+create index if not exists group_matches_pair_two_idx on public.group_matches (pair_two_id);
+create index if not exists group_matches_winner_idx on public.group_matches (winner_id) where winner_id is not null;
 
 alter table public.tournament_groups enable row level security;
 alter table public.group_members enable row level security;

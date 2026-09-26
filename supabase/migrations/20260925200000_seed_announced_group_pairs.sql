@@ -54,9 +54,9 @@ $$;
 revoke all on function public.seed_announced_group_pairs(uuid) from public, anon;
 grant execute on function public.seed_announced_group_pairs(uuid) to authenticated;
 
--- If the group stage was already configured before this migration, seed the
--- announced Vienna 2026 lineup immediately. Otherwise the admin action calls
--- the same function after configuring the groups.
+-- If the September 26 padel group stage was already configured before this
+-- migration, seed the announced lineup immediately. Otherwise the admin
+-- action calls the same function after configuring the groups.
 with announced(group_code, position, player_one, player_two) as (
   values
     ('A', 1, 'ARTEM', 'TIM'),
@@ -84,7 +84,8 @@ set name = announced.player_one || ' / ' || announced.player_two,
     player_two = announced.player_two,
     updated_at = now()
 from announced, public.tournament_groups g, public.group_members gm, public.tournaments t
-where t.slug = 'vienna-2026'
+where t.slug = 'vienna'
+  and t.sport = 'padel'
   and t.id = g.tournament_id
   and g.code = announced.group_code
   and gm.group_id = g.id
