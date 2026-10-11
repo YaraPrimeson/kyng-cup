@@ -17,29 +17,32 @@ type Tournament = {
   bracket_size: number;
   format: "knockout" | "group_knockout";
   participant_count: number;
-  status: "published" | "live";
+  status: "published" | "live" | "completed";
 };
 
 type Pair = { id: string; name: string; player_one: string; player_two: string; seed: number | null; country_code: string | null };
 type Match = { id: string; round: number; position: number; pair_one_id: string | null; pair_two_id: string | null; pair_one_sets: number[]; pair_two_sets: number[]; winner_id: string | null; status: "scheduled" | "live" | "completed"; court: string | null; scheduled_at: string | null };
 
 const bracketCopy = {
-  en: { headingA: "Tournament", headingB: "bracket", groups: "Group stage", playoffs: "Playoffs", qualified: "Qualifies", played: "P", won: "W", lost: "L", sets: "Sets", games: "Games", points: "Pts", groupRule: "Top two from groups A–C and each winner from groups D–E advance.", decided: "To be decided", previousWinner: "Winner of previous match", scheduleTba: "Schedule TBA", courtTba: "Court TBA", final: "Final", live: "Live", scheduled: "Scheduled", locationTba: "Location TBA", pairs: "doubles pairs", previous: "Previous", next: "Next", noBracket: "No published tournament bracket is available yet.", loadError: "The latest match data could not be loaded." },
-  uk: { headingA: "Турнірна", headingB: "сітка", groups: "Груповий етап", playoffs: "Плей-оф", qualified: "Виходить", played: "І", won: "В", lost: "П", sets: "Сети", games: "Гейми", points: "Очки", groupRule: "З груп A–C виходять дві найкращі пари, з груп D–E — переможці.", decided: "Ще не визначено", previousWinner: "Переможець попереднього матчу", scheduleTba: "Розклад уточнюється", courtTba: "Корт уточнюється", final: "Фінал", live: "Наживо", scheduled: "Заплановано", locationTba: "Локація уточнюється", pairs: "пар", previous: "Назад", next: "Далі", noBracket: "Опублікованої турнірної сітки поки немає.", loadError: "Не вдалося завантажити актуальні дані матчів." },
-  de: { headingA: "Turnier-", headingB: "baum", groups: "Gruppenphase", playoffs: "K.-o.-Runde", qualified: "Qualifiziert", played: "Sp", won: "S", lost: "N", sets: "Sätze", games: "Spiele", points: "Pkt", groupRule: "Die besten zwei aus A–C und die Sieger aus D–E erreichen die K.-o.-Runde.", decided: "Noch offen", previousWinner: "Sieger des vorherigen Matches", scheduleTba: "Zeitplan folgt", courtTba: "Court folgt", final: "Finale", live: "Live", scheduled: "Geplant", locationTba: "Ort folgt", pairs: "Doppelpaare", previous: "Zurück", next: "Weiter", noBracket: "Noch kein veröffentlichter Turnierbaum verfügbar.", loadError: "Die aktuellen Matchdaten konnten nicht geladen werden." },
-  ru: { headingA: "Турнирная", headingB: "сетка", groups: "Групповой этап", playoffs: "Плей-офф", qualified: "Выходит", played: "И", won: "В", lost: "П", sets: "Сеты", games: "Геймы", points: "Очки", groupRule: "Из групп A–C выходят две лучшие пары, из групп D–E — победители.", decided: "Ещё не определено", previousWinner: "Победитель предыдущего матча", scheduleTba: "Расписание уточняется", courtTba: "Корт уточняется", final: "Финал", live: "В эфире", scheduled: "Запланирован", locationTba: "Локация уточняется", pairs: "пар", previous: "Назад", next: "Далее", noBracket: "Опубликованной турнирной сетки пока нет.", loadError: "Не удалось загрузить актуальные данные матчей." },
+  en: { headingA: "Tournament", headingB: "bracket", groups: "Group stage", playoffs: "Playoffs", qualified: "Qualifies", played: "P", won: "W", lost: "L", sets: "Sets", games: "Games", points: "Pts", groupRule: "Highlighted positions advance to the playoffs.", decided: "To be decided", previousWinner: "Winner of previous match", scheduleTba: "Schedule TBA", courtTba: "Court TBA", final: "Final", live: "Live", scheduled: "Scheduled", locationTba: "Location TBA", pairs: "doubles pairs", previous: "Previous", next: "Next", noBracket: "No published tournament bracket is available yet.", loadError: "The latest match data could not be loaded." },
+  uk: { headingA: "Турнірна", headingB: "сітка", groups: "Груповий етап", playoffs: "Плей-оф", qualified: "Виходить", played: "І", won: "В", lost: "П", sets: "Сети", games: "Гейми", points: "Очки", groupRule: "Виділені позиції виходять у плей-оф.", decided: "Ще не визначено", previousWinner: "Переможець попереднього матчу", scheduleTba: "Розклад уточнюється", courtTba: "Корт уточнюється", final: "Фінал", live: "Наживо", scheduled: "Заплановано", locationTba: "Локація уточнюється", pairs: "пар", previous: "Назад", next: "Далі", noBracket: "Опублікованої турнірної сітки поки немає.", loadError: "Не вдалося завантажити актуальні дані матчів." },
+  de: { headingA: "Turnier-", headingB: "baum", groups: "Gruppenphase", playoffs: "K.-o.-Runde", qualified: "Qualifiziert", played: "Sp", won: "S", lost: "N", sets: "Sätze", games: "Spiele", points: "Pkt", groupRule: "Die markierten Plätze erreichen die K.-o.-Runde.", decided: "Noch offen", previousWinner: "Sieger des vorherigen Matches", scheduleTba: "Zeitplan folgt", courtTba: "Court folgt", final: "Finale", live: "Live", scheduled: "Geplant", locationTba: "Ort folgt", pairs: "Doppelpaare", previous: "Zurück", next: "Weiter", noBracket: "Noch kein veröffentlichter Turnierbaum verfügbar.", loadError: "Die aktuellen Matchdaten konnten nicht geladen werden." },
+  ru: { headingA: "Турнирная", headingB: "сетка", groups: "Групповой этап", playoffs: "Плей-офф", qualified: "Выходит", played: "И", won: "В", lost: "П", sets: "Сеты", games: "Геймы", points: "Очки", groupRule: "Выделенные позиции выходят в плей-офф.", decided: "Ещё не определено", previousWinner: "Победитель предыдущего матча", scheduleTba: "Расписание уточняется", courtTba: "Корт уточняется", final: "Финал", live: "В эфире", scheduled: "Запланирован", locationTba: "Локация уточняется", pairs: "пар", previous: "Назад", next: "Далее", noBracket: "Опубликованной турнирной сетки пока нет.", loadError: "Не удалось загрузить актуальные данные матчей." },
 } as const;
 
 function getRounds(size: number, language: Language) {
   const labelsByLanguage: Record<Language, Record<number, string[]>> = {
     en: {
+    2: ["Final"],
+    4: ["Semifinal", "Final"],
     8: ["Quarterfinal", "Semifinal", "Final"],
     16: ["Round of 16", "Quarterfinal", "Semifinal", "Final"],
     32: ["Round of 32", "Round of 16", "Quarterfinal", "Semifinal", "Final"],
+    64: ["Round of 64", "Round of 32", "Round of 16", "Quarterfinal", "Semifinal", "Final"],
     },
-    uk: { 8: ["Чвертьфінал", "Півфінал", "Фінал"], 16: ["1/8 фіналу", "Чвертьфінал", "Півфінал", "Фінал"], 32: ["1/16 фіналу", "1/8 фіналу", "Чвертьфінал", "Півфінал", "Фінал"] },
-    de: { 8: ["Viertelfinale", "Halbfinale", "Finale"], 16: ["Achtelfinale", "Viertelfinale", "Halbfinale", "Finale"], 32: ["Sechzehntelfinale", "Achtelfinale", "Viertelfinale", "Halbfinale", "Finale"] },
-    ru: { 8: ["Четвертьфинал", "Полуфинал", "Финал"], 16: ["1/8 финала", "Четвертьфинал", "Полуфинал", "Финал"], 32: ["1/16 финала", "1/8 финала", "Четвертьфинал", "Полуфинал", "Финал"] },
+    uk: { 2: ["Фінал"], 4: ["Півфінал", "Фінал"], 8: ["Чвертьфінал", "Півфінал", "Фінал"], 16: ["1/8 фіналу", "Чвертьфінал", "Півфінал", "Фінал"], 32: ["1/16 фіналу", "1/8 фіналу", "Чвертьфінал", "Півфінал", "Фінал"], 64: ["1/32 фіналу", "1/16 фіналу", "1/8 фіналу", "Чвертьфінал", "Півфінал", "Фінал"] },
+    de: { 2: ["Finale"], 4: ["Halbfinale", "Finale"], 8: ["Viertelfinale", "Halbfinale", "Finale"], 16: ["Achtelfinale", "Viertelfinale", "Halbfinale", "Finale"], 32: ["Sechzehntelfinale", "Achtelfinale", "Viertelfinale", "Halbfinale", "Finale"], 64: ["Runde der 64", "Sechzehntelfinale", "Achtelfinale", "Viertelfinale", "Halbfinale", "Finale"] },
+    ru: { 2: ["Финал"], 4: ["Полуфинал", "Финал"], 8: ["Четвертьфинал", "Полуфинал", "Финал"], 16: ["1/8 финала", "Четвертьфинал", "Полуфинал", "Финал"], 32: ["1/16 финала", "1/8 финала", "Четвертьфинал", "Полуфинал", "Финал"], 64: ["1/32 финала", "1/16 финала", "1/8 финала", "Четвертьфинал", "Полуфинал", "Финал"] },
   };
   const labels = labelsByLanguage[language];
   return (labels[size] ?? labels[16]).map((label, index) => ({ number: index + 1, label }));
@@ -96,13 +99,19 @@ export default function BracketPage() {
   const [error, setError] = useState<string | null>(null);
 
   const loadBracket = useCallback(async (requestedSlug?: string) => {
-    const tournamentResult = await supabase.from("tournaments").select("id,slug,name,sport,location,starts_at,bracket_size,format,participant_count,status").eq("sport", "padel").in("status", ["published", "live"]).order("starts_at", { ascending: false, nullsFirst: false });
+    const tournamentResult = await supabase.from("tournaments").select("id,slug,name,sport,location,starts_at,bracket_size,format,participant_count,status").in("status", ["published", "live", "completed"]).order("starts_at", { ascending: false, nullsFirst: false });
     if (tournamentResult.error || !tournamentResult.data?.length) { setError(text.noBracket); setLoading(false); return; }
     const available = tournamentResult.data as Tournament[];
     const urlSlug = requestedSlug ?? new URLSearchParams(window.location.search).get("tournament") ?? undefined;
     const requestedSport = new URLSearchParams(window.location.search).get("sport") as Sport | null;
     const sportAvailable = requestedSport ? available.filter((item) => item.sport === requestedSport) : available;
-    const current = available.find((item) => item.slug === urlSlug) ?? sportAvailable.find((item) => item.status === "live") ?? sportAvailable.find((item) => item.status === "published") ?? sportAvailable[0] ?? available[0];
+    const now = Date.now();
+    const current = available.find((item) => item.slug === urlSlug)
+      ?? sportAvailable.find((item) => item.status === "live")
+      ?? [...sportAvailable].reverse().find((item) => item.status === "published" && item.starts_at && new Date(item.starts_at).getTime() >= now)
+      ?? sportAvailable.find((item) => item.status === "completed")
+      ?? sportAvailable[0]
+      ?? available[0];
     const groupsResult = await supabase.from("tournament_groups").select("id,code,qualify_count").eq("tournament_id", current.id).order("code");
     const groupIds = (groupsResult.data ?? []).map((item) => item.id);
     const [pairsResult, matchesResult, membersResult, groupMatchesResult] = await Promise.all([

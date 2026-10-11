@@ -10,8 +10,12 @@ export default function SiteHeader() {
   const basePath = pathname.startsWith("/kyng-cup") ? "/kyng-cup" : "";
   const path = pathname.replace(/^\/kyng-cup/, "").replace(/\/+$/, "") || "/";
   const links = path === "/"
-    ? [["/padel/", t("padel")]]
-    : [["/", t("home")], ["/padel/", t("padel")]];
+    ? [["/tennis/", t("tennis")], ["/padel/", t("padel")]]
+    : path === "/tennis"
+      ? [["/", t("home")], ["/padel/", t("padel")]]
+      : path === "/padel"
+        ? [["/", t("home")], ["/tennis/", t("tennis")]]
+        : [["/", t("home")], ["/tennis/", t("tennis")], ["/padel/", t("padel")]];
 
   return (
     <header className="global-header">

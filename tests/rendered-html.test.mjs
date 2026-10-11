@@ -20,20 +20,21 @@ test("server-renders the KYNG CUP landing page", async () => {
   const html = await response.text();
   assert.match(html, /<title>KYNG CUP — More Than a Game<\/title>/i);
   assert.match(html, /More than a game\. A standard\./);
-  assert.match(html, /Ready to play\?/);
-  assert.doesNotMatch(html, /href="\/tennis\/?"/i);
+  assert.match(html, /Choose your court/);
+  assert.match(html, /href="\/tennis\/?"/i);
   assert.match(html, /brand-wordmark/);
   assert.match(html, /favicon\.png/);
   assert.doesNotMatch(html, /ball-mark/);
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape/i);
 });
 
-test("keeps the public experience focused on padel", async () => {
+test("server-renders distinct tennis and padel pages", async () => {
   const [tennisResponse, padelResponse] = await Promise.all([render("/tennis"), render("/padel")]);
-  assert.equal(tennisResponse.status, 307);
+  assert.equal(tennisResponse.status, 200);
   assert.equal(padelResponse.status, 200);
-  assert.equal(tennisResponse.headers.get("location"), "/padel/");
-  const padel = await padelResponse.text();
+  const [tennis, padel] = await Promise.all([tennisResponse.text(), padelResponse.text()]);
+  assert.match(tennis, /More than/);
+  assert.match(tennis, /The tennis experience/);
   assert.match(padel, /Built for/);
   assert.match(padel, /The padel experience/);
 });
@@ -49,7 +50,7 @@ test("server-renders the four-language pair registration form", async () => {
 });
 
 test("ships live bracket and protected tournament controls", async () => {
-  const [admin, bracket, home, upcoming, i18n, styles, sportPage, footer, exporter, register, migration, sportMigration, dateMigration, registrationMigration, resetMigration, globalAdminMigration, groupStage, groupMigration] = await Promise.all([
+  const [admin, bracket, home, upcoming, i18n, styles, sportPage, footer, exporter, register, migration, sportMigration, dateMigration, registrationMigration, resetMigration, flexibleMigration] = await Promise.all([
     readFile(new URL("../app/admin/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/bracket/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
@@ -65,12 +66,10 @@ test("ships live bracket and protected tournament controls", async () => {
     readFile(new URL("../supabase/migrations/20260818122000_add_tournament_end_date.sql", import.meta.url), "utf8"),
     readFile(new URL("../supabase/migrations/20260820071715_create_tournament_registrations.sql", import.meta.url), "utf8"),
     readFile(new URL("../supabase/migrations/20260902103000_add_reset_tournament_data.sql", import.meta.url), "utf8"),
-    readFile(new URL("../supabase/migrations/20260925132950_add_global_admin_approval_and_tournament_deletion.sql", import.meta.url), "utf8"),
-    readFile(new URL("../app/group-stage.ts", import.meta.url), "utf8"),
-    readFile(new URL("../supabase/migrations/20260925201516_add_safe_group_stage.sql", import.meta.url), "utf8"),
+    readFile(new URL("../supabase/migrations/20261011090000_flexible_tournament_formats.sql", import.meta.url), "utf8"),
   ]);
 
-  assert.match(admin, /create_tournament_with_bracket/);
+  assert.match(admin, /create_flexible_tournament/);
   assert.match(admin, /reset_match_result/);
   assert.doesNotMatch(admin, /ManualDraw/);
   assert.match(admin, /Published · show on sport page/);
@@ -98,25 +97,14 @@ test("ships live bracket and protected tournament controls", async () => {
   assert.match(resetMigration, /Only a tournament owner can reset tournament data/);
   assert.match(resetMigration, /delete from public\.tournament_registrations/);
   assert.match(resetMigration, /delete from public\.match_result_history/);
-  assert.match(admin, /Team &amp; roles/);
-  assert.match(admin, /request_global_admin_access/);
-  assert.match(admin, /list_global_admin_requests/);
-  assert.match(admin, /approve_global_admin/);
-  assert.match(admin, /delete_tournament/);
-  assert.match(admin, /Type the exact tournament name/);
-  assert.match(admin, /configure_group_stage/);
-  assert.match(admin, /record_group_match_result/);
-  assert.match(admin, /seed_announced_group_pairs/);
-  assert.match(globalAdminMigration, /create table public\.global_admins/);
-  assert.match(globalAdminMigration, /is_global_superadmin/);
-  assert.match(globalAdminMigration, /list_managed_tournaments/);
-  assert.match(globalAdminMigration, /delete_tournament/);
+  assert.doesNotMatch(admin, /Create a new account|Forgot password\?/);
+  assert.match(admin, /Login or password is incorrect\./);
   assert.doesNotMatch(admin, /Activity log/);
   assert.match(bracket, /postgres_changes/);
   assert.match(bracket, /match-connector/);
   assert.match(bracket, /round-mobile-controls/);
   assert.match(bracket, /Champion/);
-  assert.match(bracket, /\["published", "live"\]/);
+  assert.match(bracket, /\["published", "live", "completed"\]/);
   assert.doesNotMatch(bracket, /archive/);
   assert.doesNotMatch(bracket, /text\.matches/);
   assert.match(bracket, /\["Quarterfinal", "Semifinal", "Final"\]/);
@@ -138,6 +126,7 @@ test("ships live bracket and protected tournament controls", async () => {
   assert.match(upcoming, /const isSingleDay = Boolean/);
   assert.match(upcoming, /is-single-day/);
   assert.match(upcoming, /timeZone: "Europe\/Vienna"/);
+  assert.match(upcoming, /if \(loading \|\| !tournament\) return null/);
   assert.doesNotMatch(upcoming, /bracket_size/);
   assert.match(i18n, /localStorage\.setItem\(languageStorageKey/);
   assert.match(i18n, /Request a place/);
@@ -170,9 +159,10 @@ test("ships live bracket and protected tournament controls", async () => {
   assert.match(exporter, /"\/register\/"/);
   assert.match(register, /function ContactFields/);
   assert.match(register, /function PairFields/);
+  assert.match(register, /name="player_two_level"/);
   assert.match(register, /player_two_email: null/);
-  assert.doesNotMatch(register, /partner_consent/);
   assert.match(register, /rules_privacy_accepted/);
+  assert.doesNotMatch(register, /partner_consent/);
   assert.match(register, /marketing_opt_in/);
   assert.match(register, /registration_status/);
   assert.match(register, /en: \{/);
@@ -182,17 +172,13 @@ test("ships live bracket and protected tournament controls", async () => {
   assert.match(register, /from\("tournament_registrations"\)\.insert/);
   assert.match(register, /error\.code === "23505"/);
   assert.match(register, /error\.code === "23514"/);
-  assert.match(register, /We will get back to you shortly/);
   assert.match(register, /submissionState === "success"/);
   assert.match(register, /registration-success/);
+  assert.match(admin, /delete_tournament/);
+  assert.match(admin, /Type the exact tournament name/);
   assert.match(migration, /enable row level security/i);
   assert.match(migration, /is_tournament_owner/);
   assert.match(migration, /activity_log/);
-  assert.match(groupStage, /one\.points \+= 1/);
-  assert.match(groupStage, /two\.points \+= 1/);
-  assert.match(groupMigration, /create table if not exists public\.tournament_groups/);
-  assert.match(groupMigration, /create table if not exists public\.group_matches/);
-  assert.doesNotMatch(groupMigration, /delete from public\.global_admins|delete from public\.tournament_admins|delete from auth\.users/);
   assert.match(sportMigration, /tournaments_sport_check/);
   assert.match(sportMigration, /p_sport text/);
   assert.match(dateMigration, /add column if not exists ends_at timestamptz/);
@@ -205,4 +191,8 @@ test("ships live bracket and protected tournament controls", async () => {
   assert.match(registrationMigration, /grant insert \(/);
   assert.doesNotMatch(registrationMigration, /grant select on public\.tournament_registrations to anon/);
   assert.doesNotMatch(registrationMigration, /security definer/);
+  assert.match(flexibleMigration, /create or replace function public\.create_flexible_tournament/);
+  assert.match(flexibleMigration, /create or replace function public\.rebuild_playoff_bracket/);
+  assert.match(flexibleMigration, /next_bracket_size/);
+  assert.match(flexibleMigration, /Each group needs at least two pairs/);
 });

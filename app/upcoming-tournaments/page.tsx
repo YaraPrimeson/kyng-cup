@@ -85,7 +85,9 @@ export default function UpcomingTournamentsPage() {
   const { language } = useLanguage();
   const c = copy[language];
   const { tournaments, loading, error } = usePublicTournaments();
-  const featured = tournaments.filter((item) => item.sport === "padel");
+  const featured = (["tennis", "padel"] as const)
+    .map((sport) => tournaments.find((item) => item.sport === sport && item.status === "live") ?? tournaments.find((item) => item.sport === sport))
+    .filter((item) => item !== undefined);
   return <main className="upcoming-page" key={language}>
     <section className="upcoming-page__hero"><div><p>{c.eyebrow}</p><h1>{c.title}</h1><p className="upcoming-page__hero-intro">{c.intro}</p></div><aside><span>{loading ? "…" : formatTournamentMonth(featured, language)}</span><strong>{featured.map((tournament) => `${tournament.sport === "tennis" ? c.tennis : c.padel} — ${formatTournamentDate(tournament, language)}`).join("\n") || (error ? "—" : "…")}</strong><a className="upcoming-page__button" href="#choose">{c.choose} <span>↓</span></a></aside></section>
     <section className="upcoming-page__selector" id="choose"><p className="upcoming-page__label">01 — {c.choose}</p><div>{featured.map((tournament) => <TournamentCard key={tournament.id} sport={tournament.sport} date={formatTournamentDate(tournament, language, true)} label={tournament.registration_status === "closed" ? c.closed : tournament.sport === "tennis" ? c.registerTennis : c.registerPadel} processLabel={c.processLabel} sportLabel={tournament.sport === "tennis" ? c.tennis : c.padel} registrationHref={tournament.registration_status === "closed" ? `#${tournament.sport}-${tournament.slug}` : `${basePath}/register/?tournament=${encodeURIComponent(tournament.slug)}&sport=${tournament.sport}`} />)}</div></section>
