@@ -8,7 +8,7 @@ export default function SiteHeader() {
   const pathname = usePathname();
   const { language, setLanguage, t } = useLanguage();
   const basePath = pathname.startsWith("/kyng-cup") ? "/kyng-cup" : "";
-  const path = pathname.replace(/^\/kyng-cup/, "").replace(/\/+$/, "") || "/";
+  const path = pathname.slice(basePath.length).replace(/\/+$/, "") || "/";
   const links = path === "/"
     ? [["/tennis/", t("tennis")], ["/padel/", t("padel")]]
     : path === "/tennis"
