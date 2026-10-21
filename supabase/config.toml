@@ -1,2 +1,6 @@
 [functions.telegram-bracket]
 verify_jwt = false
+
+# The handler verifies the password before issuing an Auth session.
+[functions.organizer-login]
+verify_jwt = false

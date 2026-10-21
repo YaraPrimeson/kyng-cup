@@ -1,5 +1,7 @@
 "use client";
 
+import CreateTournament from "./create-tournament";
+import { balancePairs, groupSummary } from "@/lib/tournament-setup";
 import type { User } from "@supabase/supabase-js";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
@@ -136,74 +138,6 @@ function parseScore(value: string) {
 
 function Feedback({ message }: { message: string | null }) {
   return message ? <small className="admin-message" role="status">{message}</small> : null;
-}
-
-function CreateTournament({ onCreated, onClose }: { onCreated: (id: string) => void; onClose: () => void }) {
-  const [name, setName] = useState("");
-  const [slug, setSlug] = useState("");
-  const [location, setLocation] = useState("Vienna, Austria");
-  const [startsAt, setStartsAt] = useState("");
-  const [endsAt, setEndsAt] = useState("");
-  const [participantCount, setParticipantCount] = useState(16);
-  const [format, setFormat] = useState<"knockout" | "group_knockout">("knockout");
-  const [groupCount, setGroupCount] = useState(4);
-  const [playoffCount, setPlayoffCount] = useState(8);
-  const [sport, setSport] = useState<Sport>("tennis");
-  const [status, setStatus] = useState<"draft" | "published">("published");
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-
-  async function create(event: FormEvent) {
-    event.preventDefault();
-    if (startsAt && endsAt && endsAt < startsAt) { setMessage("End date cannot be earlier than start date."); return; }
-    setSaving(true);
-    setMessage(null);
-    const { data, error } = await supabase.rpc("create_flexible_tournament", {
-      p_name: name.trim(),
-      p_slug: slug.trim().toLowerCase(),
-      p_location: location.trim(),
-      p_starts_at: toIsoDate(startsAt),
-      p_sport: sport,
-      p_participant_count: participantCount,
-      p_format: format,
-      p_group_count: format === "group_knockout" ? groupCount : 0,
-      p_playoff_count: format === "group_knockout" ? playoffCount : participantCount,
-    });
-    if (error) {
-      setSaving(false);
-      setMessage(error.message);
-      return;
-    }
-
-    const tournamentId = data as string;
-    const visibility = await supabase.from("tournaments").update({ status, ends_at: toIsoDate(endsAt), updated_at: new Date().toISOString() }).eq("id", tournamentId).select("id").single();
-    setSaving(false);
-    if (visibility.error) setMessage(visibility.error.message);
-    else {
-      setMessage(status === "published" ? "Tournament created and published on the relevant sport page." : "Draft tournament created.");
-      onCreated(tournamentId);
-    }
-  }
-
-  return (
-    <form className="admin-create-card" onSubmit={create}>
-      <div className="admin-section-heading compact-heading"><div><span>+</span><h2>New tournament</h2></div><p>Choose a direct knockout or a flexible group stage followed by playoffs.</p></div>
-      <div className="admin-form-grid">
-        <label className="admin-field"><span>Name</span><input value={name} onChange={(event) => { setName(event.target.value); if (!slug) setSlug(event.target.value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")); }} required /></label>
-        <label className="admin-field"><span>URL slug</span><input value={slug} onChange={(event) => setSlug(event.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))} placeholder="kyng-cup-vienna-2027" required /></label>
-        <label className="admin-field"><span>Location</span><input value={location} onChange={(event) => setLocation(event.target.value)} /></label>
-        <label className="admin-field"><span>Start date</span><input type="date" value={startsAt} max={endsAt || undefined} onChange={(event) => setStartsAt(event.target.value)} required /></label>
-        <label className="admin-field"><span>End date</span><input type="date" value={endsAt} min={startsAt || undefined} onChange={(event) => setEndsAt(event.target.value)} required /></label>
-        <label className="admin-field"><span>Sport</span><select value={sport} onChange={(event) => setSport(event.target.value as Sport)}><option value="tennis">Tennis</option><option value="padel">Padel</option></select></label>
-        <label className="admin-field"><span>Visibility / status</span><select value={status} onChange={(event) => setStatus(event.target.value as "draft" | "published")}><option value="published">Published · show on sport page</option><option value="draft">Draft · hidden</option></select></label>
-        <label className="admin-field"><span>Pairs</span><input type="number" min={2} max={64} value={participantCount} onChange={(event) => setParticipantCount(Math.max(2, Math.min(64, Number(event.target.value))))} /></label>
-        <label className="admin-field"><span>Format</span><select value={format} onChange={(event) => setFormat(event.target.value as "knockout" | "group_knockout")}><option value="knockout">Playoffs only</option><option value="group_knockout">Groups → playoffs</option></select></label>
-        {format === "group_knockout" && <><label className="admin-field"><span>Number of groups</span><input type="number" min={1} max={Math.min(26, participantCount)} value={groupCount} onChange={(event) => setGroupCount(Math.max(1, Math.min(Math.min(26, participantCount), Number(event.target.value))))} /></label><label className="admin-field"><span>Pairs advancing to playoffs</span><input type="number" min={2} max={participantCount} value={playoffCount} onChange={(event) => setPlayoffCount(Math.max(2, Math.min(participantCount, Number(event.target.value))))} /><small>Any number is allowed; empty bracket positions become byes.</small></label></>}
-      </div>
-      <div className="admin-create-actions"><button className="admin-save-button" type="submit" disabled={saving}>{saving ? "Creating…" : "Create tournament"}</button><button className="admin-close-button" type="button" onClick={onClose}>Close</button></div>
-      <Feedback message={message} />
-    </form>
-  );
 }
 
 function TournamentSettings({ tournament, onSaved }: { tournament: Tournament; onSaved: () => void }) {
@@ -452,6 +386,7 @@ function GroupStageManager({ tournament, pairs, groups, members, matches, pairMa
   async function saveAssignments() {
     const counts = Object.values(assignments).reduce<Record<string, number>>((total, code) => ({ ...total, [code]: (total[code] ?? 0) + 1 }), {});
     if (groups.some((group) => (counts[group.code] ?? 0) < 2)) { setMessage("Every group needs at least two pairs."); return; }
+    if (matches.some((match) => match.scheduled_at || match.court) && !window.confirm("Перераспределение пересоздаст групповые матчи и удалит назначенное время и корты. Продолжить?")) return;
     setSaving(true); setMessage(null); const pairIds = pairs.map((pair) => pair.id); const { error } = await supabase.rpc("set_group_assignments", { p_tournament_id: tournament.id, p_pair_ids: pairIds, p_group_codes: pairIds.map((id) => assignments[id]) }); setSaving(false);
     if (error) setMessage(error.message); else { setMessage("Groups saved and matches regenerated."); onSaved(); }
   }
@@ -473,7 +408,7 @@ function GroupStageManager({ tournament, pairs, groups, members, matches, pairMa
 
   if (tournament.format !== "group_knockout") return <div className="admin-group-setup"><p>This tournament starts directly with the playoff bracket.</p></div>;
   return <div className="admin-group-manager">
-    <section className="admin-group-assignments"><div><h3>Group assignments</h3><p>Distribute all {pairs.length} pairs between {groups.length} groups. Every group must contain at least two pairs.</p></div><div className="admin-group-pair-list">{pairs.map((pair) => <label className="admin-field" key={pair.id}><span>{pair.name} · {pair.player_one} / {pair.player_two}</span><select value={assignments[pair.id] ?? groups[0]?.code ?? "A"} onChange={(event) => setAssignments((current) => ({ ...current, [pair.id]: event.target.value }))}>{groups.map((group) => <option value={group.code} key={group.id}>Group {group.code}</option>)}</select></label>)}</div><div className="admin-group-actions">{pairs.length === 18 && groups.map((group) => group.code).join("") === "ABCDE" && <button className="admin-save-button" type="button" onClick={() => void seedAnnouncedPairs()} disabled={saving}>Load announced pairs</button>}<button className="admin-save-button" type="button" onClick={() => void saveAssignments()} disabled={saving}>Save groups &amp; regenerate matches</button></div></section>
+    <section className="admin-group-assignments"><div><h3>Group assignments</h3><p>Distribute all {pairs.length} pairs between {groups.length} groups. Every group must contain at least two pairs.</p></div><div className="setup-actions"><button type="button" disabled={saving || matches.some((match) => match.status !== "scheduled")} onClick={() => { const balanced = balancePairs(pairs.map((pair) => ({ name: pair.name, player_one: pair.player_one, player_two: pair.player_two, group: "A" })), groups.length); setAssignments(Object.fromEntries(pairs.map((pair, index) => [pair.id, balanced[index].group]))); }}>Распределить равномерно</button><span>{groupSummary(pairs.map((pair) => ({ name: pair.name, player_one: pair.player_one, player_two: pair.player_two, group: assignments[pair.id] ?? "A" })), groups.length).map((group) => `${group.code}: ${group.size} пар · ${group.matches} матчей`).join(" / ")}</span></div><div className="admin-group-pair-list">{pairs.map((pair) => <label className="admin-field" key={pair.id}><span>{pair.name} · {pair.player_one} / {pair.player_two}</span><select value={assignments[pair.id] ?? groups[0]?.code ?? "A"} onChange={(event) => setAssignments((current) => ({ ...current, [pair.id]: event.target.value }))}>{groups.map((group) => <option value={group.code} key={group.id}>Group {group.code}</option>)}</select></label>)}</div><div className="admin-group-actions">{pairs.length === 18 && groups.map((group) => group.code).join("") === "ABCDE" && <button className="admin-save-button" type="button" onClick={() => void seedAnnouncedPairs()} disabled={saving}>Load announced pairs</button>}<button className="admin-save-button" type="button" onClick={() => void saveAssignments()} disabled={saving}>Save groups &amp; regenerate matches</button></div></section>
     <div className="admin-round-groups">{groups.map((group) => { const standings = calculateStandings(members.filter((member) => member.group_id === group.id), matches.filter((match) => match.group_id === group.id)); return <details className="admin-round-group" open key={group.id}><summary><h3>Group {group.code}</h3><span>{matches.filter((match) => match.group_id === group.id && match.status === "completed").length}/{matches.filter((match) => match.group_id === group.id).length}</span></summary><div className="admin-group-standings">{standings.map((row) => <div className={row.place <= group.qualify_count ? "is-qualified" : ""} key={row.pairId}><b>{row.place}</b><strong>{pairMap.get(row.pairId)?.name}</strong><span>{row.won}W · {row.lost}L · {row.points} pts</span></div>)}</div><div className="admin-match-grid">{matches.filter((match) => match.group_id === group.id).map((match) => <AdminGroupMatch match={match} pairMap={pairMap} groupCode={group.code} onSaved={onSaved} key={`${match.id}-${match.updated_at}`} />)}</div></details>; })}</div>
     <section className="admin-qualifier-card"><div><h3>Playoff qualifiers</h3><p>{allCompleted ? `Select exactly ${tournament.playoff_participant_count} pairs, then arrange their seed order.` : "Complete every group match to unlock qualifier selection."}</p></div>{allCompleted && <div className="admin-group-pair-list">{groups.flatMap((group) => calculateStandings(members.filter((member) => member.group_id === group.id), matches.filter((match) => match.group_id === group.id)).map((row) => <label className="admin-field" key={row.pairId}><span>Group {group.code} · #{row.place} · {pairMap.get(row.pairId)?.name}</span><input type="checkbox" checked={draw.includes(row.pairId)} onChange={() => toggleQualifier(row.pairId)} /></label>))}</div>}{draw.length > 0 && <div className="admin-quarterfinal-list">{draw.map((pairId, index) => <div key={pairId}><span>Seed {index + 1}</span><strong>{pairMap.get(pairId)?.name}</strong><span><button type="button" onClick={() => moveQualifier(index, -1)} disabled={index === 0}>↑</button><button type="button" onClick={() => moveQualifier(index, 1)} disabled={index === draw.length - 1}>↓</button></span></div>)}</div>}<button className="admin-save-button" type="button" onClick={() => void confirmDraw()} disabled={!allCompleted || saving || draw.length !== tournament.playoff_participant_count}>Confirm {draw.length}/{tournament.playoff_participant_count} qualifiers</button><Feedback message={message} /></section>
   </div>;
@@ -582,7 +517,10 @@ export default function AdminPage() {
   const [groupMatches, setGroupMatches] = useState<GroupMatch[]>([]);
   const [registrations, setRegistrations] = useState<Registration[]>([]);
   const [registrationError, setRegistrationError] = useState<string | null>(null);
-  const [email, setEmail] = useState("");
+  const [login, setLogin] = useState("KyngAdmin");
+  const [authSaving, setAuthSaving] = useState(false);
+  const [accessError, setAccessError] = useState<string | null>(null);
+  const [organizerAccess, setOrganizerAccess] = useState(false);
   const [password, setPassword] = useState("");
   const [authMessage, setAuthMessage] = useState<string | null>(null);
   const [authFailures, setAuthFailures] = useState(0);
@@ -590,18 +528,22 @@ export default function AdminPage() {
   const [showCreate, setShowCreate] = useState(false);
 
   const selected = tournaments.find((tournament) => tournament.id === selectedId) ?? null;
-  const canCreateTournament = tournaments.some((tournament) => tournament.role === "owner");
+  const canCreateTournament = organizerAccess;
 
   const loadTournaments = useCallback(async (currentUser: User | null, preferredId?: string) => {
     setUser(currentUser);
-    if (!currentUser) { setTournaments([]); setSelectedId(null); setChecking(false); return; }
-    const memberships = await supabase.from("tournament_admins").select("tournament_id,role").eq("user_id", currentUser.id);
-    const membershipRows = (memberships.data ?? []) as { tournament_id: string; role: "owner" | "admin" }[];
-    if (!membershipRows.length) { setTournaments([]); setSelectedId(null); setChecking(false); return; }
-    const ids = membershipRows.map((item) => item.tournament_id);
-    const result = await supabase.from("tournaments").select("id,slug,name,sport,location,starts_at,ends_at,bracket_size,format,participant_count,playoff_participant_count,status,registration_status,updated_at").in("id", ids).order("created_at", { ascending: false });
-    const roles = new Map(membershipRows.map((item) => [item.tournament_id, item.role]));
-    const managed = ((result.data ?? []) as Omit<Tournament, "role">[]).map((item) => ({ ...item, role: roles.get(item.id) ?? "admin" }));
+    if (!currentUser) { setOrganizerAccess(false); setAccessError(null); setTournaments([]); setSelectedId(null); setChecking(false); return; }
+    setAccessError(null);
+    const access = await supabase.rpc("is_global_admin");
+    setOrganizerAccess(access.data === true && !access.error);
+    if (access.error || !access.data) {
+      setTournaments([]); setSelectedId(null); setChecking(false);
+      setAccessError(access.error ? "Could not check organiser access. Please retry." : "This account does not have organiser access.");
+      return;
+    }
+    const result = await supabase.from("tournaments").select("id,slug,name,sport,location,starts_at,ends_at,bracket_size,format,participant_count,playoff_participant_count,status,registration_status,updated_at").order("created_at", { ascending: false });
+    if (result.error) { setAccessError("Could not load tournaments. Please retry."); setTournaments([]); setSelectedId(null); setChecking(false); return; }
+    const managed = ((result.data ?? []) as Omit<Tournament, "role">[]).map((item) => ({ ...item, role: "owner" as const }));
     setTournaments(managed);
     setSelectedId((current) => preferredId && managed.some((item) => item.id === preferredId) ? preferredId : current && managed.some((item) => item.id === current) ? current : managed[0]?.id ?? null);
     setChecking(false);
@@ -646,28 +588,37 @@ export default function AdminPage() {
     event.preventDefault(); setAuthMessage(null);
     const now = Date.now();
     if (lockedUntil > now) { setAuthMessage(`Too many attempts. Try again in ${Math.ceil((lockedUntil - now) / 1000)} seconds.`); return; }
-    const result = await supabase.auth.signInWithPassword({ email: email.trim(), password });
-    if (result.error) {
-      const failures = authFailures + 1;
-      setAuthFailures(failures);
-      if (failures >= 5) { setLockedUntil(now + 60_000); setAuthFailures(0); }
-      setAuthMessage("Login or password is incorrect.");
-    } else {
+    if (authSaving) return;
+    setAuthSaving(true);
+    try {
+      const result = await supabase.functions.invoke("organizer-login", { body: { username: login.trim(), password } });
+      if (result.error || !result.data?.access_token || !result.data?.refresh_token) {
+        const failures = authFailures + 1;
+        setAuthFailures(failures);
+        if (failures >= 5) { setLockedUntil(now + 60_000); setAuthFailures(0); }
+        setAuthMessage("Login or password is incorrect. The sign-in service may also be temporarily unavailable; please try again later.");
+        return;
+      }
+      const session = await supabase.auth.setSession({ access_token: result.data.access_token, refresh_token: result.data.refresh_token });
+      if (session.error) { setAuthMessage("Could not start your session. Please try again."); return; }
       setAuthFailures(0); setLockedUntil(0); setPassword("");
-    }
+    } catch {
+      setAuthMessage("Could not reach the sign-in service. Please try again.");
+    } finally { setAuthSaving(false); }
   }
 
   return (
     <main className="admin-page">
       {user && <div className="admin-session"><button type="button" onClick={() => void supabase.auth.signOut()}>Sign out</button></div>}
       {checking ? <section className="admin-state" role="status">Checking access…</section> : !user ? (
-        <section className="admin-auth"><div><p className="eyebrow">Protected area</p><h1>{adminTitle[0]}<br />{adminTitle[1]}<span className="accent-dot">.</span></h1><p>Use the shared organiser login and password. New accounts cannot be created from this page.</p></div><form onSubmit={submitAuth}><label><span>Login</span><input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="username" required /></label><label><span>Password</span><input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" minLength={8} required /></label><button type="submit">Sign in <span aria-hidden="true">↗</span></button><Feedback message={authMessage} /></form></section>
+        <section className="admin-auth"><div><p className="eyebrow">Protected area</p><h1>{adminTitle[0]}<br />{adminTitle[1]}<span className="accent-dot">.</span></h1><p>Use KyngAdmin and the organiser password. Every organiser can manage all tournaments.</p></div><form onSubmit={submitAuth}><label><span>Login</span><input type="text" value={login} onChange={(event) => setLogin(event.target.value)} autoComplete="username" autoCapitalize="none" spellCheck={false} required /></label><label><span>Password</span><input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" minLength={8} required /></label><button type="submit" disabled={authSaving}>{authSaving ? "Signing in…" : "Sign in"} <span aria-hidden="true">↗</span></button><Feedback message={authMessage} /></form></section>
       ) : (
         <section className="admin-dashboard">
           <div className="admin-dashboard-heading"><div><p className="eyebrow">Tournament control centre</p><h1>Match control<span className="accent-dot">.</span></h1></div>{selected && <a href={`../bracket/?tournament=${selected.slug}`} target="_blank" rel="noreferrer">Open public bracket ↗</a>}</div>
           <div className="admin-toolbar"><label className="admin-field"><span>Current tournament</span><select value={selectedId ?? ""} onChange={(event) => { const tournamentId = event.target.value || null; setSelectedId(tournamentId); if (tournamentId) setShowCreate(false); }}><option value="">No tournament selected</option>{tournaments.map((tournament) => <option value={tournament.id} key={tournament.id}>{tournament.name} · {tournament.sport} · {tournament.status}</option>)}</select></label>{canCreateTournament && <button type="button" onClick={() => { setSelectedId(null); setShowCreate(true); }}>+ New tournament</button>}</div>
           {showCreate && !selectedId && canCreateTournament && <CreateTournament onClose={() => setShowCreate(false)} onCreated={(id) => { setShowCreate(false); void loadTournaments(user, id); }} />}
-          {!tournaments.length && <div className="admin-muted-note">This account has no tournament access yet. Ask an owner to add your email as an administrator.</div>}
+          {accessError && <div role="alert" className="admin-muted-note">{accessError} <button type="button" onClick={() => void loadTournaments(user)}>Retry</button></div>}
+          {!accessError && organizerAccess && !tournaments.length && <div className="admin-muted-note">No tournaments yet. Create the first tournament to get started.</div>}
           {selected && <>
             <div className="admin-section-heading admin-first-section"><div><span>01</span><h2>Tournament</h2></div><p>Publish, start live coverage or archive the completed tournament.</p></div>
             <TournamentSettings key={selected.updated_at} tournament={selected} onSaved={() => void loadTournaments(user)} />

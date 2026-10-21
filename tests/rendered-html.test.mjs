@@ -49,6 +49,13 @@ test("server-renders the four-language pair registration form", async () => {
   assert.match(html, /Submit pair application/);
 });
 
+test("server-renders the KYNG ID player preview", async () => {
+  const response = await render("/profile");
+  assert.equal(response.status, 200);
+  const html = await response.text();
+  assert.match(html, /My KYNG — Player profile/);
+});
+
 test("ships live bracket and protected tournament controls", async () => {
   const [admin, bracket, home, upcoming, i18n, styles, sportPage, footer, exporter, register, migration, sportMigration, dateMigration, registrationMigration, resetMigration, flexibleMigration] = await Promise.all([
     readFile(new URL("../app/admin/page.tsx", import.meta.url), "utf8"),
@@ -69,15 +76,16 @@ test("ships live bracket and protected tournament controls", async () => {
     readFile(new URL("../supabase/migrations/20261011090000_flexible_tournament_formats.sql", import.meta.url), "utf8"),
   ]);
 
-  assert.match(admin, /create_flexible_tournament/);
+  const creator = await readFile(new URL("../app/admin/create-tournament.tsx", import.meta.url), "utf8");
+  assert.match(creator, /create_tournament_setup/);
   assert.match(admin, /reset_match_result/);
   assert.doesNotMatch(admin, /ManualDraw/);
-  assert.match(admin, /Published · show on sport page/);
+  assert.match(creator, /Опубликовать на сайте/);
   assert.match(admin, /Update live score/);
   assert.match(admin, /setSelectedId\(null\); setShowCreate\(true\)/);
   assert.match(admin, /showCreate && !selectedId && canCreateTournament/);
   assert.match(admin, /if \(tournamentId\) setShowCreate\(false\)/);
-  assert.match(admin, /admin-create-actions/);
+  assert.match(creator, /admin-create-actions/);
   assert.match(admin, /ends_at/);
   assert.match(admin, /matchesByRound/);
   assert.match(admin, /admin-round-group/);
@@ -104,6 +112,8 @@ test("ships live bracket and protected tournament controls", async () => {
   assert.match(bracket, /match-connector/);
   assert.match(bracket, /round-mobile-controls/);
   assert.match(bracket, /Champion/);
+  assert.match(bracket, /BasementKing/);
+  assert.match(bracket, /Basement King/);
   assert.match(bracket, /\["published", "live", "completed"\]/);
   assert.doesNotMatch(bracket, /archive/);
   assert.doesNotMatch(bracket, /text\.matches/);
@@ -195,4 +205,15 @@ test("ships live bracket and protected tournament controls", async () => {
   assert.match(flexibleMigration, /create or replace function public\.rebuild_playoff_bracket/);
   assert.match(flexibleMigration, /next_bracket_size/);
   assert.match(flexibleMigration, /Each group needs at least two pairs/);
+});
+
+test("organiser sign-in accepts a username without an email address", async () => {
+  const response = await render("/admin");
+  assert.equal(response.status, 200);
+  // Access is checked on the client, so verify the actual form source too.
+  const admin = await readFile(new URL("../app/admin/page.tsx", import.meta.url), "utf8");
+  assert.match(admin, /type="text" value=\{login\}/);
+  assert.match(admin, /functions\.invoke\("organizer-login"/);
+  assert.doesNotMatch(admin, /signInWithPassword|\.in\("id", ids\)/);
+  assert.match(admin, /rpc\("is_global_admin"\)/);
 });

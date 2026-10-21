@@ -30,6 +30,13 @@ const bracketCopy = {
   ru: { headingA: "Турнирная", headingB: "сетка", groups: "Групповой этап", playoffs: "Плей-офф", qualified: "Выходит", played: "И", won: "В", lost: "П", sets: "Сеты", games: "Геймы", points: "Очки", groupRule: "Выделенные позиции выходят в плей-офф.", decided: "Ещё не определено", previousWinner: "Победитель предыдущего матча", scheduleTba: "Расписание уточняется", courtTba: "Корт уточняется", final: "Финал", live: "В эфире", scheduled: "Запланирован", locationTba: "Локация уточняется", pairs: "пар", previous: "Назад", next: "Далее", noBracket: "Опубликованной турнирной сетки пока нет.", loadError: "Не удалось загрузить актуальные данные матчей." },
 } as const;
 
+const basementCopy = {
+  en: { tab: "Basement King", title: "The Basement King", intro: "Pairs that do not advance from their group continue in a separate consolation bracket.", waiting: "The bracket will be formed automatically when every group match is complete.", players: "Future bracket participants", round: "Consolation round" },
+  uk: { tab: "Король підвалу", title: "Король підвалу", intro: "Пари, які не вийшли з групи, продовжують грати в окремій втішній сітці.", waiting: "Сітка сформується автоматично після завершення всіх матчів у групах.", players: "Майбутні учасники сітки", round: "Втішний раунд" },
+  de: { tab: "König des Kellers", title: "König des Kellers", intro: "Paare, die ihre Gruppe nicht überstehen, spielen in einem eigenen Trostturnier weiter.", waiting: "Der Turnierbaum wird nach Abschluss aller Gruppenspiele automatisch erstellt.", players: "Künftige Teilnehmer", round: "Trostrunde" },
+  ru: { tab: "Король подвала", title: "Король подвала", intro: "Пары, которые не вышли из группы, продолжают играть в отдельной утешительной сетке.", waiting: "Сетка сформируется автоматически после завершения всех матчей в группах.", players: "Будущие участники сетки", round: "Утешительный раунд" },
+} as const;
+
 function getRounds(size: number, language: Language) {
   const labelsByLanguage: Record<Language, Record<number, string[]>> = {
     en: {
@@ -83,6 +90,26 @@ function PublicGroupStage({ groups, members, matches, pairMap, language }: { gro
   </section>;
 }
 
+function BasementKing({ groups, members, matches, pairMap, language }: { groups: TournamentGroup[]; members: GroupMember[]; matches: GroupMatch[]; pairMap: Map<string, Pair>; language: Language }) {
+  const text = basementCopy[language];
+  const allGroupsComplete = groups.length > 0 && groups.every((group) => {
+    const groupMatches = matches.filter((match) => match.group_id === group.id);
+    return groupMatches.length > 0 && groupMatches.every((match) => match.status === "completed");
+  });
+  const eliminated = groups.flatMap((group) => {
+    const groupMembers = members.filter((member) => member.group_id === group.id);
+    const standings = calculateStandings(groupMembers, matches.filter((match) => match.group_id === group.id));
+    return standings.filter((row) => row.place > group.qualify_count).map((row) => ({ ...row, group: group.code }));
+  });
+
+  return <section className="basement-stage">
+    <header><div><span>KYNG CUP · SECOND CHANCE</span><h2>{text.title}<b>.</b></h2><p>{text.intro}</p></div><div className="basement-crown" aria-hidden="true">♛</div></header>
+    {!allGroupsComplete && <div className="basement-waiting"><i /><div><strong>{text.waiting}</strong><span>{text.players}: {eliminated.length || "—"}</span></div></div>}
+    <div className="basement-pairs">{eliminated.map((row, index) => { const pair = pairMap.get(row.pairId); return <article key={row.pairId}><span>{String(index + 1).padStart(2, "0")}</span><div><strong>{pair?.name}</strong><small>{pair?.player_one} · {pair?.player_two}</small></div><b>GROUP {row.group} · #{row.place}</b></article>; })}</div>
+    {allGroupsComplete && eliminated.length > 1 && <div className="basement-preview"><span>{text.round}</span><div>{Array.from({ length: Math.ceil(eliminated.length / 2) }, (_, index) => { const one = pairMap.get(eliminated[index * 2]?.pairId); const two = pairMap.get(eliminated[index * 2 + 1]?.pairId); return <article key={index}><small>MATCH {String(index + 1).padStart(2, "0")}</small><strong>{one?.name ?? "TBD"}</strong><i>vs</i><strong>{two?.name ?? "BYE"}</strong></article>; })}</div></div>}
+  </section>;
+}
+
 export default function BracketPage() {
   const { language } = useLanguage();
   const text = bracketCopy[language];
@@ -93,7 +120,7 @@ export default function BracketPage() {
   const [groups, setGroups] = useState<TournamentGroup[]>([]);
   const [groupMembers, setGroupMembers] = useState<GroupMember[]>([]);
   const [groupMatches, setGroupMatches] = useState<GroupMatch[]>([]);
-  const [stage, setStage] = useState<"groups" | "playoffs">("groups");
+  const [stage, setStage] = useState<"groups" | "playoffs" | "basement">("groups");
   const [activeRound, setActiveRound] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -147,8 +174,8 @@ export default function BracketPage() {
     <section className="bracket-intro"><div><p className="eyebrow">Live tournament experience</p><h1>{text.headingA}<br />{text.headingB}<span className="accent-dot">.</span></h1></div><div className="bracket-summary"><span className={`live-indicator${tournament?.status === "live" ? " is-live" : ""}`}><i /> {tournament?.status === "live" ? "Live updates" : "Tournament schedule"}</span><strong>{tournament?.name ?? "KYNG CUP"}</strong><span>{tournament?.location ?? text.locationTba} · {tournament?.participant_count ?? tournament?.bracket_size ?? 16} {text.pairs}</span>{tournaments.length > 1 && <label className="bracket-selector"><span>Choose tournament</span><select value={tournament?.slug ?? ""} onChange={(event) => selectTournament(event.target.value)}>{tournaments.map((item) => <option value={item.slug} key={item.id}>{item.name}</option>)}</select></label>}</div></section>
     {champion && <section className="champion-banner"><span>Champion</span><div><strong>{champion.name}</strong><small>{champion.player_one} · {champion.player_two}</small></div><b>KYNG CUP</b></section>}
     {loading ? <div className="bracket-state" role="status" aria-live="polite">Loading the draw…</div> : error ? <div className="bracket-state is-error" role="alert">{error}</div> : <>
-      {tournament?.format === "group_knockout" && <nav className="stage-tabs" aria-label="Tournament stages"><button type="button" className={stage === "groups" ? "is-active" : ""} onClick={() => setStage("groups")}>{text.groups}</button><button type="button" className={stage === "playoffs" ? "is-active" : ""} onClick={() => setStage("playoffs")}>{text.playoffs}</button></nav>}
-      {tournament?.format === "group_knockout" && stage === "groups" ? <PublicGroupStage groups={groups} members={groupMembers} matches={groupMatches} pairMap={pairMap} language={language} /> : <>
+      {tournament?.format === "group_knockout" && <nav className="stage-tabs" aria-label="Tournament stages"><button type="button" className={stage === "groups" ? "is-active" : ""} onClick={() => setStage("groups")}>{text.groups}</button><button type="button" className={stage === "playoffs" ? "is-active" : ""} onClick={() => setStage("playoffs")}>{text.playoffs}</button><button type="button" className={stage === "basement" ? "is-active basement-tab" : "basement-tab"} onClick={() => setStage("basement")}>{basementCopy[language].tab}</button></nav>}
+      {tournament?.format === "group_knockout" && stage === "groups" ? <PublicGroupStage groups={groups} members={groupMembers} matches={groupMatches} pairMap={pairMap} language={language} /> : tournament?.format === "group_knockout" && stage === "basement" ? <BasementKing groups={groups} members={groupMembers} matches={groupMatches} pairMap={pairMap} language={language} /> : <>
       <nav className="round-tabs" aria-label="Tournament rounds">{rounds.map((round) => <button className={activeRound === round.number ? "is-active" : ""} type="button" onClick={() => setActiveRound(round.number)} key={round.number}><span>0{round.number}</span>{round.label}</button>)}</nav>
       <section className="bracket-scroll" aria-label="Tournament bracket"><div className="bracket-board" style={{ gridTemplateColumns: `repeat(${rounds.length}, minmax(320px, 1fr))`, minWidth: `${Math.max(1, rounds.length) * 370}px` }}>
         {rounds.map((round) => {
