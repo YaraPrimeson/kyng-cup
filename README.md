@@ -51,3 +51,11 @@ coverage and known findings are documented in [the testing guide](docs/tournamen
 Admin form retention checks (tab focus, session refresh, reload and draft recovery): `npm run test:admin`.
 
 `npm run build:pages` exports both `/` and `/bracket/` into `_site` with the GitHub repository base path applied.
+
+The mobile player profile at `/profile/` has Home / My tournaments / Profile navigation,
+illustrated achievements and shareable PNG result cards. Name, email and an optional
+resized photo are stored on the current device; saved name/email prefill registration.
+Sports history, achievements and the example confirmed entry are explicitly demo data.
+Player authentication, verified results, invitation delivery and cross-device sync are
+not connected yet. Available tournaments use the existing public tournament feed.
+Sharing uses the device share sheet when supported, with an image-download fallback.

@@ -54,6 +54,11 @@ test("server-renders the KYNG ID player preview", async () => {
   assert.equal(response.status, 200);
   const html = await response.text();
   assert.match(html, /My KYNG — Player profile/);
+  assert.match(html, /Разделы кабинета/);
+  assert.match(html, /Мои турниры/);
+  assert.match(html, /Главная/);
+  assert.match(html, /Настройки профиля/);
+  assert.doesNotMatch(html, /Доброе утро|Следующее действие|Оплачено/);
 });
 
 test("ships live bracket and protected tournament controls", async () => {

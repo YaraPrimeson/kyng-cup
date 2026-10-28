@@ -196,7 +196,7 @@ function translateDom(language: Language) {
     const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
     let node: Node | null = root.nodeType === Node.TEXT_NODE ? root : walker.nextNode();
     while (node) {
-      if (!node.parentElement?.closest("script, style") && node.textContent) {
+      if (!node.parentElement?.closest('script, style, [translate="no"]') && node.textContent) {
         const next = translate(node.textContent);
         if (next !== node.textContent) node.textContent = next;
       }
@@ -204,6 +204,7 @@ function translateDom(language: Language) {
     }
     if (root instanceof Element) {
       [root, ...Array.from(root.querySelectorAll("[placeholder], [aria-label], [title]"))].forEach((element) => {
+        if (element.closest('[translate="no"]')) return;
         ["placeholder", "aria-label", "title"].forEach((attribute) => {
           const value = element.getAttribute(attribute);
           if (value) element.setAttribute(attribute, translate(value));

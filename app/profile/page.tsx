@@ -1,60 +1,150 @@
 "use client";
 
-import { ChangeEvent, useRef, useState } from "react";
+import { ChangeEvent, FormEvent, ReactNode, useEffect, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
+import { PLAYER_PROFILE_EVENT, PLAYER_PROFILE_KEY, readPlayerProfile, savePlayerProfile, type PlayerProfile } from "@/lib/player-profile";
+import { formatTournamentDate, usePublicTournaments } from "../public-tournaments";
+import { achievements, exampleHistory } from "./profile-data";
+import ProfileIcon from "./profile-icon";
+import ResultCard from "./result-card";
 
-type View = "overview" | "matches" | "cards" | "partners" | "settings";
-type CardId = "winner" | "second" | "third" | "basement" | "participant";
+type View = "profile" | "mine" | "settings" | "achievements" | "history" | "result" | "partners" | "cards" | "schedule";
+const defaultProfile: PlayerProfile = { name: "Alex Kovalenko", email: "alex@example.com", photo: "" };
+const profileViews: View[] = ["profile", "settings", "achievements", "partners", "cards"];
 
-const results = [
-  { event: "KYNG Autumn Open", rival: "M. Weiss / T. Berger", score: "6:4 · 6:3", won: true, date: "05 OCT" },
-  { event: "Vienna Weekend Series", rival: "L. Graf / N. König", score: "4:6 · 6:7", won: false, date: "21 SEP" },
-  { event: "KYNG Summer Cup", rival: "P. Novak / I. Costa", score: "6:2 · 6:4", won: true, date: "30 AUG" },
-];
-const cards: { id: CardId; label: string; kicker: string; title: string; statistic: string; detail: string; tone: string }[] = [
-  { id: "winner", label: "Победитель", kicker: "VIENNA PADEL CUP · 2026", title: "WINNER", statistic: "1ST PLACE", detail: "VIENNA PADEL CUP · 2026", tone: "forest" },
-  { id: "second", label: "Второе место", kicker: "VIENNA PADEL CUP · 2026", title: "SECOND\nPLACE", statistic: "2ND PLACE", detail: "VIENNA PADEL CUP · 2026", tone: "clay" },
-  { id: "third", label: "Третье место", kicker: "VIENNA PADEL CUP · 2026", title: "THIRD\nPLACE", statistic: "3RD PLACE", detail: "VIENNA PADEL CUP · 2026", tone: "paper" },
-  { id: "basement", label: "Король подвала", kicker: "SECOND CHANCE. FULL SEND.", title: "BASEMENT\nKING", statistic: "♛", detail: "VIENNA PADEL CUP · 2026", tone: "basement" },
-  { id: "participant", label: "Участник турнира", kicker: "VIENNA PADEL CUP · 2026", title: "I PLAYED", statistic: "KYNG CUP", detail: "TOURNAMENT PARTICIPANT", tone: "stone" },
-];
+function Action({ children, onClick, secondary = false }: { children: ReactNode; onClick: () => void; secondary?: boolean }) {
+  return <button type="button" className={secondary ? "kv-secondary" : "kv-primary"} onClick={onClick}>{children}</button>;
+}
 
 export default function ProfilePage() {
-  const photoInput = useRef<HTMLInputElement>(null);
-  const [view, setView] = useState<View>("overview");
-  const [selectedCard, setSelectedCard] = useState<CardId | null>(null);
-  const [format, setFormat] = useState<"story" | "square">("story");
-  const [saved, setSaved] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const [profile, setProfile] = useState({ name: "Alex Kovalenko", email: "alex@example.com", photo: "" });
-  const initials = profile.name.split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase() || "KY";
-  const selected = cards.find((card) => card.id === selectedCard);
-  const uploadPhoto = (event: ChangeEvent<HTMLInputElement>) => { const file = event.target.files?.[0]; if (!file || !file.type.startsWith("image/") || file.size > 5 * 1024 * 1024) return; const reader = new FileReader(); reader.onload = () => setProfile((value) => ({ ...value, photo: String(reader.result) })); reader.readAsDataURL(file); };
-  const save = () => { setSaved(true); window.setTimeout(() => setSaved(false), 1600); };
-  const copyLink = async () => { await navigator.clipboard.writeText("https://kyngcup.com/player/alex-kovalenko"); setCopied(true); window.setTimeout(() => setCopied(false), 1600); };
-  const download = () => {
-    if (!selected) return; const height = format === "story" ? 1920 : 1080; const palettes = { forest: ["#173c2e", "#f4f1eb", "#d78f6b"], clay: ["#bb5c32", "#fff", "#173c2e"], paper: ["#e7e1d7", "#142019", "#bb5c32"], basement: ["#101512", "#f4f1eb", "#d37d50"], stone: ["#6d756d", "#fff", "#d9c8af"] } as const; const [bg, fg, accent] = palettes[selected.tone as keyof typeof palettes]; const photo = profile.photo ? `<image href="${profile.photo}" x="720" y="235" width="260" height="260" preserveAspectRatio="xMidYMid slice" clip-path="url(#photo)"/>` : `<text x="850" y="400" text-anchor="middle" fill="${fg}" font-family="Arial" font-size="88">${initials}</text>`; const title = selected.title.split("\n").map((line, index) => `<text x="70" y="${820 + index * 150}" fill="${fg}" font-family="Georgia" font-size="142">${line}</text>`).join(""); const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="${height}" viewBox="0 0 1080 ${height}"><defs><clipPath id="photo"><circle cx="850" cy="365" r="130"/></clipPath></defs><rect width="100%" height="100%" fill="${bg}"/><circle cx="850" cy="365" r="142" fill="none" stroke="${accent}" stroke-width="4"/>${photo}<text x="70" y="90" fill="${fg}" font-family="Georgia" font-size="34" letter-spacing="5">KYNG CUP</text><text x="70" y="610" fill="${accent}" font-family="Arial" font-size="24">${selected.kicker}</text>${title}<text x="70" y="1270" fill="${accent}" font-family="Georgia" font-size="72">${selected.statistic}</text><line x1="70" y1="${height - 250}" x2="1010" y2="${height - 250}" stroke="${fg}" stroke-opacity=".28"/><text x="70" y="${height - 180}" fill="${fg}" font-family="Arial" font-size="25">${profile.name.toUpperCase()}</text></svg>`; const url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml" })); const link = document.createElement("a"); link.href = url; link.download = `kyng-${selected.id}-${format}.svg`; link.click(); URL.revokeObjectURL(url);
-  };
-  const nav: { id: View; label: string }[] = [{ id: "overview", label: "Обзор" }, { id: "matches", label: "Матчи" }, { id: "cards", label: "Карточки" }, { id: "partners", label: "Партнёры" }, { id: "settings", label: "Настройки" }];
-  return <main className="player-profile-page">
-    <section className="profile-hero"><div><p>Режим просмотра · тестовый игрок</p><h1>Доброе утро, {profile.name.split(" ")[0]}<span>.</span></h1><p>Всё важное для следующего матча — здесь.</p></div><div className="profile-identity"><ProfilePhoto photo={profile.photo} initials={initials} /><span><strong>{profile.name}</strong><small>Vienna · Padel Intermediate</small></span><button type="button" onClick={() => setView("settings")}>Изменить</button></div></section>
-    <nav className="profile-tabs" aria-label="Профиль игрока">{nav.map((item) => <button type="button" className={view === item.id ? "is-active" : ""} onClick={() => setView(item.id)} key={item.id}>{item.label}</button>)}</nav>
-    {view === "overview" && <div className="profile-dashboard">
-      <section className="profile-next-card"><div className="profile-card-label"><span>Следующее действие</span><b>Пара подтверждена</b></div><div className="profile-next-main"><div><p>24</p><span>OCT<small>10:00</small></span></div><div><h2>Vienna Padel Cup · Intermediate</h2><p>Padelzone Vienna · Court 4</p><p>Партнёр: <strong>Daniel Horvat</strong></p></div></div><div className="profile-actions"><a href="/bracket/">Открыть мой турнир <span>↗</span></a><button type="button">Добавить в календарь</button></div></section>
-      <section className="profile-status-card"><div className="profile-card-label"><span>Текущий турнир</span><small>KYNG-2410</small></div><dl><div><dt>Заявка</dt><dd>✓ Пара подтверждена</dd></div><div><dt>Оплата</dt><dd>✓ Оплачено</dd></div><div><dt>Расписание</dt><dd>✓ Опубликовано</dd></div></dl><a href="/bracket/">Открыть мой турнир →</a></section>
-      <section className="profile-results-card profile-wide-card"><header><div><span>03</span><h2>Последние результаты</h2></div><button type="button" onClick={() => setView("matches")}>Все результаты →</button></header><Results /></section>
-      <section className="profile-stats-card"><div className="profile-card-label"><span>Игровая статистика</span><small>2026 / PADEL</small></div><div className="profile-stat-grid"><div><strong>63%</strong><span>Win rate</span></div><div><strong>15</strong><span>Победы</span></div><div><strong>24</strong><span>Игр сыграно</span></div></div></section>
-      <section className="profile-achievements-card"><div className="profile-card-label"><span>Достижения</span><small>3 / 12</small></div><div className="achievement-list"><div><i>01</i><span><strong>Первая победа</strong><small>30 AUG 2026</small></span></div><div><i>02</i><span><strong>Победитель группы</strong><small>05 OCT 2026</small></span></div><div><i>03</i><span><strong>3 турнира подряд</strong><small>CURRENT</small></span></div></div></section>
-      <section className="profile-recommended-card profile-wide-card"><div><span>Рекомендуем вам</span><h2>KYNG Winter Series</h2><p>14 November · Vienna · Intermediate</p><small>✓ Подходит по уровню и городу</small></div><a href="/register/?sport=padel">Заявка с сохранёнными данными <span>→</span></a></section>
-      <section className="profile-share-teaser profile-wide-card"><div><span>KYNG CARDS</span><h2>Ваши турнирные моменты</h2><p>Выберите карточку результата, добавьте фото и поделитесь.</p></div><div>{cards.map((card) => <button type="button" className={`share-mini-card tone-${card.tone}`} onClick={() => { setSelectedCard(card.id); setFormat("story"); }} key={card.id}><small>{card.kicker}</small><strong>{card.title}</strong><b>{card.statistic}</b></button>)}</div><button type="button" onClick={() => setView("cards")}>Карточки →</button></section>
-    </div>}
-    {view === "matches" && <ProfileSection title="Матчи" intro="9 турниров · 24 игры · 15 побед"><div className="profile-result-list is-full"><Results many /></div><button className="profile-report" type="button">Сообщить об ошибке</button></ProfileSection>}
-    {view === "cards" && <ProfileSection title="Карточки" intro="Пять карточек для настоящих турнирных результатов."><div className="share-card-gallery">{cards.map((card) => <article key={card.id}><ShareCard card={card} name={profile.name} photo={profile.photo} initials={initials} /><div><strong>{card.label}</strong><button type="button" onClick={() => { setSelectedCard(card.id); setFormat("story"); }}>Посмотреть →</button></div></article>)}</div></ProfileSection>}
-    {view === "partners" && <ProfileSection title="Партнёры" intro="Люди, с которыми вы играли на KYNG CUP."><div className="profile-partner-grid"><article><i>DH</i><div><strong>Daniel Horvat</strong><span>6 турниров · 11 побед</span></div><button type="button">Пригласить снова</button></article><article><i>MS</i><div><strong>Maria Schmidt</strong><span>2 турнира · 3 победы</span></div><button type="button">Пригласить снова</button></article><a href="/register/?sport=padel">+ Найти партнёра на турнир</a></div></ProfileSection>}
-    {view === "settings" && <ProfileSection title="Настройки" intro="Здесь можно изменить только данные профиля."><div className="profile-settings-form"><label><span>Email</span><input type="email" value={profile.email} onChange={(event) => setProfile((value) => ({ ...value, email: event.target.value }))} /></label><label><span>Имя профиля</span><input value={profile.name} onChange={(event) => setProfile((value) => ({ ...value, name: event.target.value }))} /></label><div className="profile-photo-setting"><div><span>Фото профиля</span><small>JPG, PNG или WebP · до 5 МБ</small></div><ProfilePhoto photo={profile.photo} initials={initials} /><input ref={photoInput} type="file" accept="image/png,image/jpeg,image/webp" onChange={uploadPhoto} hidden /><button type="button" onClick={() => photoInput.current?.click()}>Загрузить фото</button></div><button type="button" className="profile-save-button" onClick={save}>{saved ? "Сохранено" : "Сохранить изменения"}</button></div></ProfileSection>}
-    {selected && <div className="share-card-modal" role="dialog" aria-modal="true" aria-label="Предпросмотр карточки"><div><header><strong>KYNG CARD</strong><button type="button" onClick={() => setSelectedCard(null)} aria-label="Закрыть">×</button></header><div className={`share-card-preview format-${format}`}><ShareCard card={selected} name={profile.name} photo={profile.photo} initials={initials} /></div><div className="share-format-switch"><button type="button" className={format === "story" ? "is-active" : ""} onClick={() => setFormat("story")}>Stories · 9:16</button><button type="button" className={format === "square" ? "is-active" : ""} onClick={() => setFormat("square")}>Квадрат · 1:1</button></div><p>Поделитесь результатом и отметьте @kyngcup</p><footer><button type="button" onClick={() => void copyLink()}>{copied ? "Ссылка скопирована" : "Копировать ссылку"}</button><button type="button" onClick={download}>Скачать SVG ↓</button></footer></div></div>}
-  </main>;
+  const pathname = usePathname();
+  const basePath = pathname.startsWith("/kyng-cup") ? "/kyng-cup" : "";
+  const [view, setView] = useState<View>("profile");
+  const [trail, setTrail] = useState<View[]>([]);
+  const [profile, setProfile] = useState<PlayerProfile>(defaultProfile);
+  const [draft, setDraft] = useState<PlayerProfile>(defaultProfile);
+  const [hydrated, setHydrated] = useState(false);
+  const [notice, setNotice] = useState("");
+  const [showEvents, setShowEvents] = useState(false);
+  const [exampleEntry, setExampleEntry] = useState(false);
+  const [now, setNow] = useState(0);
+  const [selectedAchievement, setSelectedAchievement] = useState<string>("semi");
+  const [resultId, setResultId] = useState<string>("autumn");
+  const fileInput = useRef<HTMLInputElement>(null);
+  const photoJob = useRef({ id: 0 });
+  const heading = useRef<HTMLHeadingElement>(null);
+  const { tournaments, loading, error } = usePublicTournaments();
+  const available = tournaments.filter(item => item.registration_status !== "closed" && item.starts_at && Date.parse(item.ends_at || item.starts_at) >= now);
+  const result = exampleHistory.find(item => item.id === resultId) ?? exampleHistory[0];
+  const award = achievements.find(item => item.id === selectedAchievement) ?? achievements[4];
+  const initials = (profile.name || "KYNG Player").split(/\s+/).filter(Boolean).map(part => part[0]).slice(0, 2).join("").toUpperCase();
+
+  useEffect(() => {
+    const jobs = photoJob.current;
+    const load = () => { const saved = readPlayerProfile(); if (saved) { setProfile(saved); setDraft(saved); } };
+    const timer = window.setTimeout(() => {
+      load(); setHydrated(true); setNow(Date.now());
+      setExampleEntry(new URLSearchParams(window.location.search).get("example") === "entry");
+    }, 0);
+    const sync = (event: StorageEvent) => { if (event.key === PLAYER_PROFILE_KEY) load(); };
+    window.addEventListener("storage", sync);
+    window.addEventListener(PLAYER_PROFILE_EVENT, load);
+    return () => { window.clearTimeout(timer); jobs.id++; window.removeEventListener("storage", sync); window.removeEventListener(PLAYER_PROFILE_EVENT, load); };
+  }, []);
+
+  function move(next: View, tab = false) {
+    photoJob.current.id++; setNotice("");
+    if (next === "settings") setDraft(profile);
+    if (tab) setTrail([]); else if (view !== next) setTrail(values => [...values, view]);
+    setView(next); window.scrollTo({ top: 0, behavior: "instant" });
+    window.requestAnimationFrame(() => heading.current?.focus({ preventScroll: true }));
+  }
+
+  function goBack() {
+    photoJob.current.id++; setNotice("");
+    setView(trail.at(-1) ?? "profile"); setTrail(values => values.slice(0, -1));
+    window.scrollTo({ top: 0, behavior: "instant" });
+    window.requestAnimationFrame(() => heading.current?.focus({ preventScroll: true }));
+  }
+
+  function saveSettings(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const next = { ...draft, name: draft.name.trim(), email: draft.email.trim() };
+    if (!next.name) { setNotice("Укажите имя."); return; }
+    if (!savePlayerProfile(next)) { setNotice("Браузер не разрешает сохранить данные. Проверьте настройки хранилища."); return; }
+    setProfile(next); setDraft(next); setNotice("Изменения сохранены на этом устройстве.");
+  }
+
+  async function uploadPhoto(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]; event.target.value = "";
+    if (!file) return;
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type) || file.size > 5 * 1024 * 1024) { setNotice("Выберите JPG, PNG или WebP до 5 МБ."); return; }
+    const job = ++photoJob.current.id;
+    setNotice("Подготавливаем фото…");
+    const url = URL.createObjectURL(file);
+    try {
+      const image = new Image();
+      await new Promise<void>((resolve, reject) => { image.onload = () => resolve(); image.onerror = reject; image.src = url; });
+      if (image.naturalWidth * image.naturalHeight > 40_000_000) throw new Error("Image is too large");
+      const canvas = document.createElement("canvas"), size = 720;
+      const scale = Math.max(size / image.naturalWidth, size / image.naturalHeight);
+      canvas.width = size; canvas.height = size;
+      const context = canvas.getContext("2d"); if (!context) throw new Error("Canvas unavailable");
+      context.fillStyle = "#f4f1eb"; context.fillRect(0, 0, size, size);
+      context.drawImage(image, (size - image.naturalWidth * scale) / 2, (size - image.naturalHeight * scale) / 2, image.naturalWidth * scale, image.naturalHeight * scale);
+      const photo = canvas.toDataURL("image/jpeg", .8);
+      if (photo.length > 700_000) throw new Error("Image is too large");
+      if (photoJob.current.id !== job) return;
+      setDraft(value => ({ ...value, photo })); setNotice("Фото готово. Сохраните изменения.");
+    } catch { if (photoJob.current.id === job) setNotice("Не удалось обработать фото. Попробуйте другое изображение."); }
+    finally { URL.revokeObjectURL(url); }
+  }
+
+  const photo = (source = profile.photo) => source ? <img src={source} alt="Фото игрока" width="72" height="72" /> : initials;
+  const historyList = (short = false) => (short ? exampleHistory.slice(0, 1) : exampleHistory).map(item => <button type="button" className="kv-history" key={item.id} onClick={() => { setResultId(item.id); move("result"); }}><span className="kv-date"><b>{item.day}</b>{item.month}</span><span className="kv-history-copy">{item.name}<small>{item.result} · {item.partner}</small></span><ProfileIcon name="next" /></button>);
+  const past = <section className="kv-section"><div className="kv-section-head"><h3>Прошедшие турниры</h3><button type="button" className="kv-link" onClick={() => move("history")}>Все</button></div>{historyList(true)}</section>;
+  const eventList = <section className="player-event-list" aria-label="Доступные турниры"><h3>Доступные турниры</h3>{loading ? <p className="kv-note" role="status">Загружаем турниры…</p> : error ? <p className="kv-note" role="alert">Не удалось загрузить турниры. <a href={`${basePath}/upcoming-tournaments/`}>Открыть календарь</a></p> : available.length === 0 ? <div className="kv-note">Новая регистрация пока не открыта. Даты появятся в <a href={`${basePath}/upcoming-tournaments/`}>календаре турниров</a>.</div> : available.map(item => <article className="kv-box" key={item.id}><span className="kv-badge">{item.registration_status === "waitlist" ? "Лист ожидания" : "Регистрация открыта"}</span><p className="kv-when">{formatTournamentDate(item, "ru", true)}</p><h2>{item.name}</h2><p className="kv-muted">{item.location || "Место будет объявлено"}</p><a className="kv-primary player-register-link" href={`${basePath}/register/?tournament=${encodeURIComponent(item.slug)}&sport=${item.sport}`}>{item.registration_status === "waitlist" ? "В лист ожидания" : "Записаться"}</a></article>)}</section>;
+  const title: Record<View, string> = { profile: "Профиль", mine: "Мои турниры", settings: "Настройки", achievements: "Достижения", history: "История и матчи", result: result.name, partners: "Мои партнёры", cards: "Мои карточки", schedule: "Ваш турнир" };
+
+  return <main className="player-account" lang="ru" translate="no"><div className="kv-phone">
+    <header className="kv-header"><a className="kv-logo" href={`${basePath}/`} aria-label="Главная KYNG CUP">KYNG CUP</a><button type="button" className="kv-avatar" onClick={() => move("profile", true)} aria-label="Открыть профиль">{photo()}</button></header>
+    <div className="kv-body">
+      <p className="player-preview-note">Предпросмотр · спортивная история показана для примера</p>
+      {view !== "profile" && view !== "mine" && <button type="button" className="kv-back" onClick={goBack}><ProfileIcon name="back" />Назад</button>}
+      <h1 ref={heading} tabIndex={-1}>{title[view]}</h1>
+      {view === "profile" && <>
+        <div className="kv-person"><span className="kv-avatar">{photo()}</span><div><strong>{profile.name}</strong><small>{profile.email}</small></div></div>
+        <div className="kv-stats"><div><strong>9</strong><small>турниров</small></div><div><strong>24</strong><small>матча</small></div><div><strong>15</strong><small>побед</small></div></div>
+        <section className="kv-section">{([ ["history", "История и матчи", ""], ["partners", "Мои партнёры", ""], ["achievements", "Достижения", "6 из 12 открыто"], ["cards", "Мои карточки", "Результаты для публикации"] ] as const).map(([id, label, detail]) => <button type="button" key={id} className="kv-row" onClick={() => move(id)}><span>{label}{detail && <small>{detail}</small>}</span><ProfileIcon name="next" /></button>)}</section>
+        <section className="kv-section"><Action secondary onClick={() => move("settings")}><ProfileIcon name="settings" />Настройки профиля</Action></section>
+      </>}
+      {view === "settings" && <>
+        <div className="kv-photo-setting"><span className="kv-avatar">{photo(draft.photo)}</span><div><Action secondary onClick={() => fileInput.current?.click()}>Изменить фото</Action><small>JPG, PNG, WebP · до 5 МБ</small></div></div>
+        <input type="file" accept="image/jpeg,image/png,image/webp" ref={fileInput} hidden onChange={event => void uploadPhoto(event)} />
+        <form className="kv-fields" onSubmit={saveSettings}><label>Имя и фамилия<input autoComplete="name" value={draft.name} onChange={event => setDraft(value => ({ ...value, name: event.target.value }))} maxLength={80} required /></label><label>Email<input type="email" autoComplete="email" value={draft.email} onChange={event => setDraft(value => ({ ...value, email: event.target.value }))} maxLength={254} required /></label><p className="kv-muted kv-small">Данные сохраняются в этом браузере и подставляются при регистрации. Это ещё не аккаунт с подтверждённой почтой.</p><button type="submit" className="kv-primary" disabled={!hydrated}>Сохранить изменения</button></form>
+        <p className="kv-message" role="status">{notice}</p>
+      </>}
+      {view === "mine" && <>
+        {exampleEntry ? <><article className="kv-box"><span className="kv-badge"><ProfileIcon name="check" />Участие подтверждено · пример</span><p className="kv-when">14 ноября · 10:00</p><h2>KYNG Winter Cup</h2><p className="kv-muted">Падел · Intermediate</p><div className="kv-details"><div className="kv-detail"><ProfileIcon name="pin" /><div>Padelzone Vienna<small>Вена · точный корт в расписании</small></div></div><div className="kv-detail"><ProfileIcon name="people" /><div>Daniel Horvat<small>Ваш партнёр в примере</small></div></div></div><Action onClick={() => move("schedule")}>Открыть мой турнир</Action></article><div className="player-more-events"><Action secondary onClick={() => setShowEvents(value => !value)}>{showEvents ? "Скрыть доступные турниры" : "Посмотреть другие турниры"}</Action></div></> : !showEvents && <section className="kv-empty"><div className="kv-empty-icon"><ProfileIcon name="calendar" /></div><h2>Выберите следующую игру</h2><p>Здесь появятся ваши заявки и информация об участии.</p><Action onClick={() => setShowEvents(true)}>Посмотреть турниры</Action></section>}
+        {showEvents && <div className={exampleEntry ? "kv-section" : undefined}>{eventList}</div>}
+        {past}
+        <button type="button" className="kv-link player-example-toggle" onClick={() => setExampleEntry(value => !value)}>{exampleEntry ? "Посмотреть вариант без заявки" : "Посмотреть пример подтверждённой заявки"}</button>
+      </>}
+      {view === "achievements" && <>
+        <div className="kv-section-head"><p className="kv-muted kv-small">Нажмите на награду, чтобы узнать условие.</p><span className="kv-badge">6 / 12</span></div>
+        <div className="kv-medals">{achievements.map((item, index) => <button type="button" className={`kv-medal${item.open ? " is-open" : ""}`} key={item.id} aria-pressed={selectedAchievement === item.id} aria-label={`${item.name}. ${item.open ? "Открыто в примере" : "Закрыто"}. ${item.rule}`} aria-controls="player-achievement-detail" onClick={() => setSelectedAchievement(item.id)}><span className="kv-medal-circle"><span className="kv-medal-art" style={{ backgroundPosition: `${(index % 3) * 50}% ${Math.floor(index / 3) * 100 / 3}%` }} aria-hidden="true" />{!item.open && <span className="kv-medal-lock"><ProfileIcon name="lock" /></span>}</span><span>{item.name}</span><span className="player-award-tooltip" role="tooltip">{item.rule}</span></button>)}</div>
+        <div className="kv-award-detail" id="player-achievement-detail" aria-live="polite"><span className="kv-badge"><ProfileIcon name={award.open ? "check" : "lock"} />{award.open ? "Открыто в примере" : "Пока закрыто"}</span><h3>{award.name}</h3><p>{award.rule}</p><small>{award.progress}</small></div>
+      </>}
+      {view === "cards" && <ResultCard profile={profile} result={{ name: result.name, date: result.date, result: result.result, partner: result.partner, wins: result.wins, matches: result.matches.length, topEight: result.id === "autumn" }} />}
+      {view === "history" && <><p className="kv-muted kv-small">Пример истории участника KYNG CUP</p>{historyList()}</>}
+      {view === "result" && <><span className="kv-badge">{result.result}</span><p className="kv-muted kv-small player-result-date">{result.date} · {result.partner}</p><section className="kv-section"><h3>Матчи</h3>{result.matches.map(match => <div className="kv-match" key={match.rivals}><span>{match.rivals}<small>{match.stage}</small></span><b>{match.score}</b></div>)}</section><div className="kv-section"><Action secondary onClick={() => move("cards")}>Моя карточка результата</Action></div></>}
+      {view === "partners" && <><p className="kv-muted kv-small">Пример партнёров по турнирам KYNG CUP</p>{[["DH", "Daniel Horvat", "6 турниров · 11 побед"], ["MS", "Maria Schmidt", "2 турнира · 3 победы"]].map(([initial, name, stats]) => <article key={name} className="kv-box player-partner-card"><div className="kv-person"><span className="kv-avatar">{initial}</span><div><strong>{name}</strong><small>{stats} вместе</small></div></div><Action secondary onClick={() => { setShowEvents(true); move("mine"); }}>Выбрать турнир для пары</Action></article>)}</>}
+      {view === "schedule" && <><article className="kv-box"><span className="kv-badge">Участие подтверждено · пример</span><h2>KYNG Winter Cup</h2><p className="kv-muted">14 ноября · 10:00</p><div className="kv-details"><div className="kv-detail"><ProfileIcon name="pin" /><div>Padelzone Vienna<small>Вена</small></div></div><div className="kv-detail"><ProfileIcon name="people" /><div>Daniel Horvat<small>Ваш партнёр в примере</small></div></div></div></article><section className="kv-section"><h3>Группа B · пример расписания</h3>{[["10:15", "Корт 4", "M. Weiss / T. Berger"], ["11:00", "Корт 2", "L. Graf / N. König"], ["11:45", "Корт 4", "P. Novak / I. Costa"]].map(([time, court, rivals]) => <div className="kv-match" key={time}><span>{rivals}<small>{court}</small></span><b>{time}</b></div>)}</section></>}
+    </div>
+    <nav className="kv-nav" aria-label="Разделы кабинета">
+      <a href={`${basePath}/`}><ProfileIcon name="home" /><span>Главная</span></a>
+      <button type="button" onClick={() => move("mine", true)} aria-current={!profileViews.includes(view) ? "page" : undefined}><ProfileIcon name="calendar" /><span>Мои турниры</span></button>
+      <button type="button" onClick={() => move("profile", true)} aria-current={profileViews.includes(view) ? "page" : undefined}><ProfileIcon name="user" /><span>Профиль</span></button>
+    </nav>
+  </div></main>;
 }
-function Results({ many = false }: { many?: boolean }) { const list = many ? [...results, ...results] : results; return <>{list.map((result, index) => <article key={`${result.event}-${index}`}><time>{result.date}</time><div><strong>{result.event}</strong><small>vs {result.rival}</small></div><b>{result.score}</b><span className={result.won ? "is-win" : "is-loss"}>{result.won ? "Победа" : "Поражение"}</span></article>)}</>; }
-function ProfilePhoto({ photo, initials }: { photo: string; initials: string }) { return <div className="profile-photo">{photo ? <img src={photo} alt="Фото профиля" /> : initials}</div>; }
-function ShareCard({ card, name, photo, initials }: { card: typeof cards[number]; name: string; photo: string; initials: string }) { return <div className={`kyng-share-card tone-${card.tone}`}><div className="share-card-brand"><strong>KYNG CUP</strong><span>PLAYER CARD · 2026</span></div><div className="share-card-photo">{photo ? <img src={photo} alt="" /> : initials}</div><div className="share-card-copy"><small>{card.kicker}</small><h3>{card.title.split("\n").map((line) => <span key={line}>{line}</span>)}</h3><b>{card.statistic}</b></div><div className="share-card-player"><strong>{name.toUpperCase()}</strong><span>{card.detail}</span><small>kyngcup.com/player/alex-kovalenko</small></div></div>; }
-function ProfileSection({ title, intro, children }: { title: string; intro: string; children: React.ReactNode }) { return <section className="profile-detail-page"><header><span>KYNG ID</span><h1>{title}<b>.</b></h1><p>{intro}</p></header>{children}</section>; }

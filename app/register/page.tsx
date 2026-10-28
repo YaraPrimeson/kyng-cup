@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabase";
 import { Language, useLanguage } from "../i18n";
 import SiteFooter from "../site-footer";
 import { getLeadAttribution, trackEvent } from "../analytics";
+import { readPlayerProfile, registrationIdentity } from "@/lib/player-profile";
 
 type Sport = "tennis" | "padel";
 type RegistrationStatus = "open" | "waitlist" | "closed";
@@ -60,14 +61,14 @@ const copy = {
 
 const dateLocales: Record<Language, string> = { en: "en-GB", uk: "uk-UA", de: "de-AT", ru: "ru-RU" };
 
-function ContactFields({ language, disabled }: { language: Language; disabled: boolean }) {
+function ContactFields({ language, disabled, identity }: { language: Language; disabled: boolean; identity: ReturnType<typeof registrationIdentity> | null }) {
   const text = copy[language];
   return <fieldset className="registration-player-card" disabled={disabled}>
     <legend><span>01</span>{text.playerOne}</legend>
     <div className="registration-form-grid">
-      <label><span>{text.firstName} *</span><input name="player_one_first_name" autoComplete="given-name" minLength={1} maxLength={80} required /></label>
-      <label><span>{text.lastName} *</span><input name="player_one_last_name" autoComplete="family-name" minLength={1} maxLength={80} required /></label>
-      <label><span>{text.email} *</span><input name="player_one_email" type="email" autoComplete="email" maxLength={320} required /></label>
+      <label><span>{text.firstName} *</span><input name="player_one_first_name" defaultValue={identity?.firstName ?? ""} autoComplete="given-name" minLength={1} maxLength={80} required /></label>
+      <label><span>{text.lastName} *</span><input name="player_one_last_name" defaultValue={identity?.lastName ?? ""} autoComplete="family-name" minLength={1} maxLength={80} required /></label>
+      <label><span>{text.email} *</span><input name="player_one_email" defaultValue={identity?.email ?? ""} type="email" autoComplete="email" maxLength={320} required /></label>
       <label><span>{text.phone} *</span><input name="player_one_phone" type="tel" autoComplete="tel" minLength={5} maxLength={100} placeholder="+43… / @username" required /></label>
       <label className="registration-field-wide"><span>{text.level} *</span><select name="player_one_level" defaultValue="" required><option value="" disabled>{text.chooseLevel}</option><option value="beginner">{text.beginner}</option><option value="intermediate">{text.intermediate}</option><option value="advanced">{text.advanced}</option><option value="competitive">{text.competitive}</option></select></label>
     </div>
@@ -105,6 +106,7 @@ export default function RegisterPage() {
   const [submissionState, setSubmissionState] = useState<"idle" | "submitting" | "success">("idle");
   const [submissionError, setSubmissionError] = useState<string | null>(null);
   const [submittedPair, setSubmittedPair] = useState("");
+  const [identity, setIdentity] = useState<ReturnType<typeof registrationIdentity> | null>(null);
   const formOpenedAt = useRef<number | null>(null);
 
   const loadTournaments = useCallback(async () => {
@@ -123,7 +125,7 @@ export default function RegisterPage() {
 
   useEffect(() => {
     formOpenedAt.current = Date.now();
-    const timer = window.setTimeout(() => void loadTournaments(), 0);
+    const timer = window.setTimeout(() => { const profile = readPlayerProfile(); if (profile) setIdentity(registrationIdentity(profile)); void loadTournaments(); }, 0);
     return () => window.clearTimeout(timer);
   }, [loadTournaments]);
   const tournament = useMemo(() => tournaments.find((item) => item.slug === selectedSlug) ?? null, [selectedSlug, tournaments]);
@@ -238,7 +240,7 @@ export default function RegisterPage() {
         <a href={`${basePath}/${tournament.sport}/#tournament`}>{text.backTournament}<span>↗</span></a>
       </article> : <form className="registration-application" id="registration-form" onSubmit={submitRegistration} onChange={() => submissionError && setSubmissionError(null)}>
         <div className="registration-honeypot" aria-hidden="true"><label>Website<input name="website" type="text" tabIndex={-1} autoComplete="off" /></label></div>
-        <ContactFields language={language} disabled={!tournament || submissionState === "submitting"} />
+        <ContactFields language={language} identity={identity} disabled={!tournament || submissionState === "submitting"} />
         <PairFields sport={tournament?.sport ?? "tennis"} language={language} disabled={!tournament || submissionState === "submitting"} />
         <fieldset className="registration-review-card" disabled={!tournament || submissionState === "submitting"}>
           <legend><span>03</span>{text.review}</legend>
