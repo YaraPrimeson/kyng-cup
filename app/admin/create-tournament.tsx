@@ -1,7 +1,7 @@
 "use client";
 import { FormEvent, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { balancePairs, blankPairs, groupSummary, parsePairList, SetupPair, tournamentSlug } from "@/lib/tournament-setup";
+import { balancePairs, blankPairs, buildTournamentSetup, groupSummary, parsePairList, SetupPair, tournamentSlug } from "@/lib/tournament-setup";
 
 export default function CreateTournament({ onCreated, onClose }: { onCreated: (id: string) => void; onClose: () => void }) {
   const [name, setName] = useState("");
@@ -39,22 +39,12 @@ export default function CreateTournament({ onCreated, onClose }: { onCreated: (i
   async function create(event: FormEvent) {
     event.preventDefault();
     if (saving) return;
-    if (!name.trim() || !date) { setMessage("Укажите название и дату турнира."); return; }
-    if (endDate && endDate < date) { setMessage("Дата завершения не может быть раньше начала."); return; }
-    if (invalidGroups || playoffCount < 2) { setMessage("В каждой группе нужно минимум 2 пары. Проверьте число выходящих в плей-офф."); return; }
-    if (pairs.some((pair) => Boolean(pair.player_one.trim()) !== Boolean(pair.player_two.trim()))) { setMessage("Укажите обоих игроков пары или оставьте оба имени на потом."); return; }
-    const actualSlug = slug || tournamentSlug(name) || fallbackSlug;
-    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(actualSlug)) { setMessage("Проверьте адрес турнира: латинские буквы, цифры и дефисы."); return; }
+    let payload;
+    try { payload = buildTournamentSetup({ name, slug, fallbackSlug, location, date, endDate, sport, status, format, pairs, groups, qualifiers }); }
+    catch (error) { setMessage((error as Error).message); return; }
     setSaving(true); setMessage(null);
     try {
-      const { data, error } = await supabase.rpc("create_tournament_setup", {
-        p_name: name.trim(), p_slug: actualSlug, p_location: location.trim(),
-        p_starts_at: new Date(`${date}T12:00:00`).toISOString(),
-        p_ends_at: new Date(`${endDate || date}T12:00:00`).toISOString(),
-        p_sport: sport, p_status: status, p_format: format,
-        p_pairs: pairs.map((pair) => ({ ...pair, name: pair.name.trim(), player_one: pair.player_one.trim(), player_two: pair.player_two.trim() })),
-        p_groups: format === "group_knockout" ? summaries.map((group) => ({ code: group.code, qualify_count: qualifiers[group.code] ?? 2 })) : [],
-      });
+      const { data, error } = await supabase.rpc("create_tournament_setup", payload);
       if (error) { setMessage(error.message); return; }
       onCreated(data as string);
     } catch { setMessage("Не удалось сохранить турнир. Проверьте соединение и попробуйте снова."); }
