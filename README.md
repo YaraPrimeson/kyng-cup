@@ -48,5 +48,6 @@ npm run build:pages
 
 Tournament creation checks: `npm run test:setup`. The database scenarios,
 coverage and known findings are documented in [the testing guide](docs/tournament-creation-testing.md).
+Admin form retention checks (tab focus, session refresh, reload and draft recovery): `npm run test:admin`.
 
 `npm run build:pages` exports both `/` and `/bracket/` into `_site` with the GitHub repository base path applied.

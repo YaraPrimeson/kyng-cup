@@ -2,8 +2,9 @@
 
 import CreateTournament from "./create-tournament";
 import { balancePairs, groupSummary } from "@/lib/tournament-setup";
+import { readTournamentDraft } from "@/lib/tournament-draft";
 import type { User } from "@supabase/supabase-js";
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useLanguage } from "../i18n";
 import { calculateStandings, GroupMatch, GroupMember, TournamentGroup } from "../group-stage";
@@ -509,7 +510,9 @@ export default function AdminPage() {
   const [user, setUser] = useState<User | null>(null);
   const [checking, setChecking] = useState(true);
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  // undefined is the initial selection; null is an explicit choice to leave it empty.
+  const [selectedId, setSelectedId] = useState<string | null | undefined>(undefined);
+  const loadRequest = useRef(0);
   const [pairs, setPairs] = useState<Pair[]>([]);
   const [matches, setMatches] = useState<Match[]>([]);
   const [groups, setGroups] = useState<TournamentGroup[]>([]);
@@ -531,10 +534,12 @@ export default function AdminPage() {
   const canCreateTournament = organizerAccess;
 
   const loadTournaments = useCallback(async (currentUser: User | null, preferredId?: string) => {
+    const request = ++loadRequest.current;
     setUser(currentUser);
     if (!currentUser) { setOrganizerAccess(false); setAccessError(null); setTournaments([]); setSelectedId(null); setChecking(false); return; }
     setAccessError(null);
     const access = await supabase.rpc("is_global_admin");
+    if (request !== loadRequest.current) return;
     setOrganizerAccess(access.data === true && !access.error);
     if (access.error || !access.data) {
       setTournaments([]); setSelectedId(null); setChecking(false);
@@ -542,10 +547,11 @@ export default function AdminPage() {
       return;
     }
     const result = await supabase.from("tournaments").select("id,slug,name,sport,location,starts_at,ends_at,bracket_size,format,participant_count,playoff_participant_count,status,registration_status,updated_at").order("created_at", { ascending: false });
+    if (request !== loadRequest.current) return;
     if (result.error) { setAccessError("Could not load tournaments. Please retry."); setTournaments([]); setSelectedId(null); setChecking(false); return; }
     const managed = ((result.data ?? []) as Omit<Tournament, "role">[]).map((item) => ({ ...item, role: "owner" as const }));
     setTournaments(managed);
-    setSelectedId((current) => preferredId && managed.some((item) => item.id === preferredId) ? preferredId : current && managed.some((item) => item.id === current) ? current : managed[0]?.id ?? null);
+    setSelectedId((current) => preferredId && managed.some((item) => item.id === preferredId) ? preferredId : current === null ? null : current && managed.some((item) => item.id === current) ? current : managed[0]?.id ?? null);
     setChecking(false);
   }, []);
 
@@ -566,9 +572,22 @@ export default function AdminPage() {
   }, [selectedId]);
 
   useEffect(() => {
-    const timer = window.setTimeout(async () => { const { data } = await supabase.auth.getUser(); await loadTournaments(data.user); }, 0);
-    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
-      window.setTimeout(() => void loadTournaments(session?.user ?? null), 0);
+    let currentUserId: string | null | undefined;
+    let timer: number | undefined;
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      const nextUser = session?.user ?? null;
+      const nextUserId = nextUser?.id ?? null;
+      // SIGNED_IN also fires on tab focus; a refreshed session is not a new account.
+      if (currentUserId === nextUserId) return;
+      currentUserId = nextUserId;
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        const restoreDraft = nextUser ? Boolean(readTournamentDraft(nextUser.id)) : false;
+        setChecking(true);
+        setShowCreate(restoreDraft);
+        setSelectedId(restoreDraft ? null : undefined);
+        void loadTournaments(nextUser);
+      }, 0);
     });
     return () => { window.clearTimeout(timer); listener.subscription.unsubscribe(); };
   }, [loadTournaments]);
@@ -616,7 +635,7 @@ export default function AdminPage() {
         <section className="admin-dashboard">
           <div className="admin-dashboard-heading"><div><p className="eyebrow">Tournament control centre</p><h1>Match control<span className="accent-dot">.</span></h1></div>{selected && <a href={`../bracket/?tournament=${selected.slug}`} target="_blank" rel="noreferrer">Open public bracket ↗</a>}</div>
           <div className="admin-toolbar"><label className="admin-field"><span>Current tournament</span><select value={selectedId ?? ""} onChange={(event) => { const tournamentId = event.target.value || null; setSelectedId(tournamentId); if (tournamentId) setShowCreate(false); }}><option value="">No tournament selected</option>{tournaments.map((tournament) => <option value={tournament.id} key={tournament.id}>{tournament.name} · {tournament.sport} · {tournament.status}</option>)}</select></label>{canCreateTournament && <button type="button" onClick={() => { setSelectedId(null); setShowCreate(true); }}>+ New tournament</button>}</div>
-          {showCreate && !selectedId && canCreateTournament && <CreateTournament onClose={() => setShowCreate(false)} onCreated={(id) => { setShowCreate(false); void loadTournaments(user, id); }} />}
+          {showCreate && !selectedId && canCreateTournament && <CreateTournament key={user.id} userId={user.id} onClose={() => setShowCreate(false)} onCreated={(id) => { setShowCreate(false); void loadTournaments(user, id); }} />}
           {accessError && <div role="alert" className="admin-muted-note">{accessError} <button type="button" onClick={() => void loadTournaments(user)}>Retry</button></div>}
           {!accessError && organizerAccess && !tournaments.length && <div className="admin-muted-note">No tournaments yet. Create the first tournament to get started.</div>}
           {selected && <>

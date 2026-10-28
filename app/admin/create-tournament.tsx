@@ -1,25 +1,30 @@
 "use client";
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { balancePairs, blankPairs, buildTournamentSetup, groupSummary, parsePairList, SetupPair, tournamentSlug } from "@/lib/tournament-setup";
+import { clearTournamentDraft, newTournamentDraft, readTournamentDraft, saveTournamentDraft } from "@/lib/tournament-draft";
 
-export default function CreateTournament({ onCreated, onClose }: { onCreated: (id: string) => void; onClose: () => void }) {
-  const [name, setName] = useState("");
-  const [slug, setSlug] = useState("");
-  const [slugEdited, setSlugEdited] = useState(false);
-  const [fallbackSlug] = useState(() => `kyng-cup-${Date.now().toString(36)}`);
-  const [location, setLocation] = useState("Vienna, Austria");
-  const [date, setDate] = useState("");
-  const [endDate, setEndDate] = useState("");
-  const [sport, setSport] = useState("padel");
-  const [status, setStatus] = useState("draft");
-  const [format, setFormat] = useState("group_knockout");
-  const [groups, setGroups] = useState(4);
-  const [pairs, setPairs] = useState<SetupPair[]>(() => balancePairs(blankPairs(16), 4));
-  const [qualifiers, setQualifiers] = useState<Record<string, number>>({ A: 2, B: 2, C: 2, D: 2 });
-  const [list, setList] = useState("");
+export default function CreateTournament({ userId, onCreated, onClose }: { userId: string; onCreated: (id: string) => void; onClose: () => void }) {
+  const [initial] = useState(() => readTournamentDraft(userId) ?? newTournamentDraft());
+  const [name, setName] = useState(initial.name);
+  const [slug, setSlug] = useState(initial.slug);
+  const [slugEdited, setSlugEdited] = useState(initial.slugEdited);
+  const [fallbackSlug] = useState(initial.fallbackSlug);
+  const [location, setLocation] = useState(initial.location);
+  const [date, setDate] = useState(initial.date);
+  const [endDate, setEndDate] = useState(initial.endDate);
+  const [sport, setSport] = useState(initial.sport);
+  const [status, setStatus] = useState(initial.status);
+  const [format, setFormat] = useState(initial.format);
+  const [groups, setGroups] = useState(initial.groups);
+  const [pairs, setPairs] = useState<SetupPair[]>(initial.pairs);
+  const [qualifiers, setQualifiers] = useState<Record<string, number>>(initial.qualifiers);
+  const [list, setList] = useState(initial.list);
   const [message, setMessage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    saveTournamentDraft(userId, { name, slug, slugEdited, fallbackSlug, location, date, endDate, sport, status, format, groups, pairs, qualifiers, list });
+  }, [userId, name, slug, slugEdited, fallbackSlug, location, date, endDate, sport, status, format, groups, pairs, qualifiers, list]);
   const summaries = groupSummary(pairs, groups);
   const playoffCount = format === "knockout" ? pairs.length : summaries.reduce((total, group) => total + (qualifiers[group.code] ?? 2), 0);
   const invalidGroups = format === "group_knockout" && summaries.some((group) => group.size < 2 || (qualifiers[group.code] ?? 2) > group.size);
@@ -46,6 +51,7 @@ export default function CreateTournament({ onCreated, onClose }: { onCreated: (i
     try {
       const { data, error } = await supabase.rpc("create_tournament_setup", payload);
       if (error) { setMessage(error.message); return; }
+      clearTournamentDraft(userId);
       onCreated(data as string);
     } catch { setMessage("Не удалось сохранить турнир. Проверьте соединение и попробуйте снова."); }
     finally { setSaving(false); }
