@@ -1,3 +1,4 @@
+set local lock_timeout = '2s';
 -- The setup RPC and next_bracket_size() support 2..64 pairs, including a single final.
 -- Keep the existing power-of-two restriction while allowing its missing lower bound.
 alter table public.tournaments
