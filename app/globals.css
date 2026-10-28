@@ -601,7 +601,7 @@ body { font-size: 18px; }
 .groups-stage { padding: 0 42px 72px; }
 .groups-stage-heading { display: flex; justify-content: space-between; align-items: center; gap: 24px; margin-bottom: 24px; }
 .groups-stage-heading p { margin: 0; max-width: 620px; opacity: .65; }
-.groups-stage-heading nav { display: flex; gap: 7px; }
+.groups-stage-heading nav { display: none; gap: 7px; }
 .groups-stage-heading button { width: 40px; height: 40px; border: 1px solid var(--line); border-radius: 50%; background: #fff; cursor: pointer; }
 .groups-stage-heading button.is-active { background: var(--clay); border-color: var(--clay); color: #fff; }
 .public-groups-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
@@ -637,6 +637,7 @@ body { font-size: 18px; }
   .groups-stage { padding: 0 22px 50px; }
   .basement-stage { margin: 0 22px 50px; }
   .groups-stage-heading { align-items: flex-start; flex-direction: column; }
+  .groups-stage-heading nav { display: flex; }
   .public-groups-grid { grid-template-columns: 1fr; }
   .public-groups-grid > article { display: none; padding: 18px; }
   .public-groups-grid > article.is-active { display: block; }
@@ -1139,4 +1140,47 @@ html[lang="ru"] .admin-round-group:not([open]) > summary::after { content: "По
   .setup-pair-table input { grid-column: 2; }
   .setup-pair-table b { grid-row: 1 / 4; }
   .setup-pair-table button { grid-column: 3; grid-row: 1 / 4; }
+}
+
+/* A final score and selected winner must agree. */
+.admin-match.has-result-error > label { border-color: #b3261e; background: #fff3f1; }
+.admin-score-row input[aria-invalid="true"] { border: 2px solid #b3261e; background: #fff3f1; }
+.result-error { color: #a51b14; background: #fff3f1; border-left: 3px solid #b3261e; padding: 12px; margin: 10px 0; font-size: 14px; line-height: 1.5; }
+.knockout-scroll { max-width: 100%; overflow-x: auto; padding: 8px 2px 20px; }
+.knockout-board { display: grid; gap: 32px; min-width: max-content; padding: 20px; background: #f6f5ef; border: 1px solid var(--line); border-radius: 18px; }
+.knockout-round { display: flex; flex-direction: column; min-width: 0; }
+.knockout-round h4 { margin: 0 0 18px; font-size: 17px; }
+.knockout-round > div { display: flex; flex: 1; flex-direction: column; justify-content: space-around; gap: 16px; }
+.knockout-node { position: relative; }
+.knockout-round:not(:last-child) .knockout-node::after { content: ""; position: absolute; top: 50%; left: 100%; width: 32px; border-top: 1px solid #a6b9ad; }
+.knockout-node .bracket-match { margin: 0; width: 100%; height: 154px; box-sizing: border-box; }
+.knockout-node .match-connector { display: none; }
+.draw-preview-match { border: 1px solid var(--line); border-radius: 12px; background: white; padding: 12px; min-width: 235px; box-sizing: border-box; }
+.draw-preview-match > small { display: block; color: var(--forest); margin-bottom: 10px; }
+.draw-slot { padding: 7px 0; border-top: 1px solid var(--line); }
+.draw-slot button { border: 0; background: transparent; text-align: left; display: flex; align-items: center; gap: 8px; width: 100%; padding: 6px 0; font: inherit; cursor: grab; }
+.draw-slot button span { font-weight: 600; }
+.draw-slot.is-dragging { opacity: .45; }
+.draw-slot select { width: 100%; border: 1px solid var(--line); border-radius: 7px; background: var(--paper); padding: 6px; font: inherit; font-size: 12px; }
+.draw-pending { color: #68756d; border-top: 1px solid var(--line); padding: 16px 0; font-size: 13px; }
+.draw-match-pair { display: flex; gap: 12px; align-items: center; justify-content: space-between; min-height: 43px; border-top: 1px solid var(--line); }
+.draw-match-pair.is-winner { color: var(--forest); background: #edf5ef; }
+.admin-draw-preview { min-width: 0; }
+@media (max-width: 760px) {
+  .public-knockout .knockout-board { grid-template-columns: 1fr !important; min-width: 0; min-height: 0 !important; }
+  .public-knockout .knockout-round { display: none; }
+  .public-knockout .knockout-round.is-active { display: flex; }
+  .public-knockout .knockout-node::after { display: none; }
+}
+.knockout-round > div { position: relative; flex: none; }
+.knockout-node { position: absolute; left: 0; right: 0; height: 154px; }
+.knockout-round .knockout-node::after { display: none; }
+.knockout-link { position: absolute; left: 100%; overflow: visible; pointer-events: none; }
+.draw-preview-match { height: 154px; }
+.draw-slot { display: grid; grid-template-columns: 26px minmax(0,1fr); align-items: center; gap: 5px; }
+.draw-slot button { width: 26px; justify-content: center; }
+@media (max-width: 760px) {
+  .public-knockout .knockout-round > div { height: auto !important; }
+  .public-knockout .knockout-node { position: relative; top: auto !important; }
+  .public-knockout .knockout-link { display: none; }
 }

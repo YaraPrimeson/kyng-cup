@@ -1,6 +1,10 @@
 "use client";
 
 import CreateTournament from "./create-tournament";
+import KnockoutDraw from "./knockout-draw";
+import KnockoutBoard from "../knockout-board";
+import { parseScore, resultError as matchResultError } from "@/lib/match-result";
+import { knockoutRoundLabel, savedDraw, mainBracketSize } from "@/lib/knockout";
 import { balancePairs, groupSummary } from "@/lib/tournament-setup";
 import { readTournamentDraft } from "@/lib/tournament-draft";
 import type { User } from "@supabase/supabase-js";
@@ -45,6 +49,9 @@ type Pair = {
 type Match = {
   id: string;
   round: number;
+  bracket_kind: "playoffs" | "basement";
+  next_match_id: string | null;
+  next_slot: number | null;
   position: number;
   pair_one_id: string | null;
   pair_two_id: string | null;
@@ -101,6 +108,7 @@ const registrationStatuses: { value: RegistrationStatus; label: string }[] = [
   { value: "rejected", label: "Rejected" },
 ];
 function roundLabel(bracketSize: number, round: number) {
+  if (round === 0) return "Preliminary";
   const remaining = Math.log2(bracketSize) - round;
   if (remaining === 0) return "Final";
   if (remaining === 1) return "Semifinal";
@@ -121,20 +129,6 @@ function toLocalDate(value: string | null) {
 
 function toIsoDate(value: string) {
   return value ? new Date(`${value}T12:00:00`).toISOString() : null;
-}
-
-function parseScore(value: string) {
-  const sets = value.split(",").map((set) => set.trim()).filter(Boolean);
-  if (!sets.length) return null;
-  const pairOne: number[] = [];
-  const pairTwo: number[] = [];
-  for (const set of sets) {
-    const match = set.match(/^(\d{1,2})\s*[-:]\s*(\d{1,2})$/);
-    if (!match) return null;
-    pairOne.push(Number(match[1]));
-    pairTwo.push(Number(match[2]));
-  }
-  return { pairOne, pairTwo };
 }
 
 function Feedback({ message }: { message: string | null }) {
@@ -278,6 +272,10 @@ function AdminMatch({ match, pairMap, bracketSize, onSaved }: { match: Match; pa
   const [saving, setSaving] = useState(false);
   const [savingDetails, setSavingDetails] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [resultAttempted, setResultAttempted] = useState(false);
+  const [resultServerError, setResultServerError] = useState<string | null>(null);
+  const validationError = (resultAttempted || Boolean(score.trim() && winner)) ? matchResultError(score, winner, pairOne, pairTwo) : null;
+  const resultProblem = validationError ?? resultServerError;
   const title = roundLabel(bracketSize, match.round);
 
   async function saveDetails() {
@@ -290,12 +288,13 @@ function AdminMatch({ match, pairMap, bracketSize, onSaved }: { match: Match; pa
   async function saveResult(event: FormEvent) {
     event.preventDefault();
     const parsed = parseScore(score);
-    if (!parsed || !winner) { setMessage("Use score format 6-4, 3-6, 10-8 and select a winner."); return; }
+    setResultAttempted(true); setResultServerError(null);
+    if (matchResultError(score, winner, pairOne, pairTwo) || !parsed) return;
     if (match.winner_id && !window.confirm("Replace the saved result?")) return;
     setSaving(true); setMessage(null);
     const { error } = await supabase.rpc("record_match_result", { p_match_id: match.id, p_pair_one_sets: parsed.pairOne, p_pair_two_sets: parsed.pairTwo, p_winner_id: winner });
     setSaving(false);
-    if (error) setMessage(error.message); else { setMessage("Result saved. The winner advanced automatically."); onSaved(); }
+    if (error) setResultServerError(error.message); else { setMessage("Result saved. The winner advanced automatically."); onSaved(); }
   }
 
   async function saveLiveScore() {
@@ -322,7 +321,7 @@ function AdminMatch({ match, pairMap, bracketSize, onSaved }: { match: Match; pa
   }
 
   return (
-    <form className={`admin-match status-${match.status}`} onSubmit={saveResult}>
+    <form className={`admin-match status-${match.status}${resultProblem ? " has-result-error" : ""}`} onSubmit={saveResult}>
       <div className="admin-match-title"><span>{title} · Match {match.position}</span><strong>{match.status === "completed" ? "Completed" : match.status === "live" ? "Live" : "Scheduled"}</strong></div>
       <div className="admin-match-details">
         <label className="admin-field"><span>Date &amp; time</span><input type="datetime-local" value={scheduledAt} onChange={(event) => setScheduledAt(event.target.value)} /></label>
@@ -330,9 +329,10 @@ function AdminMatch({ match, pairMap, bracketSize, onSaved }: { match: Match; pa
         <label className="admin-field"><span>Status</span><select value={status} onChange={(event) => setStatus(event.target.value as "scheduled" | "live")} disabled={match.status === "completed"}><option value="scheduled">Scheduled</option><option value="live">Live now</option></select></label>
         <button type="button" onClick={() => void saveDetails()} disabled={savingDetails}>{savingDetails ? "Saving…" : "Save schedule"}</button>
       </div>
-      <label aria-label={`Select ${pairOne?.name ?? "first pair"} as winner`} htmlFor={`winner-${match.id}-one`} className={!pairOne ? "is-disabled" : ""}><input id={`winner-${match.id}-one`} type="radio" name={`winner-${match.id}`} value={pairOne?.id ?? ""} checked={winner === pairOne?.id} onChange={(event) => setWinner(event.target.value)} disabled={!pairOne} /><span><strong>{pairOne?.name ?? "Waiting for winner"}</strong><small>{pairOne ? `${pairOne.player_one} · ${pairOne.player_two}` : "Previous round"}</small></span></label>
-      <label aria-label={`Select ${pairTwo?.name ?? "second pair"} as winner`} htmlFor={`winner-${match.id}-two`} className={!pairTwo ? "is-disabled" : ""}><input id={`winner-${match.id}-two`} type="radio" name={`winner-${match.id}`} value={pairTwo?.id ?? ""} checked={winner === pairTwo?.id} onChange={(event) => setWinner(event.target.value)} disabled={!pairTwo} /><span><strong>{pairTwo?.name ?? "Waiting for winner"}</strong><small>{pairTwo ? `${pairTwo.player_one} · ${pairTwo.player_two}` : "Previous round"}</small></span></label>
-      <div className="admin-score-row"><input aria-label="Set scores" value={score} onChange={(event) => setScore(event.target.value)} placeholder="3-2 or 6-4, 3-6" disabled={!pairOne || !pairTwo} /><div><button className="admin-live-score-button" type="button" onClick={() => void saveLiveScore()} disabled={saving || !pairOne || !pairTwo || match.status === "completed"}>{saving ? "Saving…" : "Update live score"}</button><button type="submit" disabled={saving || !pairOne || !pairTwo}>{saving ? "Saving…" : match.winner_id ? "Correct final result" : "Save final result"}</button></div></div>
+      <label aria-label={`Select ${pairOne?.name ?? "first pair"} as winner`} htmlFor={`winner-${match.id}-one`} className={!pairOne ? "is-disabled" : ""}><input id={`winner-${match.id}-one`} type="radio" name={`winner-${match.id}`} value={pairOne?.id ?? ""} checked={winner === pairOne?.id} aria-describedby={`score-error-${match.id}`} onChange={(event) => { setWinner(event.target.value); setResultServerError(null); }} disabled={!pairOne} /><span><strong>{pairOne?.name ?? "Waiting for winner"}</strong><small>{pairOne ? `${pairOne.player_one} · ${pairOne.player_two}` : "Previous round"}</small></span></label>
+      <label aria-label={`Select ${pairTwo?.name ?? "second pair"} as winner`} htmlFor={`winner-${match.id}-two`} className={!pairTwo ? "is-disabled" : ""}><input id={`winner-${match.id}-two`} type="radio" name={`winner-${match.id}`} value={pairTwo?.id ?? ""} checked={winner === pairTwo?.id} aria-describedby={`score-error-${match.id}`} onChange={(event) => { setWinner(event.target.value); setResultServerError(null); }} disabled={!pairTwo} /><span><strong>{pairTwo?.name ?? "Waiting for winner"}</strong><small>{pairTwo ? `${pairTwo.player_one} · ${pairTwo.player_two}` : "Previous round"}</small></span></label>
+      <div className="admin-score-row"><input aria-label="Set scores" value={score} aria-invalid={Boolean(resultProblem)} aria-describedby={`score-error-${match.id}`} onChange={(event) => { setScore(event.target.value); setResultServerError(null); }} placeholder="3-2 or 6-4, 3-6" disabled={!pairOne || !pairTwo} /><div><button className="admin-live-score-button" type="button" onClick={() => void saveLiveScore()} disabled={saving || !pairOne || !pairTwo || match.status === "completed"}>{saving ? "Saving…" : "Update live score"}</button><button type="submit" disabled={saving || !pairOne || !pairTwo}>{saving ? "Saving…" : match.winner_id ? "Correct final result" : "Save final result"}</button></div></div>
+    {resultProblem && <p className="result-error" role="alert" id={`score-error-${match.id}`}>{resultProblem}</p>}
       {match.winner_id && <button className="admin-reset-button" type="button" onClick={() => void resetResult()} disabled={saving}>Reset result</button>}
       <Feedback message={message} />
     </form>
@@ -349,6 +349,10 @@ function AdminGroupMatch({ match, pairMap, groupCode, onSaved }: { match: GroupM
   const [status, setStatus] = useState<"scheduled" | "live">(match.status === "live" ? "live" : "scheduled");
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [resultAttempted, setResultAttempted] = useState(false);
+  const [resultServerError, setResultServerError] = useState<string | null>(null);
+  const validationError = (resultAttempted || Boolean(score.trim() && winner)) ? matchResultError(score, winner, pairOne, pairTwo) : null;
+  const resultProblem = validationError ?? resultServerError;
 
   async function saveDetails() {
     setSaving(true); setMessage(null);
@@ -357,31 +361,33 @@ function AdminGroupMatch({ match, pairMap, groupCode, onSaved }: { match: GroupM
   }
   async function saveResult(event: FormEvent) {
     event.preventDefault(); const parsed = parseScore(score);
-    if (!parsed || !winner) { setMessage("Use score format 6-4, 3-6, 10-8 and select a winner."); return; }
+    setResultAttempted(true); setResultServerError(null);
+    if (matchResultError(score, winner, pairOne, pairTwo) || !parsed) return;
     if (match.winner_id && !window.confirm("Replace the saved group result?")) return;
     setSaving(true); setMessage(null);
     const { error } = await supabase.rpc("record_group_match_result", { p_match_id: match.id, p_pair_one_sets: parsed.pairOne, p_pair_two_sets: parsed.pairTwo, p_winner_id: winner });
-    setSaving(false); if (error) setMessage(error.message); else { setMessage("Result saved. The table was recalculated."); onSaved(); }
+    setSaving(false); if (error) setResultServerError(error.message); else { setMessage("Result saved. The table was recalculated."); onSaved(); }
   }
   async function resetResult() {
     if (!window.confirm("Reset this group result?")) return;
     setSaving(true); const { error } = await supabase.rpc("reset_group_match_result", { p_match_id: match.id }); setSaving(false);
     if (error) setMessage(error.message); else { setMessage("Group result reset."); onSaved(); }
   }
-  return <form className={`admin-match status-${match.status}`} onSubmit={saveResult}>
+  return <form className={`admin-match status-${match.status}${resultProblem ? " has-result-error" : ""}`} onSubmit={saveResult}>
     <div className="admin-match-title"><span>Group {groupCode} · Match {match.position}</span><strong>{match.status}</strong></div>
     <div className="admin-match-details"><label className="admin-field"><span>Date &amp; time</span><input type="datetime-local" value={scheduledAt} onChange={(event) => setScheduledAt(event.target.value)} /></label><label className="admin-field"><span>Court</span><input value={court} onChange={(event) => setCourt(event.target.value)} /></label><label className="admin-field"><span>Status</span><select value={status} onChange={(event) => setStatus(event.target.value as "scheduled" | "live")} disabled={match.status === "completed"}><option value="scheduled">Scheduled</option><option value="live">Live now</option></select></label><button type="button" onClick={() => void saveDetails()} disabled={saving}>Save schedule</button></div>
-    {[pairOne, pairTwo].map((pair, index) => <label htmlFor={`group-winner-${match.id}-${index}`} aria-label={`Select ${pair?.name ?? `pair ${index + 1}`} as winner`} key={pair?.id} className={!pair ? "is-disabled" : ""}><input id={`group-winner-${match.id}-${index}`} type="radio" name={`group-winner-${match.id}`} value={pair?.id ?? ""} checked={winner === pair?.id} onChange={(event) => setWinner(event.target.value)} /><span><strong>{pair?.name}</strong><small>{pair?.player_one} · {pair?.player_two}</small></span></label>)}
-    <div className="admin-score-row"><input value={score} onChange={(event) => setScore(event.target.value)} placeholder="6-4, 3-6, 10-8" /><div><button type="submit" disabled={saving}>{saving ? "Saving…" : match.winner_id ? "Correct result" : "Save result"}</button></div></div>
+    {[pairOne, pairTwo].map((pair, index) => <label htmlFor={`group-winner-${match.id}-${index}`} aria-label={`Select ${pair?.name ?? `pair ${index + 1}`} as winner`} key={pair?.id} className={!pair ? "is-disabled" : ""}><input id={`group-winner-${match.id}-${index}`} type="radio" name={`group-winner-${match.id}`} value={pair?.id ?? ""} checked={winner === pair?.id} aria-describedby={`score-error-${match.id}`} onChange={(event) => { setWinner(event.target.value); setResultServerError(null); }} /><span><strong>{pair?.name}</strong><small>{pair?.player_one} · {pair?.player_two}</small></span></label>)}
+    <div className="admin-score-row"><input aria-label="Set scores" value={score} aria-invalid={Boolean(resultProblem)} aria-describedby={`score-error-${match.id}`} onChange={(event) => { setScore(event.target.value); setResultServerError(null); }} placeholder="6-4, 3-6, 10-8" /><div><button type="submit" disabled={saving}>{saving ? "Saving…" : match.winner_id ? "Correct result" : "Save result"}</button></div></div>
+    {resultProblem && <p className="result-error" role="alert" id={`score-error-${match.id}`}>{resultProblem}</p>}
     {match.winner_id && <button className="admin-reset-button" type="button" onClick={() => void resetResult()} disabled={saving}>Reset result</button>}<Feedback message={message} />
   </form>;
 }
 
-function GroupStageManager({ tournament, pairs, groups, members, matches, pairMap, onSaved }: { tournament: Tournament; pairs: Pair[]; groups: TournamentGroup[]; members: GroupMember[]; matches: GroupMatch[]; pairMap: Map<string, Pair>; onSaved: () => void }) {
+function GroupStageManager({ tournament, pairs, groups, members, matches, playoffMatches, pairMap, onSaved }: { tournament: Tournament; pairs: Pair[]; groups: TournamentGroup[]; members: GroupMember[]; matches: GroupMatch[]; playoffMatches: Match[]; pairMap: Map<string, Pair>; onSaved: () => void }) {
   const memberGroup = useMemo(() => new Map(members.map((member) => [member.pair_id, groups.find((group) => group.id === member.group_id)?.code ?? "A"])), [groups, members]);
   const [assignments, setAssignments] = useState<Record<string, string>>(Object.fromEntries(pairs.map((pair) => [pair.id, memberGroup.get(pair.id) ?? "A"])));
   const suggestedQualifiers = useMemo(() => groups.flatMap((group) => calculateStandings(members.filter((member) => member.group_id === group.id), matches.filter((match) => match.group_id === group.id)).slice(0, group.qualify_count).map((row) => row.pairId)), [groups, matches, members]);
-  const [draw, setDraw] = useState<string[]>(suggestedQualifiers);
+  const [draw, setDraw] = useState<string[]>(() => savedDraw(tournament.playoff_participant_count, playoffMatches) ?? suggestedQualifiers);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   async function saveAssignments() {
@@ -399,10 +405,10 @@ function GroupStageManager({ tournament, pairs, groups, members, matches, pairMa
     if (error) setMessage(error.message); else { setMessage("All 18 announced pairs were loaded into groups A–E."); onSaved(); }
   }
   const allCompleted = matches.length > 0 && matches.every((match) => match.status === "completed");
+  const drawLocked = playoffMatches.some(match => match.status === "live" || match.pair_one_sets.length > 0 || match.pair_two_sets.length > 0);
   function toggleQualifier(pairId: string) { setDraw((current) => current.includes(pairId) ? current.filter((id) => id !== pairId) : current.length < tournament.playoff_participant_count ? [...current, pairId] : current); }
-  function moveQualifier(index: number, direction: -1 | 1) { setDraw((current) => { const target = index + direction; if (target < 0 || target >= current.length) return current; const next = [...current]; [next[index], next[target]] = [next[target], next[index]]; return next; }); }
   async function confirmDraw() {
-    if (draw.length !== tournament.playoff_participant_count) return; if (!window.confirm("Confirm the selected qualifiers and publish this playoff draw?")) return;
+    if (draw.length !== tournament.playoff_participant_count) return; if (!window.confirm("Подтвердить участников и сохранить новую сетку? Назначенные время и корты будут сброшены. Сыгранные матчи менять нельзя.")) return;
     setSaving(true); setMessage(null); const { error } = await supabase.rpc("confirm_group_qualifiers", { p_tournament_id: tournament.id, p_pair_ids: draw }); setSaving(false);
     if (error) setMessage(error.message); else { setMessage("Playoff bracket confirmed and published."); onSaved(); }
   }
@@ -411,8 +417,42 @@ function GroupStageManager({ tournament, pairs, groups, members, matches, pairMa
   return <div className="admin-group-manager">
     <section className="admin-group-assignments"><div><h3>Group assignments</h3><p>Distribute all {pairs.length} pairs between {groups.length} groups. Every group must contain at least two pairs.</p></div><div className="setup-actions"><button type="button" disabled={saving || matches.some((match) => match.status !== "scheduled")} onClick={() => { const balanced = balancePairs(pairs.map((pair) => ({ name: pair.name, player_one: pair.player_one, player_two: pair.player_two, group: "A" })), groups.length); setAssignments(Object.fromEntries(pairs.map((pair, index) => [pair.id, balanced[index].group]))); }}>Распределить равномерно</button><span>{groupSummary(pairs.map((pair) => ({ name: pair.name, player_one: pair.player_one, player_two: pair.player_two, group: assignments[pair.id] ?? "A" })), groups.length).map((group) => `${group.code}: ${group.size} пар · ${group.matches} матчей`).join(" / ")}</span></div><div className="admin-group-pair-list">{pairs.map((pair) => <label className="admin-field" key={pair.id}><span>{pair.name} · {pair.player_one} / {pair.player_two}</span><select value={assignments[pair.id] ?? groups[0]?.code ?? "A"} onChange={(event) => setAssignments((current) => ({ ...current, [pair.id]: event.target.value }))}>{groups.map((group) => <option value={group.code} key={group.id}>Group {group.code}</option>)}</select></label>)}</div><div className="admin-group-actions">{pairs.length === 18 && groups.map((group) => group.code).join("") === "ABCDE" && <button className="admin-save-button" type="button" onClick={() => void seedAnnouncedPairs()} disabled={saving}>Load announced pairs</button>}<button className="admin-save-button" type="button" onClick={() => void saveAssignments()} disabled={saving}>Save groups &amp; regenerate matches</button></div></section>
     <div className="admin-round-groups">{groups.map((group) => { const standings = calculateStandings(members.filter((member) => member.group_id === group.id), matches.filter((match) => match.group_id === group.id)); return <details className="admin-round-group" open key={group.id}><summary><h3>Group {group.code}</h3><span>{matches.filter((match) => match.group_id === group.id && match.status === "completed").length}/{matches.filter((match) => match.group_id === group.id).length}</span></summary><div className="admin-group-standings">{standings.map((row) => <div className={row.place <= group.qualify_count ? "is-qualified" : ""} key={row.pairId}><b>{row.place}</b><strong>{pairMap.get(row.pairId)?.name}</strong><span>{row.won}W · {row.lost}L · {row.points} pts</span></div>)}</div><div className="admin-match-grid">{matches.filter((match) => match.group_id === group.id).map((match) => <AdminGroupMatch match={match} pairMap={pairMap} groupCode={group.code} onSaved={onSaved} key={`${match.id}-${match.updated_at}`} />)}</div></details>; })}</div>
-    <section className="admin-qualifier-card"><div><h3>Playoff qualifiers</h3><p>{allCompleted ? `Select exactly ${tournament.playoff_participant_count} pairs, then arrange their seed order.` : "Complete every group match to unlock qualifier selection."}</p></div>{allCompleted && <div className="admin-group-pair-list">{groups.flatMap((group) => calculateStandings(members.filter((member) => member.group_id === group.id), matches.filter((match) => match.group_id === group.id)).map((row) => <label className="admin-field" key={row.pairId}><span>Group {group.code} · #{row.place} · {pairMap.get(row.pairId)?.name}</span><input type="checkbox" checked={draw.includes(row.pairId)} onChange={() => toggleQualifier(row.pairId)} /></label>))}</div>}{draw.length > 0 && <div className="admin-quarterfinal-list">{draw.map((pairId, index) => <div key={pairId}><span>Seed {index + 1}</span><strong>{pairMap.get(pairId)?.name}</strong><span><button type="button" onClick={() => moveQualifier(index, -1)} disabled={index === 0}>↑</button><button type="button" onClick={() => moveQualifier(index, 1)} disabled={index === draw.length - 1}>↓</button></span></div>)}</div>}<button className="admin-save-button" type="button" onClick={() => void confirmDraw()} disabled={!allCompleted || saving || draw.length !== tournament.playoff_participant_count}>Confirm {draw.length}/{tournament.playoff_participant_count} qualifiers</button><Feedback message={message} /></section>
+    <section className="admin-qualifier-card"><div><h3>Playoff qualifiers</h3><p>{allCompleted ? `Select exactly ${tournament.playoff_participant_count} pairs, then arrange their seed order.` : "Complete every group match to unlock qualifier selection."}</p></div>{allCompleted && <div className="admin-group-pair-list">{groups.flatMap((group) => calculateStandings(members.filter((member) => member.group_id === group.id), matches.filter((match) => match.group_id === group.id)).map((row) => <label className="admin-field" key={row.pairId}><span>Group {group.code} · #{row.place} · {pairMap.get(row.pairId)?.name}</span><input type="checkbox" disabled={saving || drawLocked} checked={draw.includes(row.pairId)} onChange={() => toggleQualifier(row.pairId)} /></label>))}</div>}{tournament.bracket_size > mainBracketSize(tournament.playoff_participant_count) && <p>Сохранена старая расширенная сетка. Ниже показана новая сетка с предварительными играми. Подтвердите её до начала матчей; сыгранные результаты не перезаписываются.</p>}{drawLocked && <p>Жеребьёвка заблокирована: сначала сбросьте результаты плей-офф.</p>}<KnockoutDraw draw={draw} pairMap={pairMap} onChange={setDraw} disabled={saving || !allCompleted || drawLocked} /><button className="admin-save-button" type="button" onClick={() => void confirmDraw()} disabled={!allCompleted || saving || drawLocked || draw.length !== tournament.playoff_participant_count}>Confirm {draw.length}/{tournament.playoff_participant_count} qualifiers</button><Feedback message={message} /></section>
   </div>;
+}
+
+function AdminBracketOverview({ matches, pairMap, size }: { matches: Match[]; pairMap: Map<string, Pair>; size: number }) {
+  return <KnockoutBoard matches={matches} size={size} label="Current tournament bracket" renderMatch={match => <article className={`draw-preview-match status-${match.status}`}><small>{knockoutRoundLabel(size, match.round)} · {match.position}</small>{[match.pair_one_id, match.pair_two_id].map((id, index) => <div className={`draw-match-pair${id && id === match.winner_id ? " is-winner" : ""}`} key={index}><strong>{id ? pairMap.get(id)?.name : "Победитель предыдущей игры"}</strong><span>{(index === 0 ? match.pair_one_sets : match.pair_two_sets).join(" · ") || "—"}</span></div>)}</article>} />;
+}
+
+function KnockoutOnlyDraw({ tournament, pairs, matches, pairMap, onSaved }: { tournament: Tournament; pairs: Pair[]; matches: Match[]; pairMap: Map<string, Pair>; onSaved: () => void }) {
+  const [draw, setDraw] = useState(() => savedDraw(tournament.playoff_participant_count, matches) ?? pairs.map(pair => pair.id));
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const started = matches.some(match => match.status === "live" || match.pair_one_sets.length > 0 || match.pair_two_sets.length > 0);
+  async function save() {
+    if (!window.confirm("Подтвердить новую жеребьёвку? Назначенные время и корты будут сброшены. Сыгранные матчи менять нельзя.")) return;
+    setSaving(true); setMessage(null);
+    const { error } = await supabase.rpc("set_manual_draw", { p_tournament_id: tournament.id, p_pair_ids: draw });
+    setSaving(false);
+    if (error) setMessage(error.message); else { setMessage("Жеребьёвка сохранена."); onSaved(); }
+  }
+  return <section className="admin-qualifier-card"><h3>Жеребьёвка плей-офф</h3>{started && <p>Чтобы менять пары местами, сначала сбросьте результаты этой сетки.</p>}<KnockoutDraw draw={draw} pairMap={pairMap} onChange={setDraw} disabled={saving || started} /><button type="button" className="admin-save-button" disabled={saving || started || draw.length !== tournament.playoff_participant_count} onClick={() => void save()}>Сохранить жеребьёвку</button><Feedback message={message} /></section>;
+}
+
+function BasementManager({ tournament, matches, pairMap, onSaved }: { tournament: Tournament; matches: Match[]; pairMap: Map<string, Pair>; onSaved: () => void }) {
+  const [message, setMessage] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const size = 2 ** Math.max(1, ...matches.map(match => match.round));
+  async function create() {
+    setSaving(true); setMessage(null);
+    const { error } = await supabase.rpc("create_basement_bracket", { p_tournament_id: tournament.id });
+    setSaving(false);
+    if (error) setMessage(error.message); else onSaved();
+  }
+  return <details className="admin-collapsible" open><summary><div><span>06</span><h2>Король подвала</h2></div><p>Отдельная сетка: счёт, корты, исправление и сброс результатов.</p></summary><div className="admin-collapsible-content admin-round-groups">
+    {!matches.length ? <div><p>Сетка создаётся при подтверждении плей-офф из остальных пар. Для уже подтверждённого турнира её можно создать отдельно.</p><button type="button" className="admin-save-button" disabled={saving} onClick={() => void create()}>{saving ? "Создаём…" : "Создать сетку Короля подвала"}</button><Feedback message={message} /></div> : <><AdminBracketOverview matches={matches} pairMap={pairMap} size={size} />{[...new Set(matches.map(match => match.round))].sort((a,b) => a-b).map(round => <details className="admin-round-group" key={round} open><summary><h3>{knockoutRoundLabel(size, round)}</h3></summary><div className="admin-match-grid">{matches.filter(match => match.round === round).map(match => <AdminMatch key={`${match.id}-${match.updated_at}`} match={match} pairMap={pairMap} bracketSize={size} onSaved={onSaved} />)}</div></details>)}</>}
+  </div></details>;
 }
 
 function RegistrationPlayer({ number, firstName, lastName, email, phone, messenger, level, ratingSystem, ratingValue }: {
@@ -561,7 +601,7 @@ export default function AdminPage() {
     const groupIds = (groupsResult.data ?? []).map((item) => item.id);
     const [pairsResult, matchesResult, groupMembersResult, groupMatchesResult, registrationsResult] = await Promise.all([
       supabase.from("pairs").select("id,name,player_one,player_two,seed,updated_at").eq("tournament_id", selectedId).order("seed"),
-      supabase.from("matches").select("id,round,position,pair_one_id,pair_two_id,pair_one_sets,pair_two_sets,winner_id,status,court,scheduled_at,updated_at").eq("tournament_id", selectedId).order("round").order("position"),
+      supabase.from("matches").select("id,round,bracket_kind,position,next_match_id,next_slot,pair_one_id,pair_two_id,pair_one_sets,pair_two_sets,winner_id,status,court,scheduled_at,updated_at").eq("tournament_id", selectedId).order("round").order("position"),
       groupIds.length ? supabase.from("group_members").select("group_id,pair_id,position").in("group_id", groupIds) : Promise.resolve({ data: [], error: null }),
       supabase.from("group_matches").select("id,tournament_id,group_id,position,pair_one_id,pair_two_id,pair_one_sets,pair_two_sets,winner_id,status,court,scheduled_at,updated_at").eq("tournament_id", selectedId).order("group_id").order("position"),
       supabase.from("tournament_registrations").select("id,tournament_id,status,pair_name,player_one_first_name,player_one_last_name,player_one_email,player_one_phone,player_one_messenger,player_one_level,player_one_rating_system,player_one_rating_value,player_two_first_name,player_two_last_name,player_two_email,player_two_phone,player_two_messenger,player_two_level,player_two_rating_system,player_two_rating_value,comment,locale,marketing_opt_in,utm_source,utm_medium,utm_campaign,utm_term,utm_content,landing_page,referrer,admin_notes,created_at,updated_at").eq("tournament_id", selectedId).order("created_at", { ascending: false }),
@@ -601,7 +641,7 @@ export default function AdminPage() {
   }, [loadTournamentData, loadTournaments, selectedId, user]);
 
   const pairMap = useMemo(() => new Map(pairs.map((pair) => [pair.id, pair])), [pairs]);
-  const matchesByRound = useMemo(() => Array.from(new Set(matches.map((match) => match.round))).sort((a, b) => a - b).map((round) => ({ round, matches: matches.filter((match) => match.round === round) })), [matches]);
+  const matchesByRound = useMemo(() => Array.from(new Set(matches.filter(match => match.bracket_kind !== "basement").map((match) => match.round))).sort((a, b) => a - b).map((round) => ({ round, matches: matches.filter((match) => match.bracket_kind !== "basement" && match.round === round) })), [matches]);
 
   async function submitAuth(event: FormEvent) {
     event.preventDefault(); setAuthMessage(null);
@@ -653,12 +693,13 @@ export default function AdminPage() {
             </details>
             <details className="admin-collapsible admin-matches-heading" open>
               <summary><div><span>04</span><h2>Group stage</h2></div><p>Manage flexible groups and manually choose the playoff qualifiers.</p></summary>
-              <div className="admin-collapsible-content"><GroupStageManager key={`${selected.id}-${pairs.length}-${groupMembers.map((member) => `${member.pair_id}:${member.group_id}:${member.position}`).join("|")}`} tournament={selected} pairs={pairs} groups={groups} members={groupMembers} matches={groupMatches} pairMap={pairMap} onSaved={() => { void loadTournamentData(); void loadTournaments(user, selected.id); }} /></div>
+              <div className="admin-collapsible-content"><GroupStageManager key={`${selected.id}-${pairs.length}-${groupMembers.map((member) => `${member.pair_id}:${member.group_id}:${member.position}`).join("|")}`} tournament={selected} pairs={pairs} groups={groups} members={groupMembers} matches={groupMatches} playoffMatches={matches.filter(match => match.bracket_kind !== "basement")} pairMap={pairMap} onSaved={() => { void loadTournamentData(); void loadTournaments(user, selected.id); }} /></div>
             </details>
             <details className="admin-collapsible admin-matches-heading" open>
               <summary><div><span>05</span><h2>Playoffs &amp; courts</h2></div><p>Schedule knockout matches, switch LIVE on and enter results.</p></summary>
-              <div className="admin-collapsible-content admin-round-groups">{matchesByRound.map(({ round, matches: roundMatches }) => <details className="admin-round-group" open key={round}><summary><h3>{roundLabel(selected.bracket_size, round)}</h3><span>{roundMatches.length}</span></summary><div className="admin-match-grid">{roundMatches.map((match) => <AdminMatch key={`${match.id}-${match.updated_at}`} match={match} pairMap={pairMap} bracketSize={selected.bracket_size} onSaved={() => void loadTournamentData()} />)}</div></details>)}</div>
+              <div className="admin-collapsible-content admin-round-groups">{selected.format === "knockout" && <KnockoutOnlyDraw key={`${selected.id}-${pairs.length}`} tournament={selected} pairs={pairs} matches={matches.filter(match => match.bracket_kind !== "basement")} pairMap={pairMap} onSaved={() => { void loadTournamentData(); void loadTournaments(user, selected.id); }} />}<AdminBracketOverview matches={matches.filter(match => match.bracket_kind !== "basement")} pairMap={pairMap} size={selected.bracket_size} />{matchesByRound.map(({ round, matches: roundMatches }) => <details className="admin-round-group" open key={round}><summary><h3>{roundLabel(selected.bracket_size, round)}</h3><span>{roundMatches.length}</span></summary><div className="admin-match-grid">{roundMatches.map((match) => <AdminMatch key={`${match.id}-${match.updated_at}`} match={match} pairMap={pairMap} bracketSize={selected.bracket_size} onSaved={() => void loadTournamentData()} />)}</div></details>)}</div>
             </details>
+            {selected.format === "group_knockout" && <BasementManager tournament={selected} matches={matches.filter(match => match.bracket_kind === "basement")} pairMap={pairMap} onSaved={() => void loadTournamentData()} />}
           </>}
         </section>
       )}

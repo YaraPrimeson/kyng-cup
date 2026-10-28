@@ -27,6 +27,7 @@ let user;
 let calls;
 let createError;
 let tournamentChange;
+let records;
 const supabase = {
   auth: {
     getUser: async () => ({ data: { user } }),
@@ -44,10 +45,12 @@ const supabase = {
       : { data: createError ? null : existing.id, error: createError };
   },
   from(table) {
-    const result = { data: table === 'tournaments' ? [existing] : [], error: null };
+    const result = { data: records[table] ?? [], error: null };
     const query = {
       select() { return query; }, eq() { return query; }, in() { return query; },
       order() { return query; }, then(resolve, reject) { return Promise.resolve(result).then(resolve, reject); },
+      update(value) { calls.push({ name: `update:${table}`, payload: value }); return query; },
+      single: async () => ({ data: { id: 'match-one' }, error: null }),
     };
     return query;
   },
@@ -99,6 +102,7 @@ beforeEach(async () => {
   window.sessionStorage.clear();
   user = { id: 'organizer-one' };
   calls = []; createError = null; tournamentChange = undefined;
+  records = { tournaments: [{ ...existing }] };
 });
 after(async () => {
   await unmount(); dom.window.close(); delete globalThis.__adminDraftTestSupabase;
@@ -234,4 +238,88 @@ test('disabled browser storage does not break editing or tab switching', async t
   await mount(); await fillDraft();
   await act(async () => { listener('SIGNED_IN', { user }); });
   await settle(); assertDraft();
+});
+
+function pairFixtures() {
+  records.pairs = Array.from({ length: 4 }, (_,i) => ({ id: `p${i+1}`, name: ['Top pair','Bottom pair','Other three','Other four'][i], player_one: `A${i}`, player_two: `B${i}`, seed: i+1, updated_at: 'initial' }));
+}
+function gameFixture(id, overrides = {}) {
+  return { id, round: 1, position: 1, bracket_kind: 'playoffs', pair_one_id: 'p1', pair_two_id: 'p2', pair_one_sets: [], pair_two_sets: [], winner_id: null, status: 'scheduled', court: null, scheduled_at: null, updated_at: 'initial', ...overrides };
+}
+async function submit(form) {
+  await act(async () => { form.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true })); });
+  await settle();
+}
+for (const kind of ['playoffs', 'groups']) {
+  test(`${kind}: a score/winner mismatch is red, names the score winner and never calls the save RPC`, async () => {
+    pairFixtures();
+    const rpc = kind === 'groups' ? 'record_group_match_result' : 'record_match_result';
+    if (kind === 'groups') {
+      records.tournaments[0].format = 'group_knockout';
+      records.tournament_groups = [{ id:'group-a',code:'A',qualify_count:2 }];
+      records.group_members = records.pairs.map((pair,i) => ({group_id:'group-a',pair_id:pair.id,position:i+1}));
+      records.group_matches = [gameFixture('group-game',{tournament_id:'existing',group_id:'group-a'})];
+    } else records.matches = [gameFixture('main-game')];
+    await mount();
+    const form = document.querySelector('.admin-match');
+    await enter(form.querySelector('[aria-label="Set scores"]'),'1-0');
+    await click(form.querySelector('[aria-label="Select Bottom pair as winner"] input'));
+    await submit(form);
+    assert.equal(calls.filter(call=>call.name===rpc).length,0);
+    assert.match(form.querySelector('[role="alert"]').textContent,/Top pair/);
+    assert.equal(form.querySelector('[aria-label="Set scores"]').getAttribute('aria-invalid'),'true');
+    assert.ok(form.classList.contains('has-result-error'));
+    await click(form.querySelector('[aria-label="Select Top pair as winner"] input'));
+    await submit(form);
+    assert.equal(calls.filter(call=>call.name===rpc).length,1);
+    assert.equal(form.querySelector('[role="alert"]'),null);
+  });
+}
+
+test('consolation games expose the same score saving controls as playoff games', async () => {
+  pairFixtures(); records.tournaments[0].format='group_knockout';
+  records.matches=[gameFixture('basement-game',{bracket_kind:'basement'})];
+  await mount();
+  const section=[...document.querySelectorAll('.admin-collapsible')].find(node=>node.querySelector('h2')?.textContent==='Король подвала');
+  assert.ok(section);
+  const form=section.querySelector('.admin-match');
+  await enter(form.querySelector('[aria-label="Set scores"]'),'0-1');
+  await click(form.querySelector('[aria-label="Select Bottom pair as winner"] input'));
+  await submit(form);
+  const saved=calls.find(call=>call.name==='record_match_result');
+  assert.equal(saved.payload.p_match_id,'basement-game');
+  assert.equal(saved.payload.p_winner_id,'p2');
+});
+
+test('nine-pair draw shows one preliminary match; drag/drop swaps actual slots and saves the order', async () => {
+  records.tournaments[0].format='group_knockout';
+  records.tournaments[0].participant_count=9; records.tournaments[0].playoff_participant_count=9;
+  records.pairs=Array.from({length:9},(_,i)=>({id:`p${i+1}`,name:`Pair ${i+1}`,player_one:`A${i}`,player_two:`B${i}`,seed:i+1,updated_at:'initial'}));
+  records.tournament_groups=[{id:'group-a',code:'A',qualify_count:9}];
+  records.group_members=records.pairs.map((pair,i)=>({group_id:'group-a',pair_id:pair.id,position:i+1}));
+  records.group_matches=[gameFixture('finished-group',{group_id:'group-a',tournament_id:'existing',status:'completed',pair_one_sets:[1],pair_two_sets:[0],winner_id:'p1'})];
+  await mount();
+  const preview=document.querySelector('[aria-label="Playoff draw preview"]');
+  assert.ok(preview);
+  assert.equal(preview.querySelectorAll('.draw-preview-match').length,8);
+  assert.equal([...preview.querySelectorAll('.knockout-round h4')].filter(node=>node.textContent==='Preliminary').length,1);
+  const sources=[...preview.querySelectorAll('[draggable="true"]')];
+  assert.equal(sources.length,9);
+  const from=sources[0],to=sources[1];
+  const targetText=to.textContent;
+  const fromId=from.parentElement.querySelector('select').value;
+  const toId=to.parentElement.querySelector('select').value;
+  const drag=new window.Event('dragstart',{bubbles:true});
+  Object.defineProperty(drag,'dataTransfer',{value:{setData(){}}});
+  await act(async()=>{from.dispatchEvent(drag);});
+  await act(async()=>{to.dispatchEvent(new window.Event('drop',{bubbles:true,cancelable:true}));});
+  assert.equal(preview.querySelectorAll('[draggable="true"]')[0].textContent,targetText);
+  const confirm=button('Confirm 9/9');
+  window.confirm=()=>true;
+  await click(confirm);
+  const saved=calls.find(call=>call.name==='confirm_group_qualifiers');
+  assert.equal(saved.payload.p_pair_ids.length,9);
+  assert.equal(new Set(saved.payload.p_pair_ids).size,9);
+  assert.equal(saved.payload.p_pair_ids[7],toId);
+  assert.equal(saved.payload.p_pair_ids[8],fromId);
 });

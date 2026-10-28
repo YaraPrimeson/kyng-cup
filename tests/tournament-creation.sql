@@ -61,7 +61,7 @@ begin
           begin
             groups := case when format='knockout' then 0 else least(4,n/2) end;
             playoff := case when groups=0 then n else groups*2 end;
-            size := 2; while size < playoff loop size := size*2; end loop;
+            size := 2; while size*2 <= playoff loop size := size*2; end loop;
             set local role authenticated;
             id := pg_temp.create_setup(jsonb_build_object('sport',sport,'status',visibility,'format',format,
               'pairs',pg_temp.setup_pairs(n,groups),'groups',pg_temp.setup_groups(groups)));
@@ -74,16 +74,16 @@ begin
             perform pg_temp.check_setup(not exists(select 1 from public.pairs where tournament_id=id and
               (name <> 'Pair '||lpad(seed::text,2,'0') or player_one <> 'Player '||(seed*2-1)::text or player_two <> 'Player '||(seed*2)::text)), 'Placeholder names mismatch');
             perform pg_temp.check_setup((select count(*)=1 from public.tournament_admins where tournament_id=id and user_id=auth.uid() and role='owner'), 'Owner membership missing');
-            perform pg_temp.check_setup((select count(*)=size-1 from public.matches where tournament_id=id), 'Wrong playoff match count');
+            perform pg_temp.check_setup((select count(*)=playoff-1 from public.matches where tournament_id=id), 'Wrong playoff match count');
             perform pg_temp.check_setup((select count(*)=1 from public.matches where tournament_id=id and next_match_id is null), 'Must have one final');
-            perform pg_temp.check_setup(not exists(select 1 from public.matches m join public.matches next on next.id=m.next_match_id where m.tournament_id=id and
+            perform pg_temp.check_setup(not exists(select 1 from public.matches m join public.matches next on next.id=m.next_match_id where m.tournament_id=id and m.round>0 and
               (next.tournament_id<>id or next.round<>m.round+1 or next.position<>(m.position+1)/2 or m.next_slot<>case when m.position%2=1 then 1 else 2 end)), 'Broken playoff link');
             if groups=0 then
               perform pg_temp.check_setup(not exists(select 1 from public.tournament_groups where tournament_id=id), 'Knockout has groups');
               perform pg_temp.check_setup(not exists(select 1 from public.group_matches where tournament_id=id), 'Knockout has group matches');
               perform pg_temp.check_setup((select count(*)=n from (
-                select pair_one_id from public.matches where tournament_id=id and round=1 and pair_one_id is not null
-                union all select pair_two_id from public.matches where tournament_id=id and round=1 and pair_two_id is not null
+                select pair_one_id from public.matches where tournament_id=id and round in (0,1) and pair_one_id is not null
+                union all select pair_two_id from public.matches where tournament_id=id and round in (0,1) and pair_two_id is not null
               ) entries), 'Initial draw lost pairs');
               perform pg_temp.check_setup(not exists(select 1 from public.matches where tournament_id=id and round>1 and status='completed' and
                 exists(select 1 from public.matches feeder where feeder.next_match_id=matches.id and feeder.status<>'completed' and
@@ -165,37 +165,37 @@ begin
 end;
 $$;
 
--- Odd and non-power-of-two draws: check automatic wins against occupied seed ranges.
+-- Preliminary games reduce to the lower power of two; every match is played.
 do $$
 #variable_conflict use_variable
-declare n integer; id uuid; size integer; r record; expected uuid; label text;
+declare n integer; id uuid; size integer; r record; game public.matches%rowtype; label text;
 begin
   perform set_config('request.jwt.claim.sub',current_setting('setup_test.organizer'),true);
   foreach n in array array[3,5,6,9,13,14,17,31,33,63] loop
-    label := 'bye progression/' || n;
+    label := 'preliminary progression/' || n;
     begin
       set local role authenticated;
       id := pg_temp.create_setup(jsonb_build_object('pairs',pg_temp.setup_pairs(n)));
-      for r in select * from public.matches where tournament_id=id order by round,position loop
-        -- Sequential seeds occupy a prefix of each match's original bracket range.
-        select case when count(*)=1 then (array_agg(p.id))[1] else null end into expected
-        from public.pairs p where p.tournament_id=id and p.seed between (r.position-1)*power(2,r.round)+1 and r.position*power(2,r.round);
-        perform pg_temp.check_setup(r.winner_id is not distinct from expected,'Incorrect automatic winner in round '||r.round||' position '||r.position);
-        perform pg_temp.check_setup((r.status='completed')=(expected is not null),'Incorrect bye match status');
-        if r.round=1 then
-          perform pg_temp.check_setup(r.pair_one_id is not distinct from (select p.id from public.pairs p where p.tournament_id=id and seed=r.position*2-1)
-            and r.pair_two_id is not distinct from (select p.id from public.pairs p where p.tournament_id=id and seed=r.position*2),'First-round seeding changed');
-        else
-          perform pg_temp.check_setup(r.pair_one_id is not distinct from (select winner_id from public.matches where next_match_id=r.id and next_slot=1)
-            and r.pair_two_id is not distinct from (select winner_id from public.matches where next_match_id=r.id and next_slot=2),'Winner propagated to the wrong slot');
-        end if;
+      size:=2; while size*2<=n loop size:=size*2; end loop;
+      perform pg_temp.check_setup((select bracket_size=size from public.tournaments where tournaments.id=id),'Wrong main bracket size');
+      perform pg_temp.check_setup((select count(*)=n-1 from public.matches where tournament_id=id),'Wrong real match count');
+      perform pg_temp.check_setup((select count(*)=n-size from public.matches where tournament_id=id and round=0),'Wrong preliminary match count');
+      perform pg_temp.check_setup(not exists(select 1 from public.matches where tournament_id=id and (winner_id is not null or status<>'scheduled')),'Premature automatic advancement');
+      if n=9 then
+        perform pg_temp.check_setup(exists(select 1 from public.matches m join public.pairs a on a.id=m.pair_one_id join public.pairs b on b.id=m.pair_two_id
+          join public.matches next on next.id=m.next_match_id join public.pairs top on top.id=next.pair_one_id
+          where m.tournament_id=id and m.round=0 and a.seed=8 and b.seed=9 and top.seed=1 and m.next_slot=2),'Seeds 8 and 9 must play for a quarterfinal against 1');
+      end if;
+      for r in select m.id from public.matches m where tournament_id=id order by round,position loop
+        select * into game from public.matches m where m.id=r.id;
+        perform pg_temp.check_setup(game.pair_one_id is not null and game.pair_two_id is not null,'A real opponent did not advance');
+        perform public.record_match_result(game.id,array[1],array[0],game.pair_one_id);
       end loop;
+      perform pg_temp.check_setup((select count(*)=n-1 from public.matches where tournament_id=id and status='completed'),'Not every match completed');
+      perform pg_temp.check_setup((select status='completed' from public.tournaments where tournaments.id=id),'Final did not complete the tournament');
       reset role;
       insert into setup_test_results values(label,true,null);
-    exception when others then
-      reset role;
-      insert into setup_test_results values(label,false,sqlstate || ': ' || sqlerrm);
-    end;
+    exception when others then reset role; insert into setup_test_results values(label,false,sqlstate || ': ' || sqlerrm); end;
   end loop;
 end;
 $$;

@@ -1,6 +1,7 @@
 "use client";
 
-import { CSSProperties, useCallback, useEffect, useMemo, useState } from "react";
+import KnockoutBoard from "../knockout-board";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { Language, useLanguage } from "../i18n";
 import { calculateStandings, GroupMatch, GroupMember, TournamentGroup } from "../group-stage";
@@ -21,7 +22,7 @@ type Tournament = {
 };
 
 type Pair = { id: string; name: string; player_one: string; player_two: string; seed: number | null; country_code: string | null };
-type Match = { id: string; round: number; position: number; pair_one_id: string | null; pair_two_id: string | null; pair_one_sets: number[]; pair_two_sets: number[]; winner_id: string | null; status: "scheduled" | "live" | "completed"; court: string | null; scheduled_at: string | null };
+type Match = { next_match_id: string | null; next_slot: number | null; bracket_kind: "playoffs" | "basement"; id: string; round: number; position: number; pair_one_id: string | null; pair_two_id: string | null; pair_one_sets: number[]; pair_two_sets: number[]; winner_id: string | null; status: "scheduled" | "live" | "completed"; court: string | null; scheduled_at: string | null };
 
 const bracketCopy = {
   en: { headingA: "Tournament", headingB: "bracket", groups: "Group stage", playoffs: "Playoffs", qualified: "Qualifies", played: "P", won: "W", lost: "L", sets: "Sets", games: "Games", points: "Pts", groupRule: "Highlighted positions advance to the playoffs.", decided: "To be decided", previousWinner: "Winner of previous match", scheduleTba: "Schedule TBA", courtTba: "Court TBA", final: "Final", live: "Live", scheduled: "Scheduled", locationTba: "Location TBA", pairs: "doubles pairs", previous: "Previous", next: "Next", noBracket: "No published tournament bracket is available yet.", loadError: "The latest match data could not be loaded." },
@@ -90,7 +91,7 @@ function PublicGroupStage({ groups, members, matches, pairMap, language }: { gro
   </section>;
 }
 
-function BasementKing({ groups, members, matches, pairMap, language }: { groups: TournamentGroup[]; members: GroupMember[]; matches: GroupMatch[]; pairMap: Map<string, Pair>; language: Language }) {
+function BasementKing({ groups, members, matches, games, pairMap, language }: { groups: TournamentGroup[]; members: GroupMember[]; matches: GroupMatch[]; games: Match[]; pairMap: Map<string, Pair>; language: Language }) {
   const text = basementCopy[language];
   const allGroupsComplete = groups.length > 0 && groups.every((group) => {
     const groupMatches = matches.filter((match) => match.group_id === group.id);
@@ -99,14 +100,16 @@ function BasementKing({ groups, members, matches, pairMap, language }: { groups:
   const eliminated = groups.flatMap((group) => {
     const groupMembers = members.filter((member) => member.group_id === group.id);
     const standings = calculateStandings(groupMembers, matches.filter((match) => match.group_id === group.id));
-    return standings.filter((row) => row.place > group.qualify_count).map((row) => ({ ...row, group: group.code }));
+    const actualIds = new Set(games.flatMap(game => [game.pair_one_id, game.pair_two_id]).filter(Boolean));
+    return standings.filter((row) => games.length ? actualIds.has(row.pairId) : row.place > group.qualify_count).map((row) => ({ ...row, group: group.code }));
   });
 
   return <section className="basement-stage">
     <header><div><span>KYNG CUP · SECOND CHANCE</span><h2>{text.title}<b>.</b></h2><p>{text.intro}</p></div><div className="basement-crown" aria-hidden="true">♛</div></header>
     {!allGroupsComplete && <div className="basement-waiting"><i /><div><strong>{text.waiting}</strong><span>{text.players}: {eliminated.length || "—"}</span></div></div>}
     <div className="basement-pairs">{eliminated.map((row, index) => { const pair = pairMap.get(row.pairId); return <article key={row.pairId}><span>{String(index + 1).padStart(2, "0")}</span><div><strong>{pair?.name}</strong><small>{pair?.player_one} · {pair?.player_two}</small></div><b>GROUP {row.group} · #{row.place}</b></article>; })}</div>
-    {allGroupsComplete && eliminated.length > 1 && <div className="basement-preview"><span>{text.round}</span><div>{Array.from({ length: Math.ceil(eliminated.length / 2) }, (_, index) => { const one = pairMap.get(eliminated[index * 2]?.pairId); const two = pairMap.get(eliminated[index * 2 + 1]?.pairId); return <article key={index}><small>MATCH {String(index + 1).padStart(2, "0")}</small><strong>{one?.name ?? "TBD"}</strong><i>vs</i><strong>{two?.name ?? "BYE"}</strong></article>; })}</div></div>}
+    {!games.length && allGroupsComplete && eliminated.length > 1 && <div className="basement-preview"><span>{text.round}</span><div>{Array.from({ length: Math.ceil(eliminated.length / 2) }, (_, index) => { const one = pairMap.get(eliminated[index * 2]?.pairId); const two = pairMap.get(eliminated[index * 2 + 1]?.pairId); return <article key={index}><small>MATCH {String(index + 1).padStart(2, "0")}</small><strong>{one?.name ?? "TBD"}</strong><i>vs</i><strong>{two?.name ?? "BYE"}</strong></article>; })}</div></div>}
+    {games.length > 0 && <KnockoutBoard matches={games} size={2 ** Math.max(1,...games.map(game => game.round))} label="Basement King bracket" renderMatch={match => <MatchCard match={match} pairMap={pairMap} language={language} />} />}
   </section>;
 }
 
@@ -122,6 +125,7 @@ export default function BracketPage() {
   const [groupMatches, setGroupMatches] = useState<GroupMatch[]>([]);
   const [stage, setStage] = useState<"groups" | "playoffs" | "basement">("groups");
   const [activeRound, setActiveRound] = useState(1);
+  const displayedTournament = useRef<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -143,12 +147,12 @@ export default function BracketPage() {
     const groupIds = (groupsResult.data ?? []).map((item) => item.id);
     const [pairsResult, matchesResult, membersResult, groupMatchesResult] = await Promise.all([
       supabase.from("pairs").select("id,name,player_one,player_two,seed,country_code").eq("tournament_id", current.id).order("seed"),
-      supabase.from("matches").select("id,round,position,pair_one_id,pair_two_id,pair_one_sets,pair_two_sets,winner_id,status,court,scheduled_at").eq("tournament_id", current.id).order("round").order("position"),
+      supabase.from("matches").select("id,round,bracket_kind,position,next_match_id,next_slot,pair_one_id,pair_two_id,pair_one_sets,pair_two_sets,winner_id,status,court,scheduled_at").eq("tournament_id", current.id).order("round").order("position"),
       groupIds.length ? supabase.from("group_members").select("group_id,pair_id,position").in("group_id", groupIds) : Promise.resolve({ data: [], error: null }),
       supabase.from("group_matches").select("id,tournament_id,group_id,position,pair_one_id,pair_two_id,pair_one_sets,pair_two_sets,winner_id,status,court,scheduled_at,updated_at").eq("tournament_id", current.id).order("group_id").order("position"),
     ]);
     if (pairsResult.error || matchesResult.error || groupsResult.error || membersResult.error || groupMatchesResult.error) setError(text.loadError);
-    else { setTournaments(available); setTournament(current); setPairs((pairsResult.data ?? []) as Pair[]); setMatches((matchesResult.data ?? []) as Match[]); setGroups((groupsResult.data ?? []) as TournamentGroup[]); setGroupMembers((membersResult.data ?? []) as GroupMember[]); setGroupMatches((groupMatchesResult.data ?? []) as GroupMatch[]); setStage(current.format === "group_knockout" && !(matchesResult.data ?? []).some((match) => match.round === 1 && match.pair_one_id) ? "groups" : "playoffs"); setError(null); }
+    else { setTournaments(available); setTournament(current); setPairs((pairsResult.data ?? []) as Pair[]); setMatches((matchesResult.data ?? []) as Match[]); setGroups((groupsResult.data ?? []) as TournamentGroup[]); setGroupMembers((membersResult.data ?? []) as GroupMember[]); setGroupMatches((groupMatchesResult.data ?? []) as GroupMatch[]); if (displayedTournament.current !== current.id) { setStage(current.format === "group_knockout" && !(matchesResult.data ?? []).some((match) => (match.round === 0 || match.round === 1) && match.pair_one_id && match.bracket_kind !== "basement") ? "groups" : "playoffs"); displayedTournament.current = current.id; } setError(null); }
     setLoading(false);
   }, [text.loadError, text.noBracket]);
 
@@ -160,8 +164,14 @@ export default function BracketPage() {
   }, [loadBracket, tournament?.id, tournament?.slug]);
 
   const pairMap = useMemo(() => new Map(pairs.map((pair) => [pair.id, pair])), [pairs]);
-  const rounds = useMemo(() => getRounds(tournament?.bracket_size ?? 16, language), [language, tournament?.bracket_size]);
-  const finalMatch = matches.find((match) => match.round === rounds.length && match.position === 1);
+  const playoffMatches = useMemo(() => matches.filter(match => match.bracket_kind !== "basement"), [matches]);
+  const basementMatches = useMemo(() => matches.filter(match => match.bracket_kind === "basement"), [matches]);
+  const rounds = useMemo(() => {
+    const main = getRounds(tournament?.bracket_size ?? 16, language);
+    return playoffMatches.some(match => match.round === 0) ? [{ number: 0, label: { en: "Preliminary", ru: "Предварительная игра", uk: "Попередня гра", de: "Vorrunde" }[language] }, ...main] : main;
+  }, [language, tournament?.bracket_size, playoffMatches]);
+  const activeIndex = Math.max(0, rounds.findIndex(round => round.number === activeRound));
+  const finalMatch = playoffMatches.find((match) => match.round === Math.log2(tournament?.bracket_size ?? 16) && match.position === 1);
   const champion = finalMatch?.winner_id ? pairMap.get(finalMatch.winner_id) : undefined;
 
   function selectTournament(slug: string) {
@@ -175,16 +185,10 @@ export default function BracketPage() {
     {champion && <section className="champion-banner"><span>Champion</span><div><strong>{champion.name}</strong><small>{champion.player_one} · {champion.player_two}</small></div><b>KYNG CUP</b></section>}
     {loading ? <div className="bracket-state" role="status" aria-live="polite">Loading the draw…</div> : error ? <div className="bracket-state is-error" role="alert">{error}</div> : <>
       {tournament?.format === "group_knockout" && <nav className="stage-tabs" aria-label="Tournament stages"><button type="button" className={stage === "groups" ? "is-active" : ""} onClick={() => setStage("groups")}>{text.groups}</button><button type="button" className={stage === "playoffs" ? "is-active" : ""} onClick={() => setStage("playoffs")}>{text.playoffs}</button><button type="button" className={stage === "basement" ? "is-active basement-tab" : "basement-tab"} onClick={() => setStage("basement")}>{basementCopy[language].tab}</button></nav>}
-      {tournament?.format === "group_knockout" && stage === "groups" ? <PublicGroupStage groups={groups} members={groupMembers} matches={groupMatches} pairMap={pairMap} language={language} /> : tournament?.format === "group_knockout" && stage === "basement" ? <BasementKing groups={groups} members={groupMembers} matches={groupMatches} pairMap={pairMap} language={language} /> : <>
+      {tournament?.format === "group_knockout" && stage === "groups" ? <PublicGroupStage groups={groups} members={groupMembers} matches={groupMatches} pairMap={pairMap} language={language} /> : tournament?.format === "group_knockout" && stage === "basement" ? <BasementKing groups={groups} members={groupMembers} matches={groupMatches} games={basementMatches} pairMap={pairMap} language={language} /> : <>
       <nav className="round-tabs" aria-label="Tournament rounds">{rounds.map((round) => <button className={activeRound === round.number ? "is-active" : ""} type="button" onClick={() => setActiveRound(round.number)} key={round.number}><span>0{round.number}</span>{round.label}</button>)}</nav>
-      <section className="bracket-scroll" aria-label="Tournament bracket"><div className="bracket-board" style={{ gridTemplateColumns: `repeat(${rounds.length}, minmax(320px, 1fr))`, minWidth: `${Math.max(1, rounds.length) * 370}px` }}>
-        {rounds.map((round) => {
-          const power = 2 ** (round.number - 1);
-          const roundStyle = { "--round-gap": `${168 * power - 154}px`, "--round-offset": `${84 * (power - 1)}px` } as CSSProperties;
-          return <section className={`bracket-round round-${round.number}${activeRound === round.number ? " is-active" : ""}`} key={round.number}><header><span>0{round.number}</span><h2>{round.label}</h2></header><div className="round-matches" style={roundStyle}>{matches.filter((match) => match.round === round.number).map((match) => <MatchCard key={match.id} match={match} pairMap={pairMap} language={language} />)}</div></section>;
-        })}
-      </div></section>
-      <div className="round-mobile-controls"><button type="button" onClick={() => setActiveRound((value) => Math.max(1, value - 1))} disabled={activeRound === 1}>← {text.previous}</button><span>{activeRound} / {rounds.length}</span><button type="button" onClick={() => setActiveRound((value) => Math.min(rounds.length, value + 1))} disabled={activeRound === rounds.length}>{text.next} →</button></div>
+      <section className="bracket-scroll" aria-label="Tournament bracket"><KnockoutBoard matches={playoffMatches} size={tournament?.bracket_size ?? 16} activeRound={activeRound} roundLabel={round => rounds.find(item => item.number === round)?.label ?? ""} renderMatch={match => <MatchCard match={match} pairMap={pairMap} language={language} />} /></section>
+      <div className="round-mobile-controls"><button type="button" onClick={() => setActiveRound(rounds[Math.max(0, activeIndex - 1)].number)} disabled={activeIndex === 0}>← {text.previous}</button><span>{activeIndex + 1} / {rounds.length}</span><button type="button" onClick={() => setActiveRound(rounds[Math.min(rounds.length - 1, activeIndex + 1)].number)} disabled={activeIndex === rounds.length - 1}>{text.next} →</button></div>
       </>}
     </>}
     <footer className="bracket-footer"><span>Results update automatically</span><span>KYNG CUP{tournament?.starts_at ? ` · ${new Intl.DateTimeFormat("en", { timeZone: "Europe/Vienna", year: "numeric" }).format(new Date(tournament.starts_at))}` : ""}</span></footer>
