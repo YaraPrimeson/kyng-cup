@@ -79,8 +79,8 @@ type Registration = {
   player_one_rating_value: string | null;
   player_two_first_name: string;
   player_two_last_name: string;
-  player_two_email: string;
-  player_two_phone: string;
+  player_two_email: string | null;
+  player_two_phone: string | null;
   player_two_messenger: string | null;
   player_two_level: string;
   player_two_rating_system: string | null;
@@ -96,6 +96,8 @@ type Registration = {
   landing_page: string | null;
   referrer: string | null;
   admin_notes: string | null;
+  submitted_by: string | null;
+  partner_user_id: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -459,8 +461,8 @@ function RegistrationPlayer({ number, firstName, lastName, email, phone, messeng
   number: 1 | 2;
   firstName: string;
   lastName: string;
-  email: string;
-  phone: string;
+  email: string | null;
+  phone: string | null;
   messenger: string | null;
   level: string;
   ratingSystem: string | null;
@@ -470,8 +472,8 @@ function RegistrationPlayer({ number, firstName, lastName, email, phone, messeng
     <div className="admin-registration-player">
       <span className="admin-registration-player-label">Player {number}</span>
       <strong>{firstName} {lastName}</strong>
-      <a href={`mailto:${email}`}>{email}</a>
-      <a href={`tel:${phone.replace(/\s/g, "")}`}>{phone}</a>
+      {email && <a href={`mailto:${email}`}>{email}</a>}
+      {phone && <a href={`tel:${phone.replace(/\s/g, "")}`}>{phone}</a>}
       {messenger && <small><b>Messenger</b>{messenger}</small>}
       <small><b>Playing level</b>{level}</small>
       {(ratingSystem || ratingValue) && <small><b>Rating</b>{[ratingSystem, ratingValue].filter(Boolean).join(" · ")}</small>}
@@ -484,7 +486,21 @@ function RegistrationCard({ registration, onSaved }: { registration: Registratio
   const [notes, setNotes] = useState(registration.admin_notes ?? "");
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [claimCode, setClaimCode] = useState<{ role: "primary" | "partner"; code: string } | null>(null);
+  const [issuing, setIssuing] = useState(false);
+  const [claimError, setClaimError] = useState("");
   const pairName = registration.pair_name?.trim() || `${registration.player_one_last_name} & ${registration.player_two_last_name}`;
+
+  async function issueClaim(role: "primary" | "partner") {
+    if (issuing) return;
+    setIssuing(true); setClaimCode(null); setClaimError("");
+    try {
+      const { data, error } = await supabase.rpc("issue_registration_claim_code", { p_registration_id: registration.id, p_player_role: role });
+      if (error || typeof data !== "string") throw error ?? new Error("Code unavailable");
+      setClaimCode({ role, code: data });
+    } catch { setClaimError("Could not create a code. Refresh the application and check its contacts."); }
+    finally { setIssuing(false); }
+  }
 
   async function save(event: FormEvent) {
     event.preventDefault();
@@ -493,7 +509,7 @@ function RegistrationCard({ registration, onSaved }: { registration: Registratio
     const { error } = await supabase.from("tournament_registrations").update({
       status,
       admin_notes: notes.trim() || null,
-    }).eq("id", registration.id).select("id,status,admin_notes,updated_at").single();
+    }).eq("id", registration.id).select("id").single();
     setSaving(false);
     if (error) setMessage(error.message);
     else { setMessage("Registration updated."); onSaved(); }
@@ -508,6 +524,17 @@ function RegistrationCard({ registration, onSaved }: { registration: Registratio
       <div className="admin-registration-players">
         <RegistrationPlayer number={1} firstName={registration.player_one_first_name} lastName={registration.player_one_last_name} email={registration.player_one_email} phone={registration.player_one_phone} messenger={registration.player_one_messenger} level={registration.player_one_level} ratingSystem={registration.player_one_rating_system} ratingValue={registration.player_one_rating_value} />
         <RegistrationPlayer number={2} firstName={registration.player_two_first_name} lastName={registration.player_two_last_name} email={registration.player_two_email} phone={registration.player_two_phone} messenger={registration.player_two_messenger} level={registration.player_two_level} ratingSystem={registration.player_two_rating_system} ratingValue={registration.player_two_rating_value} />
+      </div>
+      <div className="admin-registration-claim">
+        <strong>Connect player accounts</strong>
+        <p>Confirm the participant before sharing a code. The confirmed account email must match the application contact. A new code cancels the previous one and expires in 7 days.</p>
+        {!registration.submitted_by && <button type="button" disabled={issuing} onClick={() => void issueClaim("primary")}>Create player 1 code</button>}
+        {!registration.partner_user_id && registration.player_two_email && <button type="button" disabled={issuing} onClick={() => void issueClaim("partner")}>Create player 2 code</button>}
+        {registration.submitted_by && <p>Player 1 account connected.</p>}
+        {registration.partner_user_id && <p>Player 2 account connected.</p>}
+        {!registration.player_two_email && <p>Player 2 has no contact email in this application; a claim code cannot be issued.</p>}
+        {claimCode && <p role="status">One-time code for player {claimCode.role === "primary" ? "1" : "2"}: <code>{claimCode.code}</code> Copy it now; it is not stored in readable form.</p>}
+        {claimError && <p role="alert">{claimError}</p>}
       </div>
       <div className="admin-registration-meta">
         <span><b>Submitted</b>{new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(registration.created_at))}</span>
@@ -604,7 +631,7 @@ export default function AdminPage() {
       supabase.from("matches").select("id,round,bracket_kind,position,next_match_id,next_slot,pair_one_id,pair_two_id,pair_one_sets,pair_two_sets,winner_id,status,court,scheduled_at,updated_at").eq("tournament_id", selectedId).order("round").order("position"),
       groupIds.length ? supabase.from("group_members").select("group_id,pair_id,position").in("group_id", groupIds) : Promise.resolve({ data: [], error: null }),
       supabase.from("group_matches").select("id,tournament_id,group_id,position,pair_one_id,pair_two_id,pair_one_sets,pair_two_sets,winner_id,status,court,scheduled_at,updated_at").eq("tournament_id", selectedId).order("group_id").order("position"),
-      supabase.from("tournament_registrations").select("id,tournament_id,status,pair_name,player_one_first_name,player_one_last_name,player_one_email,player_one_phone,player_one_messenger,player_one_level,player_one_rating_system,player_one_rating_value,player_two_first_name,player_two_last_name,player_two_email,player_two_phone,player_two_messenger,player_two_level,player_two_rating_system,player_two_rating_value,comment,locale,marketing_opt_in,utm_source,utm_medium,utm_campaign,utm_term,utm_content,landing_page,referrer,admin_notes,created_at,updated_at").eq("tournament_id", selectedId).order("created_at", { ascending: false }),
+      supabase.rpc("list_tournament_registrations", { p_tournament_id: selectedId }),
     ]);
     setPairs((pairsResult.data ?? []) as Pair[]); setMatches((matchesResult.data ?? []) as Match[]); setGroups((groupsResult.data ?? []) as TournamentGroup[]); setGroupMembers((groupMembersResult.data ?? []) as GroupMember[]); setGroupMatches((groupMatchesResult.data ?? []) as GroupMatch[]);
     setRegistrations((registrationsResult.data ?? []) as Registration[]);

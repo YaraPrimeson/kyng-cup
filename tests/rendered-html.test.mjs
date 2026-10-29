@@ -102,7 +102,8 @@ test("ships live bracket and protected tournament controls", async () => {
   assert.match(admin, /matchesByRound/);
   assert.match(admin, /admin-round-group/);
   assert.match(admin, /RegistrationManager/);
-  assert.match(admin, /from\("tournament_registrations"\)\.select/);
+  assert.match(admin, /rpc\("list_tournament_registrations", \{ p_tournament_id: selectedId \}\)/);
+  assert.doesNotMatch(admin, /from\("tournament_registrations"\)\.select/);
   assert.match(admin, /from\("tournament_registrations"\)\.update/);
   assert.match(admin, /admin_notes: notes\.trim\(\) \|\| null/);
   assert.match(admin, /registration_status: registrationStatus/);

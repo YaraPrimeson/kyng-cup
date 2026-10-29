@@ -13,7 +13,7 @@ let googleAvailable = false, signupError = null, oauthCalls;
 globalThis.fetch = async () => ({ ok: true, json: async () => ({ external: { google: googleAvailable } }) });
 const { createElement, act } = await import("react");
 const { createRoot } = await import("react-dom/client");
-let root, Page, temp, user, listener, rows, writes, authFailure, profileFailure, createFailure, registrationRows, registrationFailure;
+let root, Page, temp, user, listener, rows, writes, authFailure, profileFailure, createFailure, registrationRows, registrationFailure, claimFailure;
 const first = { id: "11111111-1111-4111-8111-111111111111", email: "first@example.com", email_confirmed_at: "2026-10-01T00:00:00Z", identities: [{ provider: "email" }], user_metadata: {} };
 const second = { ...first, id: "22222222-2222-4222-8222-222222222222", email: "second@example.com" };
 const row = (account, name) => ({ player_id: `player-${account.id}`, auth_user_id: account.id, display_name: name, avatar_path: null, version: 1, created_at: "2026-10-01", updated_at: "2026-10-01" });
@@ -25,8 +25,9 @@ const client = {
     onAuthStateChange(callback) { listener = callback; const timer = setTimeout(() => callback("INITIAL_SESSION", user ? { user } : null), 0); return { data: { subscription: { unsubscribe() { clearTimeout(timer); listener = null; } } } }; },
     async signOut() { user = null; listener?.("SIGNED_OUT", null); return { error: null }; },
   },
+  async rpc(name, args) { assert.equal(name, "redeem_registration_claim_code"); assert.equal(args.p_code, "a".repeat(64)); if (claimFailure) return { data: null, error: claimFailure }; registrationRows[0].submitted_by = first.id; return { data: registrationRows[0].id, error: null }; },
   from(table) {
-    if (table === "tournament_registrations") { let ownerFilter = null; return { select() { return this; }, eq(column, value) { if (column === "submitted_by") ownerFilter = value; return this; }, async order() { return { data: registrationRows.filter(item => ownerFilter === null || item.submitted_by === ownerFilter), error: registrationFailure }; } }; }
+    if (table === "tournament_registrations") { let ownerFilter = null, partnerFilter = null; return { select() { return this; }, eq(column, value) { if (column === "submitted_by") ownerFilter = value; return this; }, or(expression) { const match = /^submitted_by\.eq\.([^,]+),partner_user_id\.eq\.(.+)$/.exec(expression); assert.ok(match, `Owner filter required: ${expression}`); ownerFilter = match[1]; partnerFilter = match[2]; return this; }, async order() { return { data: registrationRows.filter(item => ownerFilter === null || item.submitted_by === ownerFilter || item.partner_user_id === partnerFilter), error: registrationFailure }; } }; }
     const filters = {}; let patch, inserted;
     const query = { select() { return query; }, eq(key, value) { filters[key] = value; return query; }, insert(value) { inserted = value; return query; }, update(value) { patch = value; return query; }, async single() {
       if (createFailure) return { data: null, error: createFailure };
@@ -60,7 +61,7 @@ before(async () => {
 });
 async function settle() { for (let i=0;i<4;i++) await act(async () => { await new Promise(resolve => setTimeout(resolve, 30)); }); }
 async function unmount() { if (root) { await act(async () => root.unmount()); root = null; } }
-beforeEach(async () => { await unmount(); sessionStorage.clear(); window.localStorage.clear(); history.replaceState({}, "", "/profile/"); user = { ...first }; rows = { [first.id]: row(first, "Первый игрок"), [second.id]: row(second, "Второй игрок") }; writes = 0; authFailure = null; profileFailure = null; createFailure = null; googleAvailable = false; signupError = null; oauthCalls = []; registrationRows = []; registrationFailure = null; });
+beforeEach(async () => { await unmount(); sessionStorage.clear(); window.localStorage.clear(); history.replaceState({}, "", "/profile/"); user = { ...first }; rows = { [first.id]: row(first, "Первый игрок"), [second.id]: row(second, "Второй игрок") }; writes = 0; authFailure = null; profileFailure = null; createFailure = null; googleAvailable = false; signupError = null; oauthCalls = []; registrationRows = []; registrationFailure = null; claimFailure = null; });
 after(async () => { await unmount(); dom.window.close(); await rm(temp, { recursive: true, force: true }); delete globalThis.__playerAccountClient; });
 async function mount() { root = createRoot(document.getElementById("root")); await act(async () => root.render(createElement(Page))); await settle(); }
 function button(text) { const node = [...document.querySelectorAll("button")].find(value => value.textContent.includes(text)); assert.ok(node, `Missing button: ${text}`); return node; }
@@ -169,6 +170,40 @@ test("mine shows only applications submitted by this account, not matching email
   assert.match(document.body.textContent, /Vienna Open|Наша пара/);
   assert.match(document.body.textContent, /Подтверждена/);
   assert.doesNotMatch(document.body.textContent, /Чужой турнир|Гостевая пара/);
+});
+
+test("mine shows a linked partner application without exposing other players or unclaimed guest rows", async () => {
+  registrationRows = [
+    { id: "linked", submitted_by: second.id, partner_user_id: first.id, status: "confirmed", pair_name: "Наша пара", created_at: "2026-10-01", tournaments: { name: "Vienna Open", sport: "padel", starts_at: null, location: "Vienna" } },
+    { id: "foreign", submitted_by: second.id, partner_user_id: null, status: "new", pair_name: "Чужая заявка", created_at: "2026-10-01", tournaments: null },
+    { id: "guest", submitted_by: null, partner_user_id: null, status: "new", pair_name: "Гостевая пара", created_at: "2026-10-01", tournaments: null },
+  ];
+  await mount(); await click("Мои турниры");
+  assert.match(document.body.textContent, /Vienna Open|Наша пара/);
+  assert.doesNotMatch(document.body.textContent, /Чужая заявка|Гостевая пара/);
+});
+
+test("a claim code refreshes the player's applications only after successful redemption", async () => {
+  registrationRows = [{ id: "legacy", submitted_by: null, partner_user_id: null, status: "confirmed", pair_name: "Старая заявка", created_at: "2026-10-01", tournaments: { name: "Vienna Open", sport: "padel", starts_at: null, location: null } }];
+  await mount(); await click("Мои турниры");
+  assert.doesNotMatch(document.body.textContent, /Старая заявка/);
+  assert.ok(document.querySelector('input[name="claim_code"]'), 'Code entry is available in My Tournaments');
+  await enter(document.querySelector('input[name="claim_code"]'), "a".repeat(64));
+  await act(async () => document.querySelector('form[data-claim-application]').dispatchEvent(new window.Event("submit", { bubbles: true, cancelable: true })));
+  await settle();
+  assert.match(document.body.textContent, /Старая заявка/);
+});
+
+test("a rejected claim code stays on the form without revealing a guest application", async () => {
+  claimFailure = { code: "42501", message: "Code unavailable" };
+  registrationRows = [{ id: "legacy", submitted_by: null, partner_user_id: null, status: "confirmed", pair_name: "Гостевая заявка", created_at: "2026-10-01", tournaments: null }];
+  await mount(); await click("Мои турниры");
+  await enter(document.querySelector('input[name="claim_code"]'), "a".repeat(64));
+  await act(async () => document.querySelector('form[data-claim-application]').dispatchEvent(new window.Event("submit", { bubbles: true, cancelable: true })));
+  await settle();
+  assert.match(document.querySelector('section[aria-label="Мои заявки"] [role="alert"]')?.textContent ?? "", /Не удалось привязать заявку/);
+  assert.equal(document.querySelector('input[name="claim_code"]')?.value, "a".repeat(64));
+  assert.doesNotMatch(document.body.textContent, /Гостевая заявка|Заявка связана с вашим аккаунтом/);
 });
 
 test("mine shows a loading error rather than claiming no applications", async () => {

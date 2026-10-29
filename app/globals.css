@@ -755,6 +755,12 @@ html[lang="ru"] .admin-round-group:not([open]) > summary::after { content: "По
 .admin-registration-player > a { overflow-wrap: anywhere; color: inherit; font-size: 12px; text-decoration-thickness: 1px; text-underline-offset: 3px; }
 .admin-registration-player > small { display: grid; grid-template-columns: minmax(65px, auto) 1fr; gap: 7px; margin-top: 4px; overflow-wrap: anywhere; font-size: 11px; }
 .admin-registration-player > small b, .admin-registration-meta b { opacity: .48; font-weight: 400; text-transform: uppercase; letter-spacing: .06em; font-size: 9px; }
+.admin-page .admin-registration-claim { min-width: 0; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; border-top: 1px solid var(--line); padding-top: 14px; }
+.admin-page .admin-registration-claim > strong, .admin-page .admin-registration-claim > p { flex: 0 0 100%; margin: 0; }
+.admin-page .admin-registration-claim > p { font-size: 12px; line-height: 1.5; }
+.admin-page .admin-registration-claim > button { border: 1px solid var(--forest); border-radius: 999px; background: transparent; color: var(--forest); padding: 9px 13px; font: inherit; font-size: 11px; cursor: pointer; }
+.admin-page .admin-registration-claim > button:disabled { opacity: .5; cursor: wait; }
+.admin-page .admin-registration-claim code { display: block; overflow-wrap: anywhere; user-select: all; font-size: 12px; }
 .admin-registration-meta { display: flex; flex-wrap: wrap; gap: 8px 18px; padding: 0 2px; }
 .admin-registration-meta span { display: grid; gap: 3px; font-size: 11px; }
 .admin-registration-comment { border-left: 2px solid var(--clay); padding-left: 12px; }

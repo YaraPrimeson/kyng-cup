@@ -42,7 +42,11 @@ const supabase = {
     calls.push({ name, payload });
     return name === 'is_global_admin'
       ? { data: true, error: null }
-      : { data: createError ? null : existing.id, error: createError };
+      : name === 'list_tournament_registrations'
+        ? { data: records.tournament_registrations ?? [], error: null }
+        : name === 'issue_registration_claim_code'
+          ? { data: 'a'.repeat(64), error: null }
+          : { data: createError ? null : existing.id, error: createError };
   },
   from(table) {
     const result = { data: records[table] ?? [], error: null };
@@ -107,6 +111,35 @@ beforeEach(async () => {
 after(async () => {
   await unmount(); dom.window.close(); delete globalThis.__adminDraftTestSupabase;
   await rm(tempDir, { recursive: true, force: true });
+});
+
+test('organiser creates a single-use claim code for the registered contact without changing the application', async () => {
+  records.tournament_registrations = [{
+    id: 'legacy-one', tournament_id: existing.id, status: 'confirmed', pair_name: 'QA Pair',
+    player_one_first_name: 'First', player_one_last_name: 'Player', player_one_email: 'first@example.invalid', player_one_phone: '+43000000000', player_one_level: 'beginner',
+    player_two_first_name: 'Second', player_two_last_name: 'Player', player_two_email: 'second@example.invalid', player_two_phone: '+43000000001', player_two_level: 'beginner',
+    created_at: '2026-10-01T00:00:00Z', updated_at: '2026-10-01T00:00:00Z', locale: 'en', marketing_opt_in: false,
+    submitted_by: null, partner_user_id: null,
+  }];
+  await mount();
+  assert.ok(calls.some(call => call.name === 'list_tournament_registrations' && call.payload.p_tournament_id === existing.id), 'Admin list uses protected RPC');
+  await click(button('Create player 1 code'));
+  assert.ok(calls.some(call => call.name === 'issue_registration_claim_code' && call.payload.p_registration_id === 'legacy-one' && call.payload.p_player_role === 'primary'));
+  assert.match(document.body.textContent, /a{64}/);
+});
+
+test('partner without a contact email cannot receive a claim code', async () => {
+  records.tournament_registrations = [{
+    id: 'guest-no-email', tournament_id: existing.id, status: 'new', pair_name: 'Guest pair',
+    player_one_first_name: 'First', player_one_last_name: 'Player', player_one_email: 'first@example.invalid', player_one_phone: '+430000000000', player_one_level: 'beginner',
+    player_two_first_name: 'Second', player_two_last_name: 'Player', player_two_email: null, player_two_phone: null, player_two_level: 'beginner',
+    created_at: '2026-10-01T00:00:00Z', updated_at: '2026-10-01T00:00:00Z', locale: 'en', marketing_opt_in: false,
+    submitted_by: null, partner_user_id: null,
+  }];
+  await mount();
+  assert.doesNotMatch(document.body.textContent, /mailto:null|tel:null/);
+  assert.ok(![...document.querySelectorAll('button')].some(node => node.textContent.includes('Create player 2 code')));
+  assert.match(document.body.textContent, /no contact email/);
 });
 
 function button(text) {
