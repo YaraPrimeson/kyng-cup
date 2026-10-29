@@ -49,16 +49,23 @@ test("server-renders the four-language pair registration form", async () => {
   assert.match(html, /Submit pair application/);
 });
 
-test("server-renders the KYNG ID player preview", async () => {
+test("server-renders a private player account without demo identity or results", async () => {
   const response = await render("/profile");
   assert.equal(response.status, 200);
   const html = await response.text();
   assert.match(html, /My KYNG — Player profile/);
-  assert.match(html, /Разделы кабинета/);
-  assert.match(html, /Мои турниры/);
-  assert.match(html, /Главная/);
-  assert.match(html, /Настройки профиля/);
-  assert.doesNotMatch(html, /Доброе утро|Следующее действие|Оплачено/);
+  assert.match(html, /Открываем ваш кабинет/);
+  assert.match(html, /Главная KYNG CUP/);
+  assert.doesNotMatch(html, /Alex Kovalenko|alex@example.com|KYNG Autumn Open|15 побед/);
+});
+
+test("exports an authentication callback with no indexing and no referrer", async () => {
+  const response = await render("/auth/callback");
+  assert.equal(response.status, 200);
+  const html = await response.text();
+  assert.match(html, /Проверяем ссылку/);
+  assert.match(html, /no-referrer/);
+  assert.match(html, /noindex/);
 });
 
 test("ships live bracket and protected tournament controls", async () => {

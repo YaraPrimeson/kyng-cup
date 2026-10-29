@@ -6,10 +6,10 @@ import { ANALYTICS_CONSENT_EVENT, ANALYTICS_CONSENT_KEY } from "./analytics";
 
 type Consent = "all" | "necessary";
 const copy = {
-  en: { preferences: "Cookie preferences", privacy: "Privacy & cookies", cookieBody: "We use essential browser storage for secure admin sign-in and your preferences. Optional cookies will only be used with your permission.", policy: "Read cookie policy", necessary: "Necessary only", accept: "Accept all" },
-  uk: { preferences: "Налаштування cookies", privacy: "Приватність і cookies", cookieBody: "Ми використовуємо необхідне сховище браузера для безпечного входу адміністратора та ваших налаштувань. Необов’язкові cookies — лише з вашого дозволу.", policy: "Політика cookies", necessary: "Лише необхідні", accept: "Прийняти всі" },
-  de: { preferences: "Cookie-Einstellungen", privacy: "Datenschutz & Cookies", cookieBody: "Wir nutzen notwendige Browser-Speicherung für die sichere Admin-Anmeldung und Ihre Einstellungen. Optionale Cookies verwenden wir nur mit Ihrer Erlaubnis.", policy: "Cookie-Richtlinie lesen", necessary: "Nur notwendige", accept: "Alle akzeptieren" },
-  ru: { preferences: "Настройки cookies", privacy: "Конфиденциальность и cookies", cookieBody: "Мы используем обязательное хранилище браузера для безопасного входа администратора и ваших настроек. Необязательные cookies — только с вашего разрешения.", policy: "Политика cookies", necessary: "Только необходимые", accept: "Принять все" },
+  en: { preferences: "Cookie preferences", privacy: "Privacy & cookies", cookieBody: "We use essential browser storage for secure player and organiser sign-in and your preferences. Optional cookies will only be used with your permission.", policy: "Read cookie policy", necessary: "Necessary only", accept: "Accept all" },
+  uk: { preferences: "Налаштування cookies", privacy: "Приватність і cookies", cookieBody: "Ми використовуємо необхідне сховище браузера для безпечного входу гравців і організаторів та ваших налаштувань. Необов’язкові cookies — лише з вашого дозволу.", policy: "Політика cookies", necessary: "Лише необхідні", accept: "Прийняти всі" },
+  de: { preferences: "Cookie-Einstellungen", privacy: "Datenschutz & Cookies", cookieBody: "Wir nutzen notwendige Browser-Speicherung für die sichere Anmeldung von Spielern und Organisatoren und Ihre Einstellungen. Optionale Cookies verwenden wir nur mit Ihrer Erlaubnis.", policy: "Cookie-Richtlinie lesen", necessary: "Nur notwendige", accept: "Alle akzeptieren" },
+  ru: { preferences: "Настройки cookies", privacy: "Конфиденциальность и cookies", cookieBody: "Мы используем обязательное хранилище браузера для безопасного входа игроков и организаторов и ваших настроек. Необязательные cookies — только с вашего разрешения.", policy: "Политика cookies", necessary: "Только необходимые", accept: "Принять все" },
 } as const;
 
 function getSiteRoot() {

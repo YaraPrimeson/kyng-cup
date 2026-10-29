@@ -9,7 +9,7 @@ export default function SiteHeader() {
   const { language, setLanguage, t } = useLanguage();
   const basePath = pathname.startsWith("/kyng-cup") ? "/kyng-cup" : "";
   const path = pathname.slice(basePath.length).replace(/\/+$/, "") || "/";
-  if (path === "/profile") return null;
+  if (path === "/profile" || path === "/auth/callback") return null;
   const links = path === "/"
     ? [["/tennis/", t("tennis")], ["/padel/", t("padel")]]
     : path === "/tennis"

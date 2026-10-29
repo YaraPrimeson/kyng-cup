@@ -62,12 +62,12 @@ export function trackEvent(name: string, parameters: Record<string, unknown> = {
 
 function enableAnalytics() {
   ensureGtag();
-  window.gtag("consent", "update", { analytics_storage: "granted", ad_storage: "denied", ad_user_data: "denied", ad_personalization: "denied" });
+  window.gtag?.("consent", "update", { analytics_storage: "granted", ad_storage: "denied", ad_user_data: "denied", ad_personalization: "denied" });
 
   if (!window.kyngGaInitialized) {
     window.kyngGaInitialized = true;
-    window.gtag("js", new Date());
-    window.gtag("config", GA_ID, { anonymize_ip: true });
+    window.gtag?.("js", new Date());
+    window.gtag?.("config", GA_ID, { anonymize_ip: true });
   }
 
   if (!document.querySelector<HTMLScriptElement>(`script[data-kyng-ga="${GA_ID}"]`)) {
@@ -81,9 +81,12 @@ function enableAnalytics() {
 
 export default function Analytics() {
   useEffect(() => {
+    // Authentication links may contain credentials. Never capture or transmit
+    // callback URLs, even if analytics consent was granted earlier.
+    if (/\/(?:auth\/callback|profile)\/?$/.test(window.location.pathname)) return;
     captureAttribution();
     ensureGtag();
-    window.gtag("consent", "default", { analytics_storage: "denied", ad_storage: "denied", ad_user_data: "denied", ad_personalization: "denied", wait_for_update: 500 });
+    window.gtag?.("consent", "default", { analytics_storage: "denied", ad_storage: "denied", ad_user_data: "denied", ad_personalization: "denied", wait_for_update: 500 });
     if (window.localStorage.getItem(ANALYTICS_CONSENT_KEY) === "all") enableAnalytics();
 
     const onConsent = (event: Event) => {

@@ -6,7 +6,8 @@ import { supabase } from "@/lib/supabase";
 import { Language, useLanguage } from "../i18n";
 import SiteFooter from "../site-footer";
 import { getLeadAttribution, trackEvent } from "../analytics";
-import { readPlayerProfile, registrationIdentity } from "@/lib/player-profile";
+import { registrationIdentity } from "@/lib/player-profile";
+import { usePlayerAccount } from "../profile/use-player-account";
 
 type Sport = "tennis" | "padel";
 type RegistrationStatus = "open" | "waitlist" | "closed";
@@ -106,7 +107,10 @@ export default function RegisterPage() {
   const [submissionState, setSubmissionState] = useState<"idle" | "submitting" | "success">("idle");
   const [submissionError, setSubmissionError] = useState<string | null>(null);
   const [submittedPair, setSubmittedPair] = useState("");
-  const [identity, setIdentity] = useState<ReturnType<typeof registrationIdentity> | null>(null);
+  const account = usePlayerAccount();
+  const identity = account.user?.email_confirmed_at && account.profile
+    ? registrationIdentity({ name: account.profile.display_name, email: account.user.email ?? "", photo: "" })
+    : null;
   const formOpenedAt = useRef<number | null>(null);
 
   const loadTournaments = useCallback(async () => {
@@ -125,7 +129,7 @@ export default function RegisterPage() {
 
   useEffect(() => {
     formOpenedAt.current = Date.now();
-    const timer = window.setTimeout(() => { const profile = readPlayerProfile(); if (profile) setIdentity(registrationIdentity(profile)); void loadTournaments(); }, 0);
+    const timer = window.setTimeout(() => { void loadTournaments(); }, 0);
     return () => window.clearTimeout(timer);
   }, [loadTournaments]);
   const tournament = useMemo(() => tournaments.find((item) => item.slug === selectedSlug) ?? null, [selectedSlug, tournaments]);
@@ -240,7 +244,7 @@ export default function RegisterPage() {
         <a href={`${basePath}/${tournament.sport}/#tournament`}>{text.backTournament}<span>↗</span></a>
       </article> : <form className="registration-application" id="registration-form" onSubmit={submitRegistration} onChange={() => submissionError && setSubmissionError(null)}>
         <div className="registration-honeypot" aria-hidden="true"><label>Website<input name="website" type="text" tabIndex={-1} autoComplete="off" /></label></div>
-        <ContactFields language={language} identity={identity} disabled={!tournament || submissionState === "submitting"} />
+        <ContactFields key={account.user?.id ?? "guest"} language={language} identity={identity} disabled={account.loading || !tournament || submissionState === "submitting"} />
         <PairFields sport={tournament?.sport ?? "tennis"} language={language} disabled={!tournament || submissionState === "submitting"} />
         <fieldset className="registration-review-card" disabled={!tournament || submissionState === "submitting"}>
           <legend><span>03</span>{text.review}</legend>
