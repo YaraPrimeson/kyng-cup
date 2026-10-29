@@ -32,9 +32,9 @@ export default function AuthPanel({ basePath }: { basePath: string }) {
       const address = accountEmail(email);
       if (mode === "signup") {
         const result = await supabase.auth.signUp({ email: address, password: accountPassword(password), options: { data: { display_name: profileName(name) }, emailRedirectTo: authCallbackUrl(location.origin, location.pathname, "signup") } });
-        if (result.error) throw result.error;
+        if (result.error && !["user_already_exists", "email_exists", "identity_already_exists"].includes(result.error.code ?? "")) throw result.error;
         setMode("verify"); setPassword(""); setCooldown(60);
-        setMessage("Если адрес доступен для регистрации, мы отправили письмо. Подтвердите почту, чтобы открыть кабинет. Если аккаунт уже есть, войдите или восстановите пароль.");
+        setMessage("Если адрес доступен для регистрации, мы отправили письмо. Если вы уже входили через Google, выберите кнопку выше: повторная регистрация не нужна. Пароль можно задать в настройках профиля.");
       } else if (mode === "signin") {
         const result = await supabase.auth.signInWithPassword({ email: address, password });
         if (result.error) throw result.error;
@@ -62,8 +62,8 @@ export default function AuthPanel({ basePath }: { basePath: string }) {
 
   return <section className="player-auth" aria-label="Аккаунт игрока">
     <h1>{({ signup: "Ваш KYNG CUP", signin: "С возвращением", forgot: "Восстановить доступ", verify: "Подтвердите почту" })[mode]}</h1>
-    <p className="kv-muted">{mode === "signup" ? "Создайте аккаунт, чтобы сохранить свой профиль на всех устройствах." : mode === "verify" ? "Откройте ссылку в письме. Фотографию можно добавить позже." : "Войдите в свой аккаунт игрока."}</p>
-    {(mode === "signup" || mode === "signin") && <>
+    <p className="kv-muted">{mode === "signup" ? "Создайте аккаунт, чтобы сохранить свой профиль на всех устройствах." : mode === "verify" ? "Проверьте почту. Если письмо не пришло, войдите через Google или с существующим паролем." : "Войдите в свой аккаунт игрока."}</p>
+    {(mode === "signup" || mode === "signin" || mode === "verify") && <>
       <button type="button" className="kv-secondary player-google" onClick={() => void googleSignIn()} disabled={busy || google !== true}><span aria-hidden="true">G</span>Продолжить с Google</button>
       {google === false && <p className="kv-muted kv-small">Google ещё настраивается.</p>}
       <p className="player-auth-divider">или через почту</p>

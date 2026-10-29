@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { usePathname } from "next/navigation";
-import { supabase, hasRecoveryRedirect } from "@/lib/supabase";
+import { supabase, hasRecoveryRedirect, hasOAuthRedirect } from "@/lib/supabase";
 import { accountError, accountPassword, siteBasePath } from "@/lib/player-account";
 import { clearVerification, rememberVerification, takeOAuthExpectation } from "@/lib/player-security";
 
@@ -28,6 +28,7 @@ export default function AuthCallbackPage() {
       history.replaceState({}, "", `${basePath}/auth/callback/`);
       if (initialization.error) throw initialization.error;
       if (callbackError) throw new Error("Не удалось завершить вход: ссылка истекла, была использована или действие отменено. Вернитесь в кабинет и повторите.");
+      if (intent === "recovery" && !hasRecoveryRedirect()) throw new Error("Ссылка восстановления недействительна. Запросите новую в кабинете.");
       const result = await supabase.auth.getUser();
       const user = result.data.user;
       if (intent === "email") {
@@ -35,11 +36,12 @@ export default function AuthCallbackPage() {
         return;
       }
       if (result.error || !user) {
+        if (intent === "recovery") throw new Error("Не удалось подтвердить ссылку восстановления. Запросите новую в кабинете.");
         setStatus("Ссылка обработана. Войдите в аккаунт. Если подтверждение не завершено, запросите новое письмо."); return;
       }
       if (intent === "link" || intent === "reauthenticate") {
         const expected = takeOAuthExpectation();
-        if (!expected || expected.intent !== intent || expected.userId !== user.id) {
+        if (!expected || expected.intent !== intent || expected.userId !== user.id || !hasOAuthRedirect()) {
           clearVerification();
           await supabase.auth.signOut({ scope: "local" });
           throw new Error("Выбран другой аккаунт или проверка истекла. Войдите в исходный аккаунт KYNG CUP и повторите действие.");
@@ -47,11 +49,10 @@ export default function AuthCallbackPage() {
         rememberVerification(user.id);
         location.replace(`${basePath}/profile/?view=settings`);
       } else if (intent === "recovery") {
-        if (!hasRecoveryRedirect()) throw new Error("Ссылка восстановления недействительна. Запросите новую в кабинете.");
         setRecovery(true); setStatus("Задайте новый пароль для своего аккаунта.");
       } else location.replace(`${basePath}/profile/`);
     }
-    void finish().catch(cause => { history.replaceState({}, "", `${basePath}/auth/callback/`); setError(accountError(cause)); setStatus("Не удалось завершить действие."); });
+    void finish().catch(cause => { if (intent === "link" || intent === "reauthenticate") clearVerification(); history.replaceState({}, "", `${basePath}/auth/callback/`); setError(accountError(cause)); setStatus("Не удалось завершить действие."); });
   }, [basePath]);
 
   async function reset(event: FormEvent) {

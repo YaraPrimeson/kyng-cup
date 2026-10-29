@@ -9,22 +9,31 @@ const dom = new JSDOM('<div id="root"></div>', { url: "http://localhost:3000/pro
 Object.assign(globalThis, { window: dom.window, document: dom.window.document, HTMLElement: dom.window.HTMLElement, location: dom.window.location, history: dom.window.history, sessionStorage: dom.window.sessionStorage, IS_REACT_ACT_ENVIRONMENT: true });
 window.scrollTo = () => {};
 window.requestAnimationFrame = callback => callback();
-globalThis.fetch = async () => ({ ok: true, json: async () => ({ external: { google: false } }) });
+let googleAvailable = false, signupError = null, oauthCalls;
+globalThis.fetch = async () => ({ ok: true, json: async () => ({ external: { google: googleAvailable } }) });
 const { createElement, act } = await import("react");
 const { createRoot } = await import("react-dom/client");
-let root, Page, temp, user, listener, rows, writes, authFailure, profileFailure;
+let root, Page, temp, user, listener, rows, writes, authFailure, profileFailure, createFailure;
 const first = { id: "11111111-1111-4111-8111-111111111111", email: "first@example.com", email_confirmed_at: "2026-10-01T00:00:00Z", identities: [{ provider: "email" }], user_metadata: {} };
 const second = { ...first, id: "22222222-2222-4222-8222-222222222222", email: "second@example.com" };
 const row = (account, name) => ({ player_id: `player-${account.id}`, auth_user_id: account.id, display_name: name, avatar_path: null, version: 1, created_at: "2026-10-01", updated_at: "2026-10-01" });
 const client = {
   auth: {
     getUser: async () => authFailure ? { data: { user: null }, error: authFailure } : { data: { user: user ? { ...user } : null }, error: null },
+    signUp: async () => ({ data: { user: { identities: [] }, session: null }, error: signupError }),
+    signInWithOAuth: async options => { oauthCalls.push(options); return { data: { url: null }, error: null }; },
     onAuthStateChange(callback) { listener = callback; const timer = setTimeout(() => callback("INITIAL_SESSION", user ? { user } : null), 0); return { data: { subscription: { unsubscribe() { clearTimeout(timer); listener = null; } } } }; },
     async signOut() { user = null; listener?.("SIGNED_OUT", null); return { error: null }; },
   },
   from() {
-    const filters = {}; let patch;
-    const query = { select() { return query; }, eq(key, value) { filters[key] = value; return query; }, update(value) { patch = value; return query; }, async maybeSingle() {
+    const filters = {}; let patch, inserted;
+    const query = { select() { return query; }, eq(key, value) { filters[key] = value; return query; }, insert(value) { inserted = value; return query; }, update(value) { patch = value; return query; }, async single() {
+      if (createFailure) return { data: null, error: createFailure };
+      if (rows[inserted.auth_user_id]) return { data: null, error: { code: "23505" } };
+      const profile = row({ id: inserted.auth_user_id }, inserted.display_name);
+      rows[inserted.auth_user_id] = profile; writes++;
+      return { data: { ...profile }, error: null };
+    }, async maybeSingle() {
       if (profileFailure && !patch) return { data: null, error: profileFailure };
       const current = rows[filters.auth_user_id];
       if (!current || (filters.version !== undefined && current.version !== filters.version)) return { data: null, error: null };
@@ -50,12 +59,104 @@ before(async () => {
 });
 async function settle() { for (let i=0;i<4;i++) await act(async () => { await new Promise(resolve => setTimeout(resolve, 30)); }); }
 async function unmount() { if (root) { await act(async () => root.unmount()); root = null; } }
-beforeEach(async () => { await unmount(); sessionStorage.clear(); window.localStorage.clear(); history.replaceState({}, "", "/profile/"); user = { ...first }; rows = { [first.id]: row(first, "Первый игрок"), [second.id]: row(second, "Второй игрок") }; writes = 0; authFailure = null; profileFailure = null; });
+beforeEach(async () => { await unmount(); sessionStorage.clear(); window.localStorage.clear(); history.replaceState({}, "", "/profile/"); user = { ...first }; rows = { [first.id]: row(first, "Первый игрок"), [second.id]: row(second, "Второй игрок") }; writes = 0; authFailure = null; profileFailure = null; createFailure = null; googleAvailable = false; signupError = null; oauthCalls = []; });
 after(async () => { await unmount(); dom.window.close(); await rm(temp, { recursive: true, force: true }); delete globalThis.__playerAccountClient; });
 async function mount() { root = createRoot(document.getElementById("root")); await act(async () => root.render(createElement(Page))); await settle(); }
 function button(text) { const node = [...document.querySelectorAll("button")].find(value => value.textContent.includes(text)); assert.ok(node, `Missing button: ${text}`); return node; }
 async function click(text) { await act(async () => button(text).click()); await settle(); }
 async function enter(input, value) { await act(async () => { Object.getOwnPropertyDescriptor(Object.getPrototypeOf(input), "value").set.call(input, value); input.dispatchEvent(new window.Event("input", { bubbles: true })); }); }
+
+test("Google sign-in creates a profile from the provider name without asking again", async () => {
+  user = { ...first, identities: [{ provider: "google", identity_data: { full_name: "Анна Коваленко" } }] };
+  delete rows[user.id];
+  await mount();
+  assert.equal(rows[user.id]?.display_name, "Анна Коваленко");
+  assert.equal(writes, 1);
+  assert.match(document.body.textContent, /Анна Коваленко/);
+  assert.doesNotMatch(document.body.textContent, /Как вас представить\?|Открыть мой профиль/);
+});
+
+test("confirmed email signup opens a profile from the registered name without onboarding", async () => {
+  user = { ...first, user_metadata: { display_name: "Почтовое имя" } };
+  delete rows[user.id];
+  await mount();
+  assert.equal(rows[user.id]?.display_name, "Почтовое имя");
+  assert.equal(writes, 1);
+  assert.match(document.body.textContent, /Почтовое имя/);
+  assert.doesNotMatch(document.body.textContent, /Как вас представить\?|Открыть мой профиль/);
+});
+
+test("an existing profile keeps the player's chosen name after Google sign-in", async () => {
+  user = { ...first, identities: [{ provider: "google", identity_data: { full_name: "Имя Google" } }] };
+  rows[user.id] = row(user, "Моё имя в KYNG CUP");
+  await mount();
+  assert.equal(rows[user.id].display_name, "Моё имя в KYNG CUP");
+  assert.equal(writes, 0);
+  assert.match(document.body.textContent, /Моё имя в KYNG CUP/);
+  assert.doesNotMatch(document.body.textContent, /Имя Google/);
+});
+
+test("Google sign-in without a usable provider name keeps manual profile setup", async () => {
+  user = { ...first, identities: [{ provider: "google", identity_data: { full_name: "   " } }] };
+  delete rows[user.id];
+  await mount();
+  assert.equal(rows[user.id], undefined);
+  assert.match(document.body.textContent, /Как вас представить\?/);
+  assert.equal(writes, 0);
+});
+
+test("Google profile name can be changed in settings after automatic creation", async () => {
+  user = { ...first, identities: [{ provider: "google", identity_data: { full_name: "Имя Google" } }] };
+  delete rows[user.id];
+  await mount();
+  await click("Настройки профиля");
+  await enter(document.querySelector('input[autocomplete="name"]'), "Имя игрока");
+  await act(async () => document.querySelector('form.kv-fields').dispatchEvent(new window.Event("submit", { bubbles: true, cancelable: true })));
+  await settle();
+  assert.equal(rows[user.id].display_name, "Имя игрока");
+});
+
+test("an ambiguous email signup keeps a direct Google sign-in path instead of a dead end", async () => {
+  user = null; googleAvailable = true;
+  await mount();
+  await enter(document.querySelector('input[name="name"]'), "Тестовый игрок");
+  await enter(document.querySelector('input[name="email"]'), "existing@example.com");
+  await enter(document.querySelector('input[name="password"]'), "sample passphrase for testing");
+  await act(async () => document.querySelector('form.kv-fields').dispatchEvent(new window.Event("submit", { bubbles: true, cancelable: true })));
+  await settle();
+  assert.match(document.body.textContent, /Подтвердите почту/);
+  assert.match(document.body.textContent, /Если.*Google/i);
+  assert.doesNotMatch(document.body.textContent, /Этот адрес уже зарегистрирован/);
+  await click("Продолжить с Google");
+  assert.equal(oauthCalls[0]?.provider, "google");
+});
+
+test("an explicit existing-account signup error offers the same non-enumerating Google path", async () => {
+  user = null; googleAvailable = true; signupError = { code: "user_already_exists", message: "User already registered" };
+  await mount();
+  await enter(document.querySelector('input[name="name"]'), "Тестовый игрок");
+  await enter(document.querySelector('input[name="email"]'), "existing@example.com");
+  await enter(document.querySelector('input[name="password"]'), "sample passphrase for testing");
+  await act(async () => document.querySelector('form.kv-fields').dispatchEvent(new window.Event("submit", { bubbles: true, cancelable: true })));
+  await settle();
+  assert.match(document.body.textContent, /Подтвердите почту/);
+  assert.match(document.body.textContent, /Если.*Google/i);
+  assert.ok(!document.querySelector('[role="alert"]'));
+  await click("Продолжить с Google");
+  assert.equal(oauthCalls[0]?.provider, "google");
+});
+
+test("an unrelated signup error remains visible instead of claiming a confirmation email", async () => {
+  user = null; signupError = { code: "over_email_send_rate_limit", message: "Rate limit" };
+  await mount();
+  await enter(document.querySelector('input[name="name"]'), "Тестовый игрок");
+  await enter(document.querySelector('input[name="email"]'), "new@example.com");
+  await enter(document.querySelector('input[name="password"]'), "sample passphrase for testing");
+  await act(async () => document.querySelector('form.kv-fields').dispatchEvent(new window.Event("submit", { bubbles: true, cancelable: true })));
+  await settle();
+  assert.match(document.querySelector('[role="alert"]')?.textContent || "", /Слишком много запросов/);
+  assert.doesNotMatch(document.body.textContent, /Подтвердите почту/);
+});
 
 test("a guest never inherits local demo identity or sample results", async () => {
   user = null; window.localStorage.setItem("kyng-player-profile-v1", JSON.stringify({ name: "Alex Kovalenko", email: "alex@example.com" }));

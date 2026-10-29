@@ -8,11 +8,18 @@ export async function getPlayerProfile(userId: string): Promise<AccountProfile |
   return result.data;
 }
 
+export function suggestedPlayerName(user: User): string | null {
+  const identity = user.identities?.find(value => value.provider === "google");
+  for (const candidate of [identity?.identity_data?.full_name, identity?.identity_data?.name, user.user_metadata?.display_name]) {
+    if (typeof candidate !== "string") continue;
+    try { return profileName(candidate); }
+    catch { /* Try the next name source. */ }
+  }
+  return null;
+}
+
 export function initialPlayerName(user: User) {
-  const google = user.identities?.find(identity => identity.provider === "google");
-  const candidate = google?.identity_data?.full_name ?? user.user_metadata?.display_name;
-  try { return profileName(typeof candidate === "string" ? candidate : "Игрок KYNG"); }
-  catch { return "Игрок KYNG"; }
+  return suggestedPlayerName(user) ?? "Игрок KYNG";
 }
 
 export async function createPlayerProfile(user: User, name: string): Promise<AccountProfile> {

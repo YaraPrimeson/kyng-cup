@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 import { accountError, type AccountProfile } from "@/lib/player-account";
-import { getPlayerProfile } from "@/lib/player-account-client";
+import { createPlayerProfile, getPlayerProfile, suggestedPlayerName } from "@/lib/player-account-client";
 import { clearVerification } from "@/lib/player-security";
 
 export function usePlayerAccount() {
@@ -29,7 +29,12 @@ export function usePlayerAccount() {
       }
       if (currentId.current !== next.id) { setProfile(null); currentId.current = next.id; }
       setUser(next);
-      const data = next.email_confirmed_at ? await getPlayerProfile(next.id) : null;
+      let data = next.email_confirmed_at ? await getPlayerProfile(next.id) : null;
+      if (!active.current || request !== generation.current.id) return false;
+      if (!data && next.email_confirmed_at) {
+        const name = suggestedPlayerName(next);
+        if (name) data = await createPlayerProfile(next, name);
+      }
       if (!active.current || request !== generation.current.id) return false;
       setProfile(data); setError(""); setLoading(false);
       return true;

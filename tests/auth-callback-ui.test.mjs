@@ -10,10 +10,10 @@ Object.assign(globalThis, { window: dom.window, document: dom.window.document, l
 const { createElement, act } = await import("react");
 const { createRoot } = await import("react-dom/client");
 const existingUser = { id: "11111111-1111-4111-8111-111111111111", email: "first@example.com" };
-let root, Page, temp, signOutError, signOutCalls, passwordUpdates;
+let root, Page, temp, signOutError, signOutCalls, passwordUpdates, currentUser;
 const client = { auth: {
-  initialize: async () => { if (globalThis.__callbackRecoveryLink) history.replaceState({}, "", "/auth/callback/?intent=recovery"); return { error: null }; },
-  getUser: async () => ({ data: { user: existingUser }, error: null }),
+  initialize: async () => { if (globalThis.__callbackRecoveryLink || globalThis.__callbackOAuthLink) history.replaceState({}, "", `/auth/callback/?intent=${globalThis.__callbackOAuthLink ? "reauthenticate" : "recovery"}`); return { error: null }; },
+  getUser: async () => ({ data: { user: currentUser }, error: null }),
   updateUser: async ({ password }) => { passwordUpdates.push(password); return { error: null }; },
   signOut: async ({ scope }) => { signOutCalls.push(scope); return { error: signOutError }; },
 } };
@@ -25,14 +25,14 @@ before(async () => {
   const output = await build({ entryPoints: [`${repo}app/auth/callback/page.tsx`], bundle: true, write: false, format: "esm", platform: "node", packages: "external", jsx: "automatic", plugins: [{ name: "callback-boundary", setup(builder) {
     builder.onResolve({ filter: /^(?:@\/lib\/supabase|\.\/supabase)$/ }, () => ({ path: "supabase", namespace: "fixture" }));
     builder.onResolve({ filter: /^next\/navigation$/ }, () => ({ path: "navigation", namespace: "fixture" }));
-    builder.onLoad({ filter: /.*/, namespace: "fixture" }, args => ({ contents: args.path === "supabase" ? 'export const supabase=globalThis.__callbackTestClient; export const hasRecoveryRedirect=()=>globalThis.__callbackRecoveryLink; export const SUPABASE_URL="https://supabase.test"; export const SUPABASE_PUBLIC_KEY="public";' : 'export const usePathname=()=>"/auth/callback/";' }));
+    builder.onLoad({ filter: /.*/, namespace: "fixture" }, args => ({ contents: args.path === "supabase" ? 'export const supabase=globalThis.__callbackTestClient; export const hasRecoveryRedirect=()=>globalThis.__callbackRecoveryLink; export const hasOAuthRedirect=()=>globalThis.__callbackOAuthLink; export const SUPABASE_URL="https://supabase.test"; export const SUPABASE_PUBLIC_KEY="public";' : 'export const usePathname=()=>"/auth/callback/";' }));
   } }] });
   await writeFile(`${temp}/page.mjs`, output.outputFiles[0].contents);
   ({ default: Page } = await import(pathToFileURL(`${temp}/page.mjs`).href));
 });
 async function settle() { for (let i = 0; i < 3; i++) await act(async () => { await new Promise(resolve => setTimeout(resolve, 20)); }); }
 async function unmount() { if (root) { await act(async () => root.unmount()); root = null; } }
-beforeEach(async () => { await unmount(); history.replaceState({}, "", "/auth/callback/?intent=recovery"); sessionStorage.clear(); globalThis.__callbackRecoveryLink = false; signOutError = null; signOutCalls = []; passwordUpdates = []; });
+beforeEach(async () => { await unmount(); history.replaceState({}, "", "/auth/callback/?intent=recovery"); sessionStorage.clear(); globalThis.__callbackRecoveryLink = false; globalThis.__callbackOAuthLink = false; signOutError = null; signOutCalls = []; passwordUpdates = []; currentUser = existingUser; });
 after(async () => { await unmount(); dom.window.close(); await rm(temp, { recursive: true, force: true }); delete globalThis.__callbackTestClient; });
 async function mount() { root = createRoot(document.getElementById("root")); await act(async () => root.render(createElement(Page))); await settle(); }
 
@@ -42,6 +42,13 @@ test("an existing session and a bare recovery intent do not open password reset"
   assert.match(document.body.textContent, /ссылк.*восстановлен|восстановлен.*ссылк/i);
   assert.equal(location.search, "");
   assert.equal(passwordUpdates.length, 0);
+});
+test("a bare recovery intent without an authenticated user is rejected, not reported processed", async () => {
+  currentUser = null;
+  await mount();
+  assert.ok(!document.querySelector('input[type="password"]'));
+  assert.match(document.body.textContent, /Ссылка восстановления недействительна/);
+  assert.doesNotMatch(document.body.textContent, /Ссылка обработана/);
 });
 test("a recovery link opens the password form even after Auth clears its fragment", async () => {
   globalThis.__callbackRecoveryLink = true;
@@ -54,6 +61,34 @@ test("a recovery link opens the password form even after Auth clears its fragmen
 async function enter(input, value) {
   await act(async () => { Object.getOwnPropertyDescriptor(Object.getPrototypeOf(input), "value").set.call(input, value); input.dispatchEvent(new window.Event("input", { bubbles: true })); });
 }
+test("a pending OAuth expectation without a provider redirect cannot verify the account", async () => {
+  history.replaceState({}, "", "/auth/callback/?intent=reauthenticate");
+  sessionStorage.setItem("kyng-account-oauth", JSON.stringify({ userId: existingUser.id, intent: "reauthenticate", at: Date.now() }));
+  await mount();
+  assert.ok(!sessionStorage.getItem("kyng-account-verification"), "a bare callback cannot mark account verified");
+  assert.match(document.body.textContent, /проверка истекла|ссылк.*недействительна/i);
+  assert.deepEqual(signOutCalls, ["local"]);
+});
+
+test("a matching OAuth redirect verifies the expected account after tokens are cleared", async () => {
+  globalThis.__callbackOAuthLink = true;
+  history.replaceState({}, "", "/auth/callback/?intent=reauthenticate#access_token=example&refresh_token=example");
+  sessionStorage.setItem("kyng-account-oauth", JSON.stringify({ userId: existingUser.id, intent: "reauthenticate", at: Date.now() }));
+  await mount();
+  assert.equal(JSON.parse(sessionStorage.getItem("kyng-account-verification")).userId, existingUser.id);
+  assert.equal(location.hash, "");
+  assert.equal(sessionStorage.getItem("kyng-account-oauth"), null);
+  assert.deepEqual(signOutCalls, []);
+});
+
+test("OAuth cancellation clears the pending expectation", async () => {
+  history.replaceState({}, "", "/auth/callback/?intent=reauthenticate&error=access_denied");
+  sessionStorage.setItem("kyng-account-oauth", JSON.stringify({ userId: existingUser.id, intent: "reauthenticate", at: Date.now() }));
+  await mount();
+  assert.equal(sessionStorage.getItem("kyng-account-oauth"), null);
+  assert.match(document.body.textContent, /не удалось завершить вход/i);
+});
+
 test("a failed global sign-out after reset does not claim other devices were signed out", async () => {
   globalThis.__callbackRecoveryLink = true;
   signOutError = new Error("Sign-out unavailable");

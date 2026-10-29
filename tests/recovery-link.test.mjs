@@ -18,6 +18,23 @@ test("recovery marker is captured before the auth client clears credentials", as
     assert.equal(window.location.hash, "");
   } finally { delete globalThis.window; }
 });
+test("OAuth marker is captured before Auth consumes its redirect", async () => {
+  try {
+    const client = await loadClient("/auth/callback/", "#access_token=access&refresh_token=refresh&expires_in=3600&token_type=bearer");
+    assert.equal(client.hasOAuthRedirect(), true);
+    assert.equal(client.hasRecoveryRedirect(), false);
+    assert.equal(window.location.hash, "");
+  } finally { delete globalThis.window; }
+});
+test("OAuth marker rejects incomplete, recovery and off-route fragments", async () => {
+  try {
+    for (const [path, hash] of [["/auth/callback/", ""], ["/auth/callback/", "#access_token=x"], ["/auth/callback/", "#type=recovery&access_token=x&refresh_token=y&expires_in=3600&token_type=bearer"], ["/profile/", "#access_token=x&refresh_token=y&expires_in=3600&token_type=bearer"]]) {
+      const client = await loadClient(path, hash);
+      assert.equal(client.hasOAuthRedirect(), false);
+    }
+  } finally { delete globalThis.window; }
+});
+
 test("recovery marker rejects a bare intent, wrong type or incomplete tokens", async () => {
   try {
     for (const [path, hash] of [["/auth/callback/", ""], ["/auth/callback/", "#type=signup&access_token=x&refresh_token=y&expires_in=3600&token_type=bearer"], ["/auth/callback/", "#type=recovery&access_token=x"], ["/profile/", "#type=recovery&access_token=x&refresh_token=y&expires_in=3600&token_type=bearer"]]) {
