@@ -13,7 +13,7 @@ let googleAvailable = false, signupError = null, oauthCalls;
 globalThis.fetch = async () => ({ ok: true, json: async () => ({ external: { google: googleAvailable } }) });
 const { createElement, act } = await import("react");
 const { createRoot } = await import("react-dom/client");
-let root, Page, temp, user, listener, rows, writes, authFailure, profileFailure, createFailure;
+let root, Page, temp, user, listener, rows, writes, authFailure, profileFailure, createFailure, registrationRows, registrationFailure;
 const first = { id: "11111111-1111-4111-8111-111111111111", email: "first@example.com", email_confirmed_at: "2026-10-01T00:00:00Z", identities: [{ provider: "email" }], user_metadata: {} };
 const second = { ...first, id: "22222222-2222-4222-8222-222222222222", email: "second@example.com" };
 const row = (account, name) => ({ player_id: `player-${account.id}`, auth_user_id: account.id, display_name: name, avatar_path: null, version: 1, created_at: "2026-10-01", updated_at: "2026-10-01" });
@@ -25,7 +25,8 @@ const client = {
     onAuthStateChange(callback) { listener = callback; const timer = setTimeout(() => callback("INITIAL_SESSION", user ? { user } : null), 0); return { data: { subscription: { unsubscribe() { clearTimeout(timer); listener = null; } } } }; },
     async signOut() { user = null; listener?.("SIGNED_OUT", null); return { error: null }; },
   },
-  from() {
+  from(table) {
+    if (table === "tournament_registrations") { let ownerFilter = null; return { select() { return this; }, eq(column, value) { if (column === "submitted_by") ownerFilter = value; return this; }, async order() { return { data: registrationRows.filter(item => ownerFilter === null || item.submitted_by === ownerFilter), error: registrationFailure }; } }; }
     const filters = {}; let patch, inserted;
     const query = { select() { return query; }, eq(key, value) { filters[key] = value; return query; }, insert(value) { inserted = value; return query; }, update(value) { patch = value; return query; }, async single() {
       if (createFailure) return { data: null, error: createFailure };
@@ -59,7 +60,7 @@ before(async () => {
 });
 async function settle() { for (let i=0;i<4;i++) await act(async () => { await new Promise(resolve => setTimeout(resolve, 30)); }); }
 async function unmount() { if (root) { await act(async () => root.unmount()); root = null; } }
-beforeEach(async () => { await unmount(); sessionStorage.clear(); window.localStorage.clear(); history.replaceState({}, "", "/profile/"); user = { ...first }; rows = { [first.id]: row(first, "Первый игрок"), [second.id]: row(second, "Второй игрок") }; writes = 0; authFailure = null; profileFailure = null; createFailure = null; googleAvailable = false; signupError = null; oauthCalls = []; });
+beforeEach(async () => { await unmount(); sessionStorage.clear(); window.localStorage.clear(); history.replaceState({}, "", "/profile/"); user = { ...first }; rows = { [first.id]: row(first, "Первый игрок"), [second.id]: row(second, "Второй игрок") }; writes = 0; authFailure = null; profileFailure = null; createFailure = null; googleAvailable = false; signupError = null; oauthCalls = []; registrationRows = []; registrationFailure = null; });
 after(async () => { await unmount(); dom.window.close(); await rm(temp, { recursive: true, force: true }); delete globalThis.__playerAccountClient; });
 async function mount() { root = createRoot(document.getElementById("root")); await act(async () => root.render(createElement(Page))); await settle(); }
 function button(text) { const node = [...document.querySelectorAll("button")].find(value => value.textContent.includes(text)); assert.ok(node, `Missing button: ${text}`); return node; }
@@ -156,6 +157,25 @@ test("an unrelated signup error remains visible instead of claiming a confirmati
   await settle();
   assert.match(document.querySelector('[role="alert"]')?.textContent || "", /Слишком много запросов/);
   assert.doesNotMatch(document.body.textContent, /Подтвердите почту/);
+});
+
+test("mine shows only applications submitted by this account, not matching email or other users", async () => {
+  registrationRows = [
+    { id: "own", submitted_by: first.id, status: "confirmed", pair_name: "Наша пара", created_at: "2026-10-01", tournaments: { name: "Vienna Open", sport: "padel", starts_at: null, location: "Vienna" } },
+    { id: "other", submitted_by: second.id, status: "new", pair_name: "Другая пара", created_at: "2026-10-01", tournaments: { name: "Чужой турнир", sport: "tennis", starts_at: null, location: "Vienna" } },
+    { id: "guest", submitted_by: null, status: "new", pair_name: "Гостевая пара", created_at: "2026-10-01", tournaments: null },
+  ];
+  await mount(); await click("Мои турниры");
+  assert.match(document.body.textContent, /Vienna Open|Наша пара/);
+  assert.match(document.body.textContent, /Подтверждена/);
+  assert.doesNotMatch(document.body.textContent, /Чужой турнир|Гостевая пара/);
+});
+
+test("mine shows a loading error rather than claiming no applications", async () => {
+  registrationFailure = { code: "PGRST205" };
+  await mount(); await click("Мои турниры");
+  assert.match(document.querySelector('[role="alert"]')?.textContent ?? "", /Не удалось загрузить заявки/);
+  assert.doesNotMatch(document.body.textContent, /Пока нет ваших заявок/);
 });
 
 test("a guest never inherits local demo identity or sample results", async () => {
