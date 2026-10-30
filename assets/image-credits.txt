@@ -1,0 +1,19 @@
+KYNG CUP image references
+
+The final kyng-universal-hero-v3.png image was created with OpenAI image generation.
+The following openly licensed photographs were used only as geometry references
+for physically accurate sports equipment and are not shipped as source assets:
+
+Tennis racket reference
+"Babolat pure drive plus.jpg"
+Wikimedia Commons, public domain
+https://commons.wikimedia.org/wiki/File:Babolat_pure_drive_plus.jpg
+
+Padel racket reference
+"Padel rackets and balls.jpg" by Anton Gustafsson
+Wikimedia Commons, CC BY 2.0
+https://commons.wikimedia.org/wiki/File:Padel_rackets_and_balls.jpg
+https://creativecommons.org/licenses/by/2.0/
+
+The reference was adapted through AI-assisted compositing. No endorsement by the
+original photographer or Wikimedia Commons is implied.
