@@ -29,7 +29,8 @@ export function accountPassword(value: string) {
 }
 
 export function siteBasePath(pathname: string) {
-  return pathname === "/kyng-cup" || pathname.startsWith("/kyng-cup/") ? "/kyng-cup" : "";
+  // Compare the segment: Hostinger also replaces /kyng-cup/ inside built JS.
+  return pathname.split("/")[1] === "kyng-cup" ? "/kyng-cup" : "";
 }
 
 export function authCallbackUrl(origin: string, pathname: string, intent: "signup" | "recovery" | "google" | "link" | "reauthenticate" | "email") {

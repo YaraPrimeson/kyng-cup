@@ -68,6 +68,28 @@ function button(text) { const node = [...document.querySelectorAll("button")].fi
 async function click(text) { await act(async () => button(text).click()); await settle(); }
 async function enter(input, value) { await act(async () => { Object.getOwnPropertyDescriptor(Object.getPrototypeOf(input), "value").set.call(input, value); input.dispatchEvent(new window.Event("input", { bubbles: true })); }); }
 
+test("profile home keeps results and statistics inside History and Matches only", async () => {
+  await mount();
+  assert.ok(document.querySelector('.kv-stats') === null, 'Match statistics must not render on the profile home');
+  assert.equal(document.querySelector('[aria-label="Вид спорта"]'), null);
+  assert.doesNotMatch(document.body.textContent, /Результатов пока нет|Обновить результаты|Лучшая серия/);
+  await click("История и матчи");
+  assert.ok(document.querySelector('.kv-stats'));
+  assert.ok(document.querySelector('[aria-label="Вид спорта"]'));
+  assert.match(document.body.textContent, /Результатов пока нет|Обновить результаты/);
+  await click("Назад");
+  assert.ok(document.querySelector('.kv-stats') === null, 'Match statistics must not render on the profile home');
+  assert.doesNotMatch(document.body.textContent, /Результатов пока нет|Обновить результаты/);
+});
+
+test("profile settings uses the balanced replacement gear SVG", async () => {
+  await mount();
+  const icon = button("Настройки профиля").querySelector('svg');
+  assert.equal(icon.getAttribute('viewBox'), '0 0 24 24');
+  assert.equal(icon.getAttribute('aria-hidden'), 'true');
+  assert.match(icon.querySelector('path').getAttribute('d'), /^M9\.671 4\.136a2\.34/);
+});
+
 test("sign-out appears only on the profile home, below profile settings", async () => {
   await mount();
   const hasLogout = () => [...document.querySelectorAll("button")].some(node => node.textContent === "Выйти из аккаунта");

@@ -139,7 +139,6 @@ function PlayerAccount({ user, profile, basePath, onSave, reload }: { user: User
     <h1 ref={heading} tabIndex={-1}>{title[view]}</h1>
     {view === "profile" && <>
       <div className="kv-person"><span className="kv-avatar">{source ? <img src={source} alt="Фото игрока" width="72" height="72" referrerPolicy="no-referrer" /> : initials}</span><div><strong>{profile.display_name}</strong><small>{user.email}</small></div></div>
-      <PlayerResults userId={user.id} mode="summary" />
       <section className="kv-section">{([["history", "История и матчи", "Результаты и статистика"], ["partners", "Мои партнёры", "Пока нет связанных выступлений"], ["achievements", "Достижения", "Награды и прогресс"], ["cards", "Мои карточки", "После появления результатов"]] as const).map(([id, label, detail]) => <button type="button" key={id} className="kv-row" onClick={() => move(id)}><span>{label}<small>{detail}</small></span><ProfileIcon name="next" /></button>)}</section>
       <section className="kv-section"><button type="button" className="kv-secondary" onClick={() => move("settings")}><ProfileIcon name="settings" />Настройки профиля</button></section>
     </>}
