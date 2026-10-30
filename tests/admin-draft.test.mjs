@@ -5,11 +5,12 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { build } from 'esbuild';
 import { JSDOM } from 'jsdom';
 
-// Render the real admin page and creation form; only the server and language context are mocked.
+// Render the real admin page, forms and language provider; only Supabase is mocked.
 const dom = new JSDOM('<div id="root"></div>', { url: 'https://kyngcup.test/admin/' });
 globalThis.window = dom.window;
 globalThis.document = dom.window.document;
 globalThis.HTMLElement = dom.window.HTMLElement;
+for (const key of ['Node', 'NodeFilter', 'Element', 'MutationObserver']) globalThis[key] = dom.window[key];
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 const { createElement, act } = await import('react');
 const { createRoot } = await import('react-dom/client');
@@ -22,6 +23,9 @@ const existing = {
 let listener;
 let root;
 let AdminPage;
+let LanguageProvider;
+let pairLinks;
+let pairLinkRpc;
 let tempDir;
 let user;
 let calls;
@@ -40,6 +44,13 @@ const supabase = {
   },
   rpc: async (name, payload) => {
     calls.push({ name, payload });
+    if (name === 'get_registration_pair_links') return pairLinkRpc?.(name, payload) ?? { data: pairLinks, error: null };
+    if (name === 'link_registration_pair') {
+      if (pairLinkRpc) return pairLinkRpc(name, payload);
+      pairLinks = pairLinks.filter(link => link.registration_id !== payload.p_registration_id);
+      if (payload.p_pair_id) pairLinks.push({ registration_id: payload.p_registration_id, pair_id: payload.p_pair_id });
+      return { data: null, error: null };
+    }
     return name === 'is_global_admin'
       ? { data: true, error: null }
       : name === 'list_tournament_registrations'
@@ -74,19 +85,16 @@ before(async () => {
   await mkdir(`${repo}tmp`, { recursive: true });
   tempDir = await mkdtemp(`${repo}tmp/admin-draft-test-`);
   const output = await build({
-    entryPoints: [`${repo}app/admin/page.tsx`], bundle: true, write: false,
+    stdin: { contents: 'export { default } from "./app/admin/page"; export { LanguageProvider } from "./app/i18n";', resolveDir: repo }, bundle: true, write: false,
     format: 'esm', platform: 'node', packages: 'external', jsx: 'automatic',
     plugins: [{ name: 'admin-server-mock', setup(plugin) {
       plugin.onResolve({ filter: /^@\/lib\/supabase$/ }, () => ({ path: 'server', namespace: 'test' }));
-      plugin.onResolve({ filter: /^\.\.\/i18n$/ }, () => ({ path: 'language', namespace: 'test' }));
-      plugin.onLoad({ filter: /.*/, namespace: 'test' }, args => ({ contents: args.path === 'server'
-        ? 'export const supabase = globalThis.__adminDraftTestSupabase;'
-        : 'export const useLanguage = () => ({ language: "en" });' }));
+      plugin.onLoad({ filter: /.*/, namespace: 'test' }, () => ({ contents: 'export const supabase = globalThis.__adminDraftTestSupabase;' }));
     } }],
   });
   const entry = `${tempDir}/admin.mjs`;
   await writeFile(entry, output.outputFiles[0].contents);
-  ({ default: AdminPage } = await import(pathToFileURL(entry).href));
+  ({ default: AdminPage, LanguageProvider } = await import(pathToFileURL(entry).href));
 });
 
 async function settle() {
@@ -95,7 +103,7 @@ async function settle() {
 }
 async function mount() {
   root = createRoot(document.getElementById('root'));
-  await act(async () => { root.render(createElement(AdminPage)); });
+  await act(async () => { root.render(createElement(LanguageProvider, null, createElement(AdminPage))); });
   await settle();
 }
 async function unmount() {
@@ -105,7 +113,7 @@ beforeEach(async () => {
   await unmount();
   window.sessionStorage.clear();
   user = { id: 'organizer-one' };
-  calls = []; createError = null; tournamentChange = undefined;
+  calls = []; createError = null; tournamentChange = undefined; pairLinks = []; pairLinkRpc = undefined;
   records = { tournaments: [{ ...existing }] };
 });
 after(async () => {
@@ -143,10 +151,12 @@ test('partner without a contact email cannot receive a claim code', async () => 
 });
 
 function button(text) {
+  text = text === 'Закрыть' ? 'Close' : text;
   const element = [...document.querySelectorAll('button')].find(node => node.textContent.includes(text));
   assert.ok(element, `Button missing: ${text}`); return element;
 }
 function field(label) {
+  label = ({ 'Название': 'Name', 'Локация': 'Location', 'Вид спорта': 'Sport' })[label] ?? label;
   const element = [...document.querySelectorAll('label')].find(node => node.querySelector('span')?.textContent === label)?.querySelector('input,textarea,select');
   assert.ok(element, `Field missing: ${label}`); return element;
 }
@@ -273,8 +283,180 @@ test('disabled browser storage does not break editing or tab switching', async t
   await settle(); assertDraft();
 });
 
+function registrationFixture(id = 'registration-one', status = 'confirmed') {
+  return { id, tournament_id: existing.id, status, pair_name: 'Top pair',
+    player_one_first_name: 'First', player_one_last_name: 'Player', player_one_email: 'first@example.invalid', player_one_level: 'beginner',
+    player_two_first_name: 'Second', player_two_last_name: 'Player', player_two_email: null, player_two_level: 'beginner',
+    created_at: '2026-10-01T00:00:00Z', updated_at: 'initial', locale: 'en', marketing_opt_in: false };
+}
+function linkPanel(id = 'registration-one') {
+  const panel = document.querySelector(`[data-registration-pair-link="${id}"]`);
+  assert.ok(panel, 'Tournament pair link controls missing'); return panel;
+}
+test('confirmed application requires explicit pair selection and linking, then unlink before replacement', async () => {
+  pairFixtures(); records.tournament_registrations = [registrationFixture()];
+  await mount();
+  const panel = linkPanel();
+  assert.ok(calls.some(call => call.name === 'get_registration_pair_links' && call.payload.p_tournament_id === existing.id));
+  assert.equal(panel.querySelector('select').value, '', 'No name-based auto-selection');
+  assert.ok(panel.querySelector('button').disabled);
+  await enter(panel.querySelector('select'), 'p2');
+  assert.equal(calls.filter(call => call.name === 'link_registration_pair').length, 0);
+  await click(panel.querySelector('button'));
+  assert.deepEqual(calls.find(call => call.name === 'link_registration_pair').payload, { p_registration_id: 'registration-one', p_pair_id: 'p2' });
+  assert.match(panel.textContent, /Linked tournament pair: Bottom pair/);
+  assert.equal(panel.querySelector('select'), null, 'Must unlink before replacement');
+  await click(panel.querySelector('button'));
+  assert.deepEqual(calls.filter(call => call.name === 'link_registration_pair').at(-1).payload, { p_registration_id: 'registration-one', p_pair_id: null });
+  assert.equal(panel.querySelector('select').value, '');
+});
+
+test('only confirmed applications can link and occupied or foreign pairs cannot be chosen', async () => {
+  pairFixtures(); records.pairs.push({ ...records.pairs[0], id: 'foreign', tournament_id: 'other-cup' });
+  records.tournament_registrations = [registrationFixture(), registrationFixture('pending', 'reviewing')];
+  pairLinks = [{ registration_id: 'hidden-application', pair_id: 'p1' }];
+  await mount();
+  const panel = linkPanel();
+  assert.ok(!panel.querySelector('option[value="foreign"]'));
+  assert.ok(panel.querySelector('option[value="p1"]').disabled, 'Pair linked to another application must be blocked');
+  const pending = linkPanel('pending');
+  assert.match(pending.textContent, /Only confirmed applications/);
+  assert.equal(pending.querySelector('select'), null);
+  assert.equal(pending.querySelector('button'), null);
+});
+
+test('Refresh applications reloads pair links and available choices without discarding unsaved notes', async () => {
+  pairFixtures(); records.tournament_registrations = [registrationFixture(), registrationFixture('second')];
+  pairLinks = [{ registration_id: 'registration-one', pair_id: 'p1' }];
+  await mount();
+  assert.match(linkPanel().textContent, /Linked tournament pair: Top pair/);
+  assert.ok(linkPanel('second').querySelector('option[value="p1"]').disabled);
+  assert.equal(linkPanel('second').querySelector('option[value="p2"]').disabled, false);
+  const card = linkPanel().closest('form');
+  const notes = card.querySelector('textarea');
+  await enter(notes, 'Keep this unsaved note');
+  const reads = calls.filter(call => call.name === 'get_registration_pair_links').length;
+  const applicationReads = calls.filter(call => call.name === 'list_tournament_registrations').length;
+  pairLinks = [{ registration_id: 'registration-one', pair_id: 'p2' }];
+  await click(button('Refresh applications'));
+  assert.ok(calls.filter(call => call.name === 'list_tournament_registrations').length > applicationReads);
+  assert.ok(calls.filter(call => call.name === 'get_registration_pair_links').length > reads, 'Refresh must reload pair links');
+  assert.match(linkPanel().textContent, /Linked tournament pair: Bottom pair/);
+  assert.equal(linkPanel('second').querySelector('option[value="p1"]').disabled, false);
+  assert.ok(linkPanel('second').querySelector('option[value="p2"]').disabled);
+  assert.equal(linkPanel().closest('form'), card, 'Refresh must not remount unchanged applications');
+  assert.equal(notes.value, 'Keep this unsaved note');
+});
+
+test('pair links fail closed while loading and after load errors, with an explicit retry', async () => {
+  pairFixtures(); records.tournament_registrations = [registrationFixture()];
+  let resolveLoad;
+  pairLinkRpc = () => new Promise(resolve => { resolveLoad = resolve; });
+  await mount();
+  const panel = linkPanel();
+  assert.match(panel.textContent, /Loading pair links/);
+  assert.equal(panel.querySelector('select'), null);
+  await act(async () => { resolveLoad({ data: null, error: { message: 'Denied' } }); });
+  assert.match(panel.querySelector('[role="alert"]').textContent, /Could not load pair links/);
+  assert.equal(panel.querySelector('select'), null);
+  pairLinkRpc = undefined;
+  await click(button('Retry pair links'));
+  assert.ok(panel.querySelector('select'));
+  assert.equal(panel.querySelector('[role="alert"]'), null);
+});
+
+for (const unlink of [false, true]) {
+  for (const thrown of [false, true]) {
+    test(`${unlink ? 'unlink' : 'link'} RPC ${thrown ? 'rejection' : 'error'} shows no false success and preserves the prior link`, async () => {
+      pairFixtures(); records.tournament_registrations = [registrationFixture()];
+      if (unlink) pairLinks = [{ registration_id: 'registration-one', pair_id: 'p2' }];
+      await mount();
+      const panel = linkPanel();
+      if (!unlink) await enter(panel.querySelector('select'), 'p2');
+      pairLinkRpc = (name) => {
+        if (name === 'get_registration_pair_links') return { data: pairLinks, error: null };
+        if (thrown) throw new Error('Network offline');
+        return { data: null, error: { message: 'Write denied' } };
+      };
+      await click(panel.querySelector('button'));
+      assert.match(panel.querySelector('[role="alert"]')?.textContent ?? '', /Could not (link|unlink) pair/);
+      assert.doesNotMatch(panel.textContent, /Pair linked successfully|Pair unlinked successfully/);
+      assert.equal(Boolean(panel.querySelector('select')), !unlink);
+    });
+  }
+}
+
+test('pair linking blocks duplicate submissions until the server read-back completes', async () => {
+  pairFixtures(); records.tournament_registrations = [registrationFixture(), registrationFixture('second')];
+  await mount(); const panel = linkPanel();
+  await enter(panel.querySelector('select'), 'p2');
+  let resolveWrite;
+  pairLinkRpc = name => name === 'get_registration_pair_links' ? { data: pairLinks, error: null } : new Promise(resolve => { resolveWrite = resolve; });
+  const action = panel.querySelector('button');
+  await act(async () => { action.click(); action.click(); });
+  assert.equal(calls.filter(call => call.name === 'link_registration_pair').length, 1);
+  assert.ok(action.disabled);
+  assert.ok(linkPanel('second').querySelector('select').disabled);
+  pairLinks = [{ registration_id: 'registration-one', pair_id: 'p2' }];
+  await act(async () => { resolveWrite({ data: null, error: null }); }); await settle();
+  assert.match(linkPanel().textContent, /Linked tournament pair: Bottom pair/);
+  assert.ok(linkPanel('second').querySelector('option[value="p2"]').disabled);
+});
+
+test('Refresh applications preserves busy protection through pending write and deferred read-back', async () => {
+  pairFixtures(); records.tournament_registrations = [registrationFixture(), registrationFixture('second')];
+  await mount();
+  await enter(linkPanel().querySelector('select'), 'p2');
+  await enter(linkPanel('second').querySelector('select'), 'p3');
+  let resolveWrite;
+  let resolveReadBack;
+  let deferReadBack = true;
+  pairLinkRpc = name => name === 'link_registration_pair'
+    ? new Promise(resolve => { resolveWrite = resolve; })
+    : deferReadBack ? new Promise(resolve => { resolveReadBack = resolve; }) : { data: pairLinks, error: null };
+  const reads = calls.filter(call => call.name === 'get_registration_pair_links').length;
+  await act(async () => { linkPanel().querySelector('button').click(); linkPanel().querySelector('button').click(); });
+  records.tournament_registrations = records.tournament_registrations.map(record => ({ ...record, updated_at: 'refreshed' }));
+  await click(button('Refresh applications'));
+  assert.equal(calls.filter(call => call.name === 'get_registration_pair_links').length, reads, 'Refresh must wait for the pending write');
+  assert.ok(linkPanel().querySelector('button').disabled);
+  assert.ok(linkPanel('second').querySelector('select').disabled);
+  await click(linkPanel('second').querySelector('button'));
+  assert.equal(calls.filter(call => call.name === 'link_registration_pair').length, 1);
+  pairLinks = [{ registration_id: 'registration-one', pair_id: 'p2' }];
+  await act(async () => { resolveWrite({ data: null, error: null }); });
+  assert.equal(typeof resolveReadBack, 'function', 'Write must await server read-back');
+  await click(button('Refresh applications'));
+  assert.equal(calls.filter(call => call.name === 'get_registration_pair_links').length, reads + 1, 'Refresh must not supersede the active read-back');
+  assert.ok(linkPanel().querySelector('button').disabled);
+  assert.match(linkPanel().textContent, /Saving pair link/);
+  await click(linkPanel().querySelector('button'));
+  assert.equal(calls.filter(call => call.name === 'link_registration_pair').length, 1);
+  deferReadBack = false;
+  await act(async () => { resolveReadBack({ data: pairLinks, error: null }); });
+  await settle();
+  assert.equal(calls.filter(call => call.name === 'get_registration_pair_links').length, reads + 2, 'Deferred refresh should run after verification');
+  assert.match(linkPanel().textContent, /Linked tournament pair: Bottom pair/);
+  assert.equal(linkPanel().querySelector('button').disabled, false, 'Busy must clear after verification and refresh');
+  assert.equal(linkPanel('second').querySelector('select').disabled, false);
+  assert.ok(linkPanel('second').querySelector('option[value="p2"]').disabled);
+});
+
+for (const verification of ['error', 'mismatch']) {
+  test(`pair link ${verification} on read-back never reports success and requires retry`, async () => {
+    pairFixtures(); records.tournament_registrations = [registrationFixture()];
+    await mount(); const panel = linkPanel(); await enter(panel.querySelector('select'), 'p2');
+    pairLinkRpc = name => name === 'link_registration_pair' ? { data: null, error: null }
+      : verification === 'error' ? { data: null, error: { message: 'Offline' } } : { data: [], error: null };
+    await click(panel.querySelector('button'));
+    assert.match(linkPanel().textContent, /Could not verify pair link/);
+    assert.doesNotMatch(linkPanel().textContent, /Pair linked successfully/);
+    assert.ok(button('Retry pair links'));
+  });
+}
+
 function pairFixtures() {
-  records.pairs = Array.from({ length: 4 }, (_,i) => ({ id: `p${i+1}`, name: ['Top pair','Bottom pair','Other three','Other four'][i], player_one: `A${i}`, player_two: `B${i}`, seed: i+1, updated_at: 'initial' }));
+  records.pairs = Array.from({ length: 4 }, (_,i) => ({ id: `p${i+1}`, name: ['Top pair','Bottom pair','Other three','Other four'][i], player_one: `A${i}`, player_two: `B${i}`, seed: i+1, updated_at: 'initial', tournament_id: existing.id }));
 }
 function gameFixture(id, overrides = {}) {
   return { id, round: 1, position: 1, bracket_kind: 'playoffs', pair_one_id: 'p1', pair_two_id: 'p2', pair_one_sets: [], pair_two_sets: [], winner_id: null, status: 'scheduled', court: null, scheduled_at: null, updated_at: 'initial', ...overrides };

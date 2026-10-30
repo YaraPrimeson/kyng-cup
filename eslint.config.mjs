@@ -13,6 +13,7 @@ const eslintConfig = defineConfig([
     "dist/**",
     "out/**",
     "build/**",
+    "tmp/**", // Generated browser-test bundles, not application source.
     "next-env.d.ts",
   ]),
   eslint.configs.recommended,

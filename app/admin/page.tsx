@@ -1,6 +1,7 @@
 "use client";
 
 import CreateTournament from "./create-tournament";
+import RegistrationPairLink, { RegistrationPairLinks } from "./registration-pair-link";
 import KnockoutDraw from "./knockout-draw";
 import KnockoutBoard from "../knockout-board";
 import { parseScore, resultError as matchResultError } from "@/lib/match-result";
@@ -39,6 +40,7 @@ type Tournament = {
 
 type Pair = {
   id: string;
+  tournament_id: string;
   name: string;
   player_one: string;
   player_two: string;
@@ -536,6 +538,7 @@ function RegistrationCard({ registration, onSaved }: { registration: Registratio
         {claimCode && <p role="status">One-time code for player {claimCode.role === "primary" ? "1" : "2"}: <code>{claimCode.code}</code> Copy it now; it is not stored in readable form.</p>}
         {claimError && <p role="alert">{claimError}</p>}
       </div>
+      <RegistrationPairLink registration={registration} />
       <div className="admin-registration-meta">
         <span><b>Submitted</b>{new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(registration.created_at))}</span>
         <span><b>Language</b>{registration.locale.toUpperCase()}</span>
@@ -554,20 +557,25 @@ function RegistrationCard({ registration, onSaved }: { registration: Registratio
   );
 }
 
-function RegistrationManager({ registrations, error, onRefresh }: { registrations: Registration[]; error: string | null; onRefresh: () => void }) {
+function RegistrationManager({ tournamentId, pairs, registrations, error, onRefresh }: { tournamentId: string; pairs: Pair[]; registrations: Registration[]; error: string | null; onRefresh: () => void }) {
   const [filter, setFilter] = useState<"all" | RegistrationStatus>("all");
   const filtered = filter === "all" ? registrations : registrations.filter((registration) => registration.status === filter);
+  const [linksRefreshVersion, setLinksRefreshVersion] = useState(0);
+  function refresh() {
+    setLinksRefreshVersion(version => version + 1);
+    onRefresh();
+  }
 
   return (
-    <div className="admin-registration-manager">
+    <RegistrationPairLinks tournamentId={tournamentId} pairs={pairs} refreshVersion={linksRefreshVersion}><div className="admin-registration-manager">
       <div className="admin-registration-toolbar">
         <label className="admin-field"><span>Filter by status</span><select value={filter} onChange={(event) => setFilter(event.target.value as "all" | RegistrationStatus)}><option value="all">All applications</option>{registrationStatuses.map((item) => <option value={item.value} key={item.value}>{item.label} · {registrations.filter((registration) => registration.status === item.value).length}</option>)}</select></label>
-        <button type="button" onClick={onRefresh}>Refresh applications</button>
+        <button type="button" onClick={refresh}>Refresh applications</button>
       </div>
       {error && <Feedback message={error} />}
       {!error && !filtered.length && <div className="admin-muted-note">No applications match this filter.</div>}
-      <div className="admin-registration-grid">{filtered.map((registration) => <RegistrationCard key={`${registration.id}-${registration.updated_at}`} registration={registration} onSaved={onRefresh} />)}</div>
-    </div>
+      <div className="admin-registration-grid">{filtered.filter(registration => registration.tournament_id === tournamentId).map((registration) => <RegistrationCard key={`${registration.id}-${registration.updated_at}`} registration={registration} onSaved={onRefresh} />)}</div>
+    </div></RegistrationPairLinks>
   );
 }
 
@@ -627,7 +635,7 @@ export default function AdminPage() {
     const groupsResult = await supabase.from("tournament_groups").select("id,code,qualify_count").eq("tournament_id", selectedId).order("code");
     const groupIds = (groupsResult.data ?? []).map((item) => item.id);
     const [pairsResult, matchesResult, groupMembersResult, groupMatchesResult, registrationsResult] = await Promise.all([
-      supabase.from("pairs").select("id,name,player_one,player_two,seed,updated_at").eq("tournament_id", selectedId).order("seed"),
+      supabase.from("pairs").select("id,tournament_id,name,player_one,player_two,seed,updated_at").eq("tournament_id", selectedId).order("seed"),
       supabase.from("matches").select("id,round,bracket_kind,position,next_match_id,next_slot,pair_one_id,pair_two_id,pair_one_sets,pair_two_sets,winner_id,status,court,scheduled_at,updated_at").eq("tournament_id", selectedId).order("round").order("position"),
       groupIds.length ? supabase.from("group_members").select("group_id,pair_id,position").in("group_id", groupIds) : Promise.resolve({ data: [], error: null }),
       supabase.from("group_matches").select("id,tournament_id,group_id,position,pair_one_id,pair_two_id,pair_one_sets,pair_two_sets,winner_id,status,court,scheduled_at,updated_at").eq("tournament_id", selectedId).order("group_id").order("position"),
@@ -712,7 +720,7 @@ export default function AdminPage() {
             <TournamentDelete tournament={selected} onDeleted={() => { setSelectedId(null); void loadTournaments(user); }} />
             <details className="admin-collapsible admin-matches-heading" open>
               <summary><div><span>02</span><h2>Registrations</h2></div><p>Review pair applications and keep each status up to date.</p></summary>
-              <div className="admin-collapsible-content"><RegistrationManager registrations={registrations} error={registrationError} onRefresh={() => void loadTournamentData()} /></div>
+              <div className="admin-collapsible-content"><RegistrationManager key={selected.id} tournamentId={selected.id} pairs={pairs} registrations={registrations} error={registrationError} onRefresh={() => void loadTournamentData()} /></div>
             </details>
             <details className="admin-collapsible admin-matches-heading">
               <summary><div><span>03</span><h2>Participants</h2></div><p>Edit the pair and player names used in the tournament.</p></summary>

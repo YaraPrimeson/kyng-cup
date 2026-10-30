@@ -13,7 +13,7 @@ let googleAvailable = false, signupError = null, oauthCalls;
 globalThis.fetch = async () => ({ ok: true, json: async () => ({ external: { google: googleAvailable } }) });
 const { createElement, act } = await import("react");
 const { createRoot } = await import("react-dom/client");
-let root, Page, temp, user, listener, rows, writes, authFailure, profileFailure, createFailure, registrationRows, registrationFailure, claimFailure;
+let root, Page, temp, user, listener, rows, writes, authFailure, profileFailure, createFailure, registrationRows, registrationFailure, claimFailure, matchRows, matchFailure;
 const first = { id: "11111111-1111-4111-8111-111111111111", email: "first@example.com", email_confirmed_at: "2026-10-01T00:00:00Z", identities: [{ provider: "email" }], user_metadata: {} };
 const second = { ...first, id: "22222222-2222-4222-8222-222222222222", email: "second@example.com" };
 const row = (account, name) => ({ player_id: `player-${account.id}`, auth_user_id: account.id, display_name: name, avatar_path: null, version: 1, created_at: "2026-10-01", updated_at: "2026-10-01" });
@@ -25,7 +25,7 @@ const client = {
     onAuthStateChange(callback) { listener = callback; const timer = setTimeout(() => callback("INITIAL_SESSION", user ? { user } : null), 0); return { data: { subscription: { unsubscribe() { clearTimeout(timer); listener = null; } } } }; },
     async signOut() { user = null; listener?.("SIGNED_OUT", null); return { error: null }; },
   },
-  async rpc(name, args) { assert.equal(name, "redeem_registration_claim_code"); assert.equal(args.p_code, "a".repeat(64)); if (claimFailure) return { data: null, error: claimFailure }; registrationRows[0].submitted_by = first.id; return { data: registrationRows[0].id, error: null }; },
+  async rpc(name, args) { if (name === "get_my_match_history") { assert.equal(args, undefined); return { data: matchRows, error: matchFailure }; } assert.equal(name, "redeem_registration_claim_code"); assert.equal(args.p_code, "a".repeat(64)); if (claimFailure) return { data: null, error: claimFailure }; registrationRows[0].submitted_by = first.id; return { data: registrationRows[0].id, error: null }; },
   from(table) {
     if (table === "tournament_registrations") { let ownerFilter = null, partnerFilter = null; return { select() { return this; }, eq(column, value) { if (column === "submitted_by") ownerFilter = value; return this; }, or(expression) { const match = /^submitted_by\.eq\.([^,]+),partner_user_id\.eq\.(.+)$/.exec(expression); assert.ok(match, `Owner filter required: ${expression}`); ownerFilter = match[1]; partnerFilter = match[2]; return this; }, async order() { return { data: registrationRows.filter(item => ownerFilter === null || item.submitted_by === ownerFilter || item.partner_user_id === partnerFilter), error: registrationFailure }; } }; }
     const filters = {}; let patch, inserted;
@@ -61,12 +61,40 @@ before(async () => {
 });
 async function settle() { for (let i=0;i<4;i++) await act(async () => { await new Promise(resolve => setTimeout(resolve, 30)); }); }
 async function unmount() { if (root) { await act(async () => root.unmount()); root = null; } }
-beforeEach(async () => { await unmount(); sessionStorage.clear(); window.localStorage.clear(); history.replaceState({}, "", "/profile/"); user = { ...first }; rows = { [first.id]: row(first, "Первый игрок"), [second.id]: row(second, "Второй игрок") }; writes = 0; authFailure = null; profileFailure = null; createFailure = null; googleAvailable = false; signupError = null; oauthCalls = []; registrationRows = []; registrationFailure = null; claimFailure = null; });
+beforeEach(async () => { await unmount(); sessionStorage.clear(); window.localStorage.clear(); history.replaceState({}, "", "/profile/"); user = { ...first }; rows = { [first.id]: row(first, "Первый игрок"), [second.id]: row(second, "Второй игрок") }; writes = 0; authFailure = null; profileFailure = null; createFailure = null; googleAvailable = false; signupError = null; oauthCalls = []; registrationRows = []; registrationFailure = null; claimFailure = null; matchRows = []; matchFailure = null; });
 after(async () => { await unmount(); dom.window.close(); await rm(temp, { recursive: true, force: true }); delete globalThis.__playerAccountClient; });
 async function mount() { root = createRoot(document.getElementById("root")); await act(async () => root.render(createElement(Page))); await settle(); }
 function button(text) { const node = [...document.querySelectorAll("button")].find(value => value.textContent.includes(text)); assert.ok(node, `Missing button: ${text}`); return node; }
 async function click(text) { await act(async () => button(text).click()); await settle(); }
 async function enter(input, value) { await act(async () => { Object.getOwnPropertyDescriptor(Object.getPrototypeOf(input), "value").set.call(input, value); input.dispatchEvent(new window.Event("input", { bubbles: true })); }); }
+
+test("sign-out appears only on the profile home, below profile settings", async () => {
+  await mount();
+  const hasLogout = () => [...document.querySelectorAll("button")].some(node => node.textContent === "Выйти из аккаунта");
+  const settings = button("Настройки профиля"), logout = button("Выйти из аккаунта");
+  assert.ok(settings.compareDocumentPosition(logout) & window.Node.DOCUMENT_POSITION_FOLLOWING);
+  for (const label of ["История и матчи", "Мои партнёры", "Достижения", "Мои карточки", "Настройки профиля"]) {
+    await click(label);
+    assert.equal(hasLogout(), false, `Sign-out hidden on ${label}`);
+    await click("Назад");
+    assert.equal(hasLogout(), true);
+  }
+  await click("Мои турниры");
+  assert.equal(hasLogout(), false, "Sign-out hidden on My Tournaments");
+  await click("Профиль");
+  assert.equal(hasLogout(), true);
+});
+
+test("profile omits redundant banners and gives sign-out the secondary danger button style", async () => {
+  await mount();
+  assert.doesNotMatch(document.body.textContent, /Почта подтверждена|Ваш профиль готов\./);
+  const logout = button("Выйти из аккаунта");
+  assert.ok(logout.classList.contains("kv-secondary"));
+  assert.ok(logout.classList.contains("player-sign-out"));
+  assert.equal(logout.classList.contains("kv-link"), false);
+  await click("Выйти из аккаунта");
+  assert.match(document.body.textContent, /Создать аккаунт/);
+});
 
 test("Google sign-in creates a profile from the provider name without asking again", async () => {
   user = { ...first, identities: [{ provider: "google", identity_data: { full_name: "Анна Коваленко" } }] };
@@ -158,6 +186,36 @@ test("an unrelated signup error remains visible instead of claiming a confirmati
   await settle();
   assert.match(document.querySelector('[role="alert"]')?.textContent || "", /Слишком много запросов/);
   assert.doesNotMatch(document.body.textContent, /Подтвердите почту/);
+});
+
+test("a missing history RPC shows an error, not empty results, and can retry", async () => {
+  matchFailure = {code:'PGRST202'};
+  await mount(); await click("История и матчи");
+  assert.match(document.querySelector('[role="alert"]')?.textContent ?? '', /Не удалось загрузить результаты/);
+  assert.doesNotMatch(document.body.textContent, /Результатов пока нет/);
+  matchFailure = null;
+  await click("Повторить загрузку результатов");
+  assert.match(document.body.textContent, /Результатов пока нет/);
+  assert.equal(document.querySelector('[role="alert"]'), null);
+});
+
+test("empty achievements show locked awards without demo progress", async () => {
+  await mount(); await click("Достижения");
+  assert.equal(document.querySelectorAll('[data-earned="true"]').length,0);
+  assert.equal(document.querySelectorAll('[data-earned="false"]').length,12);
+  assert.doesNotMatch(document.body.textContent,/в примере|Daniel Horvat|Получено ·/);
+});
+
+test("history shows actual results with player-relative score and earned achievements", async () => {
+  matchRows = [{ id:"knockout:1", tournament_id:"t1", tournament_name:"Реальный кубок", tournament_slug:"cup", sport:"tennis", tournament_status:"completed", tournament_date:"2026-10-01", pair_id:"ours", partner_user_id:second.id, partner_name:"Имя партнёра", opponent_name:"Соперники", stage:"playoffs", round:1, final_round:1, is_final:true, status:"completed", winner_id:"ours", pair_one_id:"opponent", pair_two_id:"ours", pair_one_sets:[3,4], pair_two_sets:[6,6], completed_at:"2026-10-01T10:00:00Z", scheduled_at:null }];
+  await mount(); await click("История и матчи");
+  assert.match(document.body.textContent, /Реальный кубок/);
+  assert.match(document.body.textContent, /6:3 · 6:4/);
+  assert.match(document.body.textContent, /Соперники/);
+  assert.match(document.body.textContent, /Имя партнёра/);
+  await click("Назад"); await click("Достижения");
+  assert.equal(document.querySelector('[data-award="champion"]')?.getAttribute('data-earned'), 'true');
+  assert.doesNotMatch(document.body.textContent, /в примере|Расчёт достижений ещё не подключён/);
 });
 
 test("mine shows only applications submitted by this account, not matching email or other users", async () => {
