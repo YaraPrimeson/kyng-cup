@@ -4,7 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 
 export type Language = "en" | "uk" | "de" | "ru";
 
-const languages: Language[] = ["en", "uk", "de", "ru"];
+const languages: Language[] = ["en", "uk", "de"];
 const languageStorageKey = "kyng-language";
 
 const common = {
@@ -224,9 +224,10 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const applySavedLanguage = (value: string | null) => {
-      if (value && languages.includes(value as Language)) setLanguageState(value as Language);
+      setLanguageState(value && languages.includes(value as Language) ? value as Language : "en");
     };
-    applySavedLanguage(window.localStorage.getItem(languageStorageKey));
+    try { applySavedLanguage(window.localStorage.getItem(languageStorageKey)); }
+    catch { /* The language selector also works when browser storage is blocked. */ }
     const syncLanguage = (event: StorageEvent) => {
       if (event.key === languageStorageKey) applySavedLanguage(event.newValue);
     };
@@ -241,8 +242,10 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   }, [language]);
 
   const setLanguage = useCallback((next: Language) => {
-    window.localStorage.setItem(languageStorageKey, next);
+    if (!languages.includes(next)) return;
     setLanguageState(next);
+    try { window.localStorage.setItem(languageStorageKey, next); }
+    catch { /* Keep the in-memory choice when browser storage is blocked. */ }
   }, []);
   const t = useCallback((key: CommonKey) => common[language][key], [language]);
   const value = useMemo(() => ({ language, setLanguage, t }), [language, setLanguage, t]);

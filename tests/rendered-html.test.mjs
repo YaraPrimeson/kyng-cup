@@ -54,8 +54,8 @@ test("server-renders a private player account without demo identity or results",
   assert.equal(response.status, 200);
   const html = await response.text();
   assert.match(html, /My KYNG — Player profile/);
-  assert.match(html, /Открываем ваш кабинет/);
-  assert.match(html, /Главная KYNG CUP/);
+  assert.match(html, /Opening your account/);
+  assert.match(html, /KYNG CUP home/);
   assert.doesNotMatch(html, /Alex Kovalenko|alex@example.com|KYNG Autumn Open|15 побед/);
 });
 
