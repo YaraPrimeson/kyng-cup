@@ -1,6 +1,8 @@
 # Telegram bracket management
 
-The `telegram-bracket` Supabase Edge Function lets Telegram users update match results. Access is temporarily open to every Telegram user; each change records the sender's Telegram ID. The function verifies Telegram's webhook secret header before processing an update.
+The `telegram-bracket` Supabase Edge Function currently provides read-only access to tournament lists and matches. Result editing and resetting are temporarily disabled in code, including for valid Telegram webhook messages. The function still verifies Telegram's webhook secret header before processing an update.
+
+The existing result handlers and database functions are preserved. Both result handlers reject requests before looking up a tournament or calling any result-writing RPC. Before enabling `RESULT_EDITING_ENABLED`, implement verified Telegram identity linking and server-side tournament-organiser authorisation for both saving and resetting results. The webhook secret alone authenticates Telegram delivery, not the sender's permission to edit a tournament.
 
 ## Setup
 
@@ -26,8 +28,10 @@ curl -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook" \
 ```text
 /tournaments
 /matches <slug>
-/result <slug> <round> <match> <winner 1|2> <score>
-/reset <slug> <round> <match>
 ```
 
-Example: `/result vienna-2026 1 3 1 6-4,3-6,10-8`.
+`/result` and `/reset` return a temporary-disable notice without modifying results. Organisers can continue editing results in the KYNG CUP admin page.
+
+Run the isolated webhook regression checks with `node --test tests/telegram-bracket.test.mjs`. These checks mock all HTTP requests and do not contact Telegram or the production database.
+
+The bot is deployed separately as a Supabase Edge Function. Pushing to `main` publishes the website, but does not update the running bot; deploy `telegram-bracket` as well when changing its code.

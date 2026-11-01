@@ -31,18 +31,22 @@ const serviceRoleKey = deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 type BotSecrets = { bot_token: string; webhook_secret: string };
 let secretsPromise: Promise<BotSecrets> | null = null;
 
+// Keep result handlers for future organiser-only editing. Do not enable this
+// until Telegram identities are authorised for the selected tournament.
+const RESULT_EDITING_ENABLED = false;
+const editingDisabledMessage = "Редактирование результатов через бота временно отключено. Используйте админку KYNG CUP.";
+
+function requireResultEditing() {
+  if (!RESULT_EDITING_ENABLED) throw new Error(editingDisabledMessage);
+}
+
 const helpText = [
-  "Управление сеткой KYNG CUP",
+  "Сетка KYNG CUP",
   "",
   "/tournaments — активные турниры",
   "/matches <slug> — матчи турнира",
-  "/result <slug> <раунд> <матч> <1|2> <счёт>",
-  "/reset <slug> <раунд> <матч>",
   "",
-  "Пример:",
-  "/result vienna-2026 1 3 1 6-4,3-6,10-8",
-  "",
-  "1 или 2 — победившая пара в карточке матча.",
+  editingDisabledMessage,
 ].join("\n");
 
 function jsonResponse(status = 200) {
@@ -185,6 +189,7 @@ async function listMatches(chatId: number, slug: string | undefined) {
 }
 
 async function recordResult(chatId: number, userId: number, args: string[]) {
+  requireResultEditing();
   const [slug, roundValue, positionValue, winnerValue, scoreValue] = args;
   const round = parsePositiveInteger(roundValue);
   const position = parsePositiveInteger(positionValue);
@@ -214,6 +219,7 @@ async function recordResult(chatId: number, userId: number, args: string[]) {
 }
 
 async function resetResult(chatId: number, userId: number, args: string[]) {
+  requireResultEditing();
   const [slug, roundValue, positionValue] = args;
   const round = parsePositiveInteger(roundValue);
   const position = parsePositiveInteger(positionValue);
