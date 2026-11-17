@@ -111,6 +111,8 @@ test('unsupported or failed sharing offers PNG download and cancelling the nativ
   await click(button('Post'));await finish(1);
   navigator.canShare=()=>false;let calls=0;navigator.share=async()=>{calls++;};
   await click(button('Share'));assert.equal(calls,0);assert.match(document.body.textContent,/sharing is unavailable/);
+  navigator.canShare=()=>true;await click(button('Share'));
+  assert.match(document.body.textContent,/Card sent to your chosen app/);assert.doesNotMatch(document.body.textContent,/sharing is unavailable/);
 });
 
 test('render failure can retry; unavailable optional photo leaves a downloadable card and revokes previews',async()=>{

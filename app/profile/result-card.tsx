@@ -49,7 +49,7 @@ export default function ResultCard({ userId, name, photo, result }: { userId: st
 
   async function share() {
     if (!ready || sharing.current) return;
-    sharing.current = true; setSharingKey(key); setNotice(null);
+    sharing.current = true; setSharingKey(key); setNotice(null); setFallback(null);
     try {
       if (!navigator.canShare?.({ files: [ready.file] }) || !navigator.share) { setFallback(key); return; }
       await navigator.share({ files: [ready.file], title: t("Мой результат KYNG CUP") });
