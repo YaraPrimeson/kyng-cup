@@ -24,9 +24,9 @@ export default function PlayerResults({ userId, mode }: { userId: string; mode: 
   const achievements = result.achievements.map(item => ({ ...item, name: t(item.name), rule: t(item.rule), progress: t(item.progress) }));
   const award = achievements.find(item => item.id === selected) ?? achievements[0];
   return <section className="kv-section" aria-label={t(mode === "summary" ? "Статистика игрока" : mode === "history" ? "Результаты матчей" : "Достижения игрока")}>
-    <div className="kv-segment" aria-label={t("Вид спорта")}>
+    {visibleSports.length > 1 && <div className="kv-segment" aria-label={t("Вид спорта")}>
       {[["all", t("Все")], ...visibleSports.map(value => [value, value === "tennis" ? "Tennis" : "Padel"])].map(([value, label]) => <button type="button" key={value} aria-pressed={sport === value} onClick={() => setSport(value)}>{label}</button>)}
-    </div>
+    </div>}
     {mode !== "achievements" && <>
       <div className="kv-stats">{[[result.stats.played, "Матчей"], [result.stats.wins, "Побед"], [result.stats.losses, "Поражений"], [result.stats.played ? `${result.stats.winRate}%` : "—", "Доля побед"], [result.stats.completedTournaments, "Турниров завершено"], [result.streakReliable ? result.stats.currentStreak : "—", "Побед подряд"]].map(([value, label]) => <div key={label}><strong>{value}</strong><small>{t(String(label))}</small></div>)}</div>
       <p className="kv-muted kv-small">{t("Только сыгранные матчи с подтверждённым счётом. Технические проходы не учитываются.")} {t(result.streakReliable ? `Лучшая серия: ${result.stats.bestStreak}.` : "Недостаточно данных о порядке матчей")}</p>

@@ -75,7 +75,7 @@ test("profile home keeps results and statistics inside History and Matches only"
   assert.doesNotMatch(document.body.textContent, /No results yet|Refresh results|Best streak/);
   await click("History and matches");
   assert.ok(document.querySelector('.kv-stats'));
-  assert.ok(document.querySelector('[aria-label="Sport"]'));
+  assert.equal(document.querySelector('[aria-label="Sport"]'), null);
   assert.match(document.body.textContent, /No results yet|Refresh results/);
   await click("Back");
   assert.ok(document.querySelector('.kv-stats') === null, 'Match statistics must not render on the profile home');
@@ -408,21 +408,19 @@ test('changing profile language preserves unsaved settings and player identity',
   assert.equal(writes, 0);
 });
 
-test('achievement translations preserve selected award, sport filtering and earned progress', async () => {
+test('achievement translations preserve selected award and earned progress with the single-sport filter hidden', async () => {
   matchRows = [{ id:'padel-win', tournament_id:'t1', tournament_name:'Test cup', sport:'padel', tournament_status:'completed', tournament_date:'2026-10-01', pair_id:'ours', partner_user_id:null, partner_name:'Partner', opponent_name:'Opponent', stage:'group', round:null, final_round:null, is_final:false, status:'completed', winner_id:'ours', pair_one_id:'ours', pair_two_id:'other', pair_one_sets:[6], pair_two_sets:[3], completed_at:'2026-10-01T10:00:00Z', scheduled_at:null }];
   await mount(); await click('Achievements');
   assert.equal(document.querySelector('[data-award="first-win"]').getAttribute('data-earned'), 'true');
   await click('10 wins');
   assert.equal([...document.querySelectorAll('.kv-segment button')].some(button => button.textContent === 'Tennis'), false);
-  await click('Padel');
   for (const [language, title, progress] of [['uk', '10 перемог', '1 із 10 перемог'], ['de', '10 Siege', '1 von 10 Siegen'], ['en', '10 wins', '1 of 10 wins']]) {
     await chooseLanguage(language);
     assert.equal(document.querySelector('#player-achievement-detail h3').textContent, title);
     assert.equal(document.querySelector('#player-achievement-detail small').textContent, progress);
-    assert.equal([...document.querySelectorAll('.kv-segment button')].find(button => button.textContent === 'Padel').getAttribute('aria-pressed'), 'true');
+    assert.equal(document.querySelector('.kv-segment'), null);
     assert.doesNotMatch(document.body.textContent, /Обновить результаты|Refresh results|Ergebnisse aktualisieren|Оновити результати|Получено:|Награды пересчитываются/);
   }
-  await click('All');
   assert.equal(document.querySelector('[data-award="first-win"]').getAttribute('data-earned'), 'true');
   assert.equal(document.querySelector('#player-achievement-detail small').textContent, '1 of 10 wins');
   await click('Back'); await click('History and matches');
