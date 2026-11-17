@@ -5,8 +5,10 @@ import { usePathname } from "next/navigation";
 import { supabase, hasRecoveryRedirect, hasOAuthRedirect } from "@/lib/supabase";
 import { accountError, accountPassword, siteBasePath } from "@/lib/player-account";
 import { clearVerification, rememberVerification, takeOAuthExpectation } from "@/lib/player-security";
+import { useProfileLanguage } from "../../profile/profile-i18n";
 
 export default function AuthCallbackPage() {
+  const { text: t, language, setLanguage } = useProfileLanguage();
   const basePath = siteBasePath(usePathname());
   const [status, setStatus] = useState("Проверяем ссылку…");
   const [recovery, setRecovery] = useState(false);
@@ -73,8 +75,8 @@ export default function AuthCallbackPage() {
     } catch (cause) { setError(accountError(cause)); }
     finally { setBusy(false); }
   }
-  return <main className="player-account" lang="ru"><div className="kv-phone"><header className="kv-header"><a className="kv-logo" href={`${basePath}/`}>KYNG CUP</a></header><div className="kv-body"><h1>{recovery ? "Новый пароль" : "Ваш аккаунт"}</h1><p role="status">{status}</p>
-    {recovery && <form className="kv-fields kv-section" onSubmit={event => void reset(event)}><label>Новый пароль<input type="password" autoComplete="new-password" minLength={12} maxLength={128} required value={password} onChange={event => setPassword(event.target.value)} /></label><label>Повторите пароль<input type="password" autoComplete="new-password" minLength={12} maxLength={128} required value={repeat} onChange={event => setRepeat(event.target.value)} /></label><button type="submit" className="kv-primary" disabled={busy}>{busy ? "Сохраняем…" : "Сохранить пароль"}</button></form>}
-    {error && <p className="kv-message player-error" role="alert">{error}</p>}<a className="kv-secondary player-callback-link" href={`${basePath}/profile/`}>Перейти в кабинет</a>
+  return <main className="player-account" lang={language} translate="no"><div className="kv-phone"><header className="kv-header"><a className="kv-logo" href={`${basePath}/`} aria-label={t("Главная KYNG CUP")}>KYNG CUP</a><label className="kv-language"><span>{t("Язык")}</span><select value={language} onChange={event => setLanguage(event.target.value as "en" | "uk" | "de")}><option value="uk">UA</option><option value="en">EN</option><option value="de">DE</option></select></label></header><div className="kv-body"><h1>{t(recovery ? "Новый пароль" : "Ваш аккаунт")}</h1><p role="status">{t(status)}</p>
+    {recovery && <form className="kv-fields kv-section" onSubmit={event => void reset(event)}><label>{t("Новый пароль")}<input type="password" autoComplete="new-password" minLength={12} maxLength={128} required value={password} onChange={event => setPassword(event.target.value)} /></label><label>{t("Повторите пароль")}<input type="password" autoComplete="new-password" minLength={12} maxLength={128} required value={repeat} onChange={event => setRepeat(event.target.value)} /></label><button type="submit" className="kv-primary" disabled={busy}>{busy ? t("Сохраняем…") : t("Сохранить пароль")}</button></form>}
+    {error && <p className="kv-message player-error" role="alert">{t(error)}</p>}<a className="kv-secondary player-callback-link" href={`${basePath}/profile/`}>{t("Перейти в кабинет")}</a>
   </div></div></main>;
 }

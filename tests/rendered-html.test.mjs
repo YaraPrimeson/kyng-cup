@@ -66,7 +66,7 @@ test("exports an authentication callback with no indexing and no referrer", asyn
   const response = await render("/auth/callback");
   assert.equal(response.status, 200);
   const html = await response.text();
-  assert.match(html, /Проверяем ссылку/);
+  assert.match(html, /Checking your link/);
   assert.match(html, /no-referrer/);
   assert.match(html, /noindex/);
 });
