@@ -2,6 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import Wordmark from "./wordmark";
+import { isSportVisible } from "@/lib/sports";
 import { Language, useLanguage } from "./i18n";
 
 export default function SiteHeader() {
@@ -10,13 +11,14 @@ export default function SiteHeader() {
   const basePath = pathname.startsWith("/kyng-cup") ? "/kyng-cup" : "";
   const path = pathname.slice(basePath.length).replace(/\/+$/, "") || "/";
   if (path === "/profile" || path === "/auth/callback") return null;
-  const links = path === "/"
+  const links = (path === "/"
     ? [["/tennis/", t("tennis")], ["/padel/", t("padel")]]
     : path === "/tennis"
       ? [["/", t("home")], ["/padel/", t("padel")]]
       : path === "/padel"
         ? [["/", t("home")], ["/tennis/", t("tennis")]]
-        : [["/", t("home")], ["/tennis/", t("tennis")], ["/padel/", t("padel")]];
+        : [["/", t("home")], ["/tennis/", t("tennis")], ["/padel/", t("padel")]])
+    .filter(([href]) => href === "/" || isSportVisible(href.split("/")[1]));
 
   return (
     <header className="global-header">

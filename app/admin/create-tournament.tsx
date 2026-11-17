@@ -1,4 +1,5 @@
 "use client";
+import { isSportVisible } from "@/lib/sports";
 import { FormEvent, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { balancePairs, blankPairs, buildTournamentSetup, groupSummary, parsePairList, SetupPair, tournamentSlug } from "@/lib/tournament-setup";
@@ -44,6 +45,7 @@ export default function CreateTournament({ userId, onCreated, onClose }: { userI
   async function create(event: FormEvent) {
     event.preventDefault();
     if (saving) return;
+    if (!isSportVisible(sport)) { setMessage("Выберите доступный вид спорта."); return; }
     let payload;
     try { payload = buildTournamentSetup({ name, slug, fallbackSlug, location, date, endDate, sport, status, format, pairs, groups, qualifiers }); }
     catch (error) { setMessage((error as Error).message); return; }
@@ -62,7 +64,7 @@ export default function CreateTournament({ userId, onCreated, onClose }: { userI
       <section className="setup-step"><h3>1. Основное</h3><div className="admin-form-grid">
         <label className="admin-field"><span>Название</span><input value={name} onChange={(event) => { setName(event.target.value); if (!slugEdited) setSlug(tournamentSlug(event.target.value)); }} placeholder="KYNG Padel Cup" required /></label>
         <label className="admin-field"><span>Дата</span><input type="date" value={date} onChange={(event) => setDate(event.target.value)} required /></label>
-        <label className="admin-field"><span>Вид спорта</span><select value={sport} onChange={(event) => setSport(event.target.value)}><option value="padel">Падел</option><option value="tennis">Теннис</option></select></label>
+        <label className="admin-field"><span>Вид спорта</span><select value={isSportVisible(sport) ? sport : ""} onChange={(event) => setSport(event.target.value)}>{!isSportVisible(sport) && <option value="" disabled>Выберите вид спорта</option>}<option value="padel">Падел</option>{isSportVisible("tennis") && <option value="tennis">Теннис</option>}</select></label>
         <label className="admin-field"><span>Локация</span><input value={location} onChange={(event) => setLocation(event.target.value)} /></label>
       </div></section>
       <section className="setup-step"><h3>2. Пары</h3><p>Вставьте список: одна пара на строку. Поддерживается вставка двух или трёх колонок из таблицы.</p>

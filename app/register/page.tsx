@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
+import { visibleSportItems } from "@/lib/sports";
 import { supabase } from "@/lib/supabase";
 import { Language, useLanguage } from "../i18n";
 import SiteFooter from "../site-footer";
@@ -116,7 +117,7 @@ export default function RegisterPage() {
   const loadTournaments = useCallback(async () => {
     const result = await supabase.from("tournaments").select("id,slug,name,sport,location,format_description,prize_pool,starts_at,ends_at,status,registration_status").in("status", ["published", "live"]).in("registration_status", ["open", "waitlist"]).order("starts_at", { ascending: true, nullsFirst: false });
     if (result.error) { setLoadError(true); setLoading(false); return; }
-    const available = (result.data ?? []) as Tournament[];
+    const available = visibleSportItems((result.data ?? []) as Tournament[]);
     const params = new URLSearchParams(window.location.search);
     const requested = params.get("tournament");
     const requestedSport = params.get("sport") as Sport | null;
@@ -245,7 +246,7 @@ export default function RegisterPage() {
       </article> : <form className="registration-application" id="registration-form" onSubmit={submitRegistration} onChange={() => submissionError && setSubmissionError(null)}>
         <div className="registration-honeypot" aria-hidden="true"><label>Website<input name="website" type="text" tabIndex={-1} autoComplete="off" /></label></div>
         <ContactFields key={account.user?.id ?? "guest"} language={language} identity={identity} disabled={account.loading || !tournament || submissionState === "submitting"} />
-        <PairFields sport={tournament?.sport ?? "tennis"} language={language} disabled={!tournament || submissionState === "submitting"} />
+        <PairFields sport={tournament?.sport ?? "padel"} language={language} disabled={!tournament || submissionState === "submitting"} />
         <fieldset className="registration-review-card" disabled={!tournament || submissionState === "submitting"}>
           <legend><span>03</span>{text.review}</legend>
           <div className="registration-consents">

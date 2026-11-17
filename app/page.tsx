@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import { isSportVisible, visibleSports } from "@/lib/sports";
 import SiteFooter from "./site-footer";
 import { Language, useLanguage } from "./i18n";
 import { formatTournamentDate, formatTournamentMonth, usePublicTournaments } from "./public-tournaments";
@@ -12,26 +13,33 @@ const copy: Record<Language, { eyebrow: string; title: string; intro: string; da
   ru: { eyebrow: "Теннис · Падел · Сообщество", title: "Больше чем игра. Стандарт.", intro: "Игра высокого уровня. Бескомпромиссная организация. Опыт, который хочется повторить.", datesLabel: "Вена · Ближайшие турниры", datesTitle: "Два вида спорта. Одно сообщество.", datesIntro: "Посмотрите ближайшие турниры KYNG CUP по теннису и паделу в Вене.", details: "Подробнее", aboutLabel: "Что такое KYNG CUP", aboutTitle: "Соревнование создаёт момент. Сообщество придаёт ему смысл.", aboutText: "Мы создаём турниры по теннису и паделу для людей, которые ценят высокий уровень игры, качественное окружение и исключительный опыт.\n\nПродуманные форматы. Внимание к деталям. Сильные игроки. Атмосфера, в которую хочется возвращаться.", choose: "Выберите свой корт", chooseTitle: "Во что вы хотите играть?", tennisText: "Традиция, точность и длинный ритм матча.", padelText: "Скорость, инстинкт и игра, построенная на партнёрстве.", enter: "Подробнее" },
 };
 
+const padelCopy: Record<Language, Partial<typeof copy.en>> = {
+  en: { eyebrow: "Padel · Community", datesTitle: "One court. One community.", datesIntro: "Discover the next KYNG CUP padel tournaments in Vienna.", aboutText: "We create padel tournaments for people who value a high level of play, quality company, and an exceptional experience.\n\nThoughtful formats. Attention to detail. Strong players. An atmosphere you want to come back to.", choose: "Your next court", chooseTitle: "Discover KYNG CUP Padel." },
+  uk: { eyebrow: "Падел · Спільнота", datesTitle: "Один корт. Одна спільнота.", datesIntro: "Відкрийте для себе найближчі падел-турніри KYNG CUP у Відні.", aboutText: "Ми створюємо падел-турніри для людей, які цінують високий рівень гри, якісне оточення та винятковий досвід.\n\nПродумані формати. Увага до деталей. Сильні гравці. Атмосфера, до якої хочеться повертатися.", choose: "Ваш наступний корт", chooseTitle: "Відкрийте KYNG CUP Padel." },
+  de: { eyebrow: "Padel · Community", datesTitle: "Ein Court. Eine Community.", datesIntro: "Entdecke die nächsten KYNG CUP Padel-Turniere in Wien.", aboutText: "Wir gestalten Padel-Turniere für Menschen, die hohes Spielniveau, gute Gesellschaft und ein außergewöhnliches Erlebnis schätzen.\n\nDurchdachte Formate. Liebe zum Detail. Starke Spieler. Eine Atmosphäre, zu der man zurückkehren möchte.", choose: "Dein nächster Court", chooseTitle: "Entdecke KYNG CUP Padel." },
+  ru: { eyebrow: "Падел · Сообщество", datesTitle: "Один корт. Одно сообщество.", datesIntro: "Посмотрите ближайшие турниры KYNG CUP по паделу в Вене.", aboutText: "Мы создаём турниры по паделу для людей, которые ценят высокий уровень игры, качественное окружение и исключительный опыт.\n\nПродуманные форматы. Внимание к деталям. Сильные игроки. Атмосфера, в которую хочется возвращаться.", choose: "Ваш следующий корт", chooseTitle: "Откройте KYNG CUP Padel." },
+};
+
 export default function Home() {
   const pathname = usePathname();
   const basePath = pathname.startsWith("/kyng-cup") ? "/kyng-cup" : "";
   const { language } = useLanguage();
-  const c = copy[language];
+  const c = { ...copy[language], ...(!isSportVisible("tennis") ? padelCopy[language] : {}) };
   const { tournaments, loading } = usePublicTournaments();
-  const featured = (["tennis", "padel"] as const)
+  const featured = visibleSports
     .map((sport) => tournaments.find((item) => item.sport === sport && item.status === "live") ?? tournaments.find((item) => item.sport === sport))
     .filter((item) => item !== undefined);
   const tournamentYear = featured.find((item) => item.starts_at)?.starts_at
     ? new Intl.DateTimeFormat("en", { timeZone: "Europe/Vienna", year: "numeric" }).format(new Date(featured.find((item) => item.starts_at)!.starts_at!))
     : null;
   return <main className="universal-page" data-language={language} key={language}>
-    <section className="universal-hero"><div><p className="eyebrow">{c.eyebrow}</p><h1>{c.title}</h1><p>{c.intro}</p></div><span className="universal-scroll">KYNG CUP{tournamentYear ? ` · ${tournamentYear}` : ""}</span></section>
+    <section className={`universal-hero${!isSportVisible("tennis") ? " padel-home-hero" : ""}`}><div><p className="eyebrow">{c.eyebrow}</p><h1>{c.title}</h1><p>{c.intro}</p></div><span className="universal-scroll">KYNG CUP{tournamentYear ? ` · ${tournamentYear}` : ""}</span></section>
     <section className="home-dates" aria-labelledby="home-dates-title"><div className="section-index"><span>01</span><span>{loading ? c.datesLabel : formatTournamentMonth(featured, language)}</span></div><div className="home-dates__intro"><h2 id="home-dates-title">{c.datesTitle}</h2><p>{c.datesIntro}</p></div><div className="home-dates__events">
       {featured.map((tournament) => <a href={`${basePath}/upcoming-tournaments/#${tournament.sport}-${tournament.slug}`} key={tournament.id}><span>{tournament.sport === "tennis" ? "Tennis" : "Padel"}</span><strong>{formatTournamentDate(tournament, language)}</strong><small>{c.details} <i aria-hidden="true">↗</i></small></a>)}
     </div></section>
     <section className="universal-about"><div className="section-index"><span>02</span><span>{c.aboutLabel}</span></div><div><h2>{c.aboutTitle}</h2><p>{c.aboutText}</p></div></section>
     <section className="sport-choice"><div className="section-index"><span>02</span><span>{c.choose}</span></div><h2>{c.chooseTitle}</h2><div className="sport-choice-grid">
-      <a className="sport-choice-card tennis-choice" href={`${basePath}/tennis/`}><span>Tennis</span><p>{c.tennisText}</p><strong>{c.enter} ↗</strong></a>
+      {isSportVisible("tennis") && <a className="sport-choice-card tennis-choice" href={`${basePath}/tennis/`}><span>Tennis</span><p>{c.tennisText}</p><strong>{c.enter} ↗</strong></a>}
       <a className="sport-choice-card padel-choice" href={`${basePath}/padel/`}><span>Padel</span><p>{c.padelText}</p><strong>{c.enter} ↗</strong></a>
     </div></section>
     <SiteFooter />

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { visibleSportItems, visibleSports } from "@/lib/sports";
 import { matchScore, matchStage, playerResults, type PlayerMatch } from "@/lib/player-results";
 import ProfileIcon from "./profile-icon";
 import { useProfileLanguage } from "./profile-i18n";
@@ -33,12 +34,13 @@ export default function PlayerResults({ userId, mode }: { userId: string; mode: 
   if (!loaded || loaded.owner !== userId || loaded.revision !== revision) return <p role="status" className="kv-section">{t("Загружаем результаты…")}</p>;
   const { rows, error } = loaded;
   if (error) return <section className="kv-section"><p role="alert" className="player-error">{t("Не удалось загрузить результаты. Статистика и достижения пока недоступны.")}</p><button type="button" className="kv-secondary" onClick={retry}>{t("Повторить загрузку результатов")}</button></section>;
-  const result = playerResults(sport === "all" ? rows : rows.filter(match => match.sport === sport));
+  const visibleRows = visibleSportItems(rows);
+  const result = playerResults(sport === "all" ? visibleRows : visibleRows.filter(match => match.sport === sport));
   const achievements = result.achievements.map(item => ({ ...item, name: t(item.name), rule: t(item.rule), progress: t(item.progress) }));
   const award = achievements.find(item => item.id === selected) ?? achievements[0];
   return <section className="kv-section" aria-label={t(mode === "summary" ? "Статистика игрока" : mode === "history" ? "Результаты матчей" : "Достижения игрока")}>
     <div className="kv-segment" aria-label={t("Вид спорта")}>
-      {[["all", t("Все")], ["tennis", "Tennis"], ["padel", "Padel"]].map(([value, label]) => <button type="button" key={value} aria-pressed={sport === value} onClick={() => setSport(value)}>{label}</button>)}
+      {[["all", t("Все")], ...visibleSports.map(value => [value, value === "tennis" ? "Tennis" : "Padel"])].map(([value, label]) => <button type="button" key={value} aria-pressed={sport === value} onClick={() => setSport(value)}>{label}</button>)}
     </div>
     {mode !== "achievements" && <>
       <div className="kv-stats">{[[result.stats.played, "Матчей"], [result.stats.wins, "Побед"], [result.stats.losses, "Поражений"], [result.stats.played ? `${result.stats.winRate}%` : "—", "Доля побед"], [result.stats.completedTournaments, "Турниров завершено"], [result.streakReliable ? result.stats.currentStreak : "—", "Побед подряд"]].map(([value, label]) => <div key={label}><strong>{value}</strong><small>{t(String(label))}</small></div>)}</div>

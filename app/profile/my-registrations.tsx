@@ -4,6 +4,7 @@ import { useProfileLanguage } from "./profile-i18n";
 
 import { useEffect, useState, type FormEvent } from "react";
 import { supabase } from "@/lib/supabase";
+import { isSportVisible } from "@/lib/sports";
 
 type Registration = {
   id: string;
@@ -60,12 +61,13 @@ export default function MyRegistrations({ userId }: { userId: string }) {
     return () => { active = false; };
   }, [attempt, userId]);
 
+  const visibleItems = items?.filter(item => !item.tournaments || isSportVisible(item.tournaments.sport));
   return <section className="kv-section" aria-label={t("Мои заявки")}>
     <h2>{t("Мои заявки")}</h2>
     {error ? <><p role="alert">{t("Не удалось загрузить заявки. Попробуйте ещё раз.")}</p><button type="button" className="kv-secondary" onClick={() => { setError(false); setAttempt(value => value + 1); }}>{t("Повторить загрузку")}</button></>
       : items === null ? <p role="status">{t("Загружаем ваши заявки…")}</p>
-      : items.length === 0 ? <p className="kv-note">{t("Пока нет ваших заявок. Старые заявки без входа в аккаунт здесь не отображаются.")}</p>
-      : <div className="player-event-list">{items.map(item => <article className="kv-box" key={item.id}>
+      : visibleItems?.length === 0 ? <p className="kv-note">{t("Пока нет ваших заявок. Старые заявки без входа в аккаунт здесь не отображаются.")}</p>
+      : <div className="player-event-list">{visibleItems?.map(item => <article className="kv-box" key={item.id}>
         <span className="kv-badge">{t(statusLabel[item.status] ?? "Заявка получена")}</span>
         <h3>{item.tournaments?.name ?? t("Турнир недоступен")}</h3>
         {item.pair_name && <p>{item.pair_name}</p>}

@@ -172,7 +172,7 @@ async function fillDraft() {
   await enter(field('Название'), 'My unfinished Cup');
   await enter(field('Дата'), '2027-06-12');
   await enter(field('Локация'), 'Copied venue');
-  await enter(field('Вид спорта'), 'tennis');
+  await enter(field('Вид спорта'), 'padel');
   await enter(field('Количество пар'), '14');
   await enter(field('Количество групп'), '3');
   await enter(field('Дата завершения · необязательно'), '2027-06-14');
@@ -187,7 +187,7 @@ function assertDraft() {
   assert.equal(field('Название').value, 'My unfinished Cup');
   assert.equal(field('Дата').value, '2027-06-12');
   assert.equal(field('Локация').value, 'Copied venue');
-  assert.equal(field('Вид спорта').value, 'tennis');
+  assert.equal(field('Вид спорта').value, 'padel');
   assert.equal(field('Количество пар').value, '14');
   assert.equal(field('Количество групп').value, '3');
   assert.equal(field('Дата завершения · необязательно').value, '2027-06-14');

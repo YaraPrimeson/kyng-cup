@@ -1,5 +1,6 @@
 "use client";
 
+import { isSportVisible, visibleSportItems } from "@/lib/sports";
 import CreateTournament from "./create-tournament";
 import RegistrationPairLink, { RegistrationPairLinks } from "./registration-pair-link";
 import KnockoutDraw from "./knockout-draw";
@@ -173,7 +174,7 @@ function TournamentSettings({ tournament, onSaved }: { tournament: Tournament; o
         <label className="admin-field"><span>Location</span><input value={location} onChange={(event) => setLocation(event.target.value)} /></label>
         <label className="admin-field"><span>Start date</span><input type="date" value={startsAt} max={endsAt || undefined} onChange={(event) => setStartsAt(event.target.value)} required /></label>
         <label className="admin-field"><span>End date</span><input type="date" value={endsAt} min={startsAt || undefined} onChange={(event) => setEndsAt(event.target.value)} required /></label>
-        <label className="admin-field"><span>Sport</span><select value={sport} onChange={(event) => setSport(event.target.value as Sport)}><option value="tennis">Tennis</option><option value="padel">Padel</option></select></label>
+        <label className="admin-field"><span>Sport</span><select value={sport} onChange={(event) => setSport(event.target.value as Sport)}>{isSportVisible("tennis") && <option value="tennis">Tennis</option>}<option value="padel">Padel</option></select></label>
         <label className="admin-field"><span>Visibility / status</span><select value={status} onChange={(event) => setStatus(event.target.value as TournamentStatus)}><option value="draft">Draft · hidden</option><option value="published">Published</option><option value="live">Live now</option><option value="completed">Completed · archive</option></select></label>
         <label className="admin-field"><span>Registration</span><select value={registrationStatus} onChange={(event) => setRegistrationStatus(event.target.value as RegistrationAvailability)}><option value="open">Open · accepting pairs</option><option value="waitlist">Waitlist only</option><option value="closed">Closed</option></select></label>
       </div>
@@ -624,7 +625,7 @@ export default function AdminPage() {
     const result = await supabase.from("tournaments").select("id,slug,name,sport,location,starts_at,ends_at,bracket_size,format,participant_count,playoff_participant_count,status,registration_status,updated_at").order("created_at", { ascending: false });
     if (request !== loadRequest.current) return;
     if (result.error) { setAccessError("Could not load tournaments. Please retry."); setTournaments([]); setSelectedId(null); setChecking(false); return; }
-    const managed = ((result.data ?? []) as Omit<Tournament, "role">[]).map((item) => ({ ...item, role: "owner" as const }));
+    const managed = visibleSportItems((result.data ?? []) as Omit<Tournament, "role">[]).map((item) => ({ ...item, role: "owner" as const }));
     setTournaments(managed);
     setSelectedId((current) => preferredId && managed.some((item) => item.id === preferredId) ? preferredId : current === null ? null : current && managed.some((item) => item.id === current) ? current : managed[0]?.id ?? null);
     setChecking(false);

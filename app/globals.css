@@ -970,3 +970,7 @@ html[lang="ru"] .admin-round-group:not([open]) > summary::after { content: "По
   .public-knockout .knockout-node { position: relative; top: auto !important; }
   .public-knockout .knockout-link { display: none; }
 }
+
+/* Sport sections expand naturally while a discipline is hidden. */
+.universal-hero.padel-home-hero { background-image: url('/assets/kyng-padel-action.webp'); }
+.sport-choice-card:only-child, .home-dates__events > a:only-child, .upcoming-page__selector > div > a:only-child { grid-column: 1 / -1; }

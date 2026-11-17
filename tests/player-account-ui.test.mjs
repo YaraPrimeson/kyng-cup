@@ -229,7 +229,7 @@ test("empty achievements show locked awards without demo progress", async () => 
 });
 
 test("history shows actual results with player-relative score and earned achievements", async () => {
-  matchRows = [{ id:"knockout:1", tournament_id:"t1", tournament_name:"Реальный кубок", tournament_slug:"cup", sport:"tennis", tournament_status:"completed", tournament_date:"2026-10-01", pair_id:"ours", partner_user_id:second.id, partner_name:"Имя партнёра", opponent_name:"Соперники", stage:"playoffs", round:1, final_round:1, is_final:true, status:"completed", winner_id:"ours", pair_one_id:"opponent", pair_two_id:"ours", pair_one_sets:[3,4], pair_two_sets:[6,6], completed_at:"2026-10-01T10:00:00Z", scheduled_at:null }];
+  matchRows = [{ id:"knockout:1", tournament_id:"t1", tournament_name:"Реальный кубок", tournament_slug:"cup", sport:"padel", tournament_status:"completed", tournament_date:"2026-10-01", pair_id:"ours", partner_user_id:second.id, partner_name:"Имя партнёра", opponent_name:"Соперники", stage:"playoffs", round:1, final_round:1, is_final:true, status:"completed", winner_id:"ours", pair_one_id:"opponent", pair_two_id:"ours", pair_one_sets:[3,4], pair_two_sets:[6,6], completed_at:"2026-10-01T10:00:00Z", scheduled_at:null }];
   await mount(); await click("History and matches");
   assert.match(document.body.textContent, /Реальный кубок/);
   assert.match(document.body.textContent, /6:3 · 6:4/);
@@ -409,21 +409,22 @@ test('changing profile language preserves unsaved settings and player identity',
 });
 
 test('achievement translations preserve selected award, sport filtering and earned progress', async () => {
-  matchRows = [{ id:'tennis-win', tournament_id:'t1', tournament_name:'Test cup', sport:'tennis', tournament_status:'completed', tournament_date:'2026-10-01', pair_id:'ours', partner_user_id:null, partner_name:'Partner', opponent_name:'Opponent', stage:'group', round:null, final_round:null, is_final:false, status:'completed', winner_id:'ours', pair_one_id:'ours', pair_two_id:'other', pair_one_sets:[6], pair_two_sets:[3], completed_at:'2026-10-01T10:00:00Z', scheduled_at:null }];
+  matchRows = [{ id:'padel-win', tournament_id:'t1', tournament_name:'Test cup', sport:'padel', tournament_status:'completed', tournament_date:'2026-10-01', pair_id:'ours', partner_user_id:null, partner_name:'Partner', opponent_name:'Opponent', stage:'group', round:null, final_round:null, is_final:false, status:'completed', winner_id:'ours', pair_one_id:'ours', pair_two_id:'other', pair_one_sets:[6], pair_two_sets:[3], completed_at:'2026-10-01T10:00:00Z', scheduled_at:null }];
   await mount(); await click('Achievements');
   assert.equal(document.querySelector('[data-award="first-win"]').getAttribute('data-earned'), 'true');
   await click('10 wins');
-  await click('Tennis');
+  assert.equal([...document.querySelectorAll('.kv-segment button')].some(button => button.textContent === 'Tennis'), false);
+  await click('Padel');
   for (const [language, title, progress] of [['uk', '10 перемог', '1 із 10 перемог'], ['de', '10 Siege', '1 von 10 Siegen'], ['en', '10 wins', '1 of 10 wins']]) {
     await chooseLanguage(language);
     assert.equal(document.querySelector('#player-achievement-detail h3').textContent, title);
     assert.equal(document.querySelector('#player-achievement-detail small').textContent, progress);
-    assert.equal([...document.querySelectorAll('.kv-segment button')].find(button => button.textContent === 'Tennis').getAttribute('aria-pressed'), 'true');
+    assert.equal([...document.querySelectorAll('.kv-segment button')].find(button => button.textContent === 'Padel').getAttribute('aria-pressed'), 'true');
     assert.doesNotMatch(document.body.textContent, /Обновить результаты|Refresh results|Ergebnisse aktualisieren|Оновити результати|Получено:|Награды пересчитываются/);
   }
-  await click('Padel');
-  assert.equal(document.querySelector('[data-award="first-win"]').getAttribute('data-earned'), 'false');
-  assert.equal(document.querySelector('#player-achievement-detail small').textContent, '0 of 10 wins');
+  await click('All');
+  assert.equal(document.querySelector('[data-award="first-win"]').getAttribute('data-earned'), 'true');
+  assert.equal(document.querySelector('#player-achievement-detail small').textContent, '1 of 10 wins');
   await click('Back'); await click('History and matches');
   assert.equal([...document.querySelectorAll('button')].some(button => button.textContent === 'Refresh results'), false);
 });

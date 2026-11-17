@@ -60,3 +60,14 @@ test('delayed owner A response cannot replace resolved owner B results', async (
   assert.match(document.body.textContent, /Кубок B/);
   assert.doesNotMatch(document.body.textContent, /Кубок A|Соперник A/);
 });
+
+
+test('hidden tennis results cannot appear in history, statistics or achievements', async () => {
+  await render('A');
+  await resolve(0, [match({ id: 'padel', winner_id: 'other', pair_one_sets: [3], pair_two_sets: [6] }), match({ id: 'tennis', sport: 'tennis', tournament_name: 'Hidden tennis cup', completed_at: '2026-10-02T10:00:00Z' })]);
+  assert.doesNotMatch(document.body.textContent, /Tennis|Hidden tennis cup/);
+  const stats = [...document.querySelectorAll('.kv-stats > div')].map(node => node.querySelector('strong').textContent);
+  assert.deepEqual(stats.slice(0, 3), ['1', '0', '1']);
+  await render('A', 'achievements');
+  assert.equal(document.querySelector('[data-award="first-win"]').getAttribute('data-earned'), 'false');
+});

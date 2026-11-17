@@ -2,6 +2,7 @@
 
 import KnockoutBoard from "../knockout-board";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { visibleSportItems } from "@/lib/sports";
 import { supabase } from "@/lib/supabase";
 import { Language, useLanguage } from "../i18n";
 import { calculateStandings, GroupMatch, GroupMember, TournamentGroup } from "../group-stage";
@@ -132,7 +133,8 @@ export default function BracketPage() {
   const loadBracket = useCallback(async (requestedSlug?: string) => {
     const tournamentResult = await supabase.from("tournaments").select("id,slug,name,sport,location,starts_at,bracket_size,format,participant_count,status").in("status", ["published", "live", "completed"]).order("starts_at", { ascending: false, nullsFirst: false });
     if (tournamentResult.error || !tournamentResult.data?.length) { setError(text.noBracket); setLoading(false); return; }
-    const available = tournamentResult.data as Tournament[];
+    const available = visibleSportItems(tournamentResult.data as Tournament[]);
+    if (!available.length) { setTournaments([]); setTournament(null); setError(text.noBracket); setLoading(false); return; }
     const urlSlug = requestedSlug ?? new URLSearchParams(window.location.search).get("tournament") ?? undefined;
     const requestedSport = new URLSearchParams(window.location.search).get("sport") as Sport | null;
     const sportAvailable = requestedSport ? available.filter((item) => item.sport === requestedSport) : available;

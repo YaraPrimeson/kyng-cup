@@ -20,23 +20,26 @@ test("server-renders the KYNG CUP landing page", async () => {
   const html = await response.text();
   assert.match(html, /<title>KYNG CUP — More Than a Game<\/title>/i);
   assert.match(html, /More than a game\. A standard\./);
-  assert.match(html, /Choose your court/);
-  assert.match(html, /href="\/tennis\/?"/i);
+  assert.match(html, /Your next court/);
+  assert.doesNotMatch(html, /href="\/tennis\/?"/i);
+  assert.match(html, /href="\/padel\/?"/i);
+  assert.match(html, /International padel tournaments/);
   assert.match(html, /brand-wordmark/);
   assert.match(html, /favicon\.png/);
   assert.doesNotMatch(html, /ball-mark/);
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape/i);
 });
 
-test("server-renders distinct tennis and padel pages", async () => {
-  const [tennisResponse, padelResponse] = await Promise.all([render("/tennis"), render("/padel")]);
-  assert.equal(tennisResponse.status, 200);
+test("hidden tennis redirects while the padel page stays available", async () => {
+  const tennisResponse = await render("/tennis");
+  assert.ok([307, 308].includes(tennisResponse.status));
+  assert.equal(tennisResponse.headers.get("location"), "/padel/");
+  const padelResponse = await render("/padel");
   assert.equal(padelResponse.status, 200);
-  const [tennis, padel] = await Promise.all([tennisResponse.text(), padelResponse.text()]);
-  assert.match(tennis, /More than/);
-  assert.match(tennis, /The tennis experience/);
+  const padel = await padelResponse.text();
   assert.match(padel, /Built for/);
   assert.match(padel, /The padel experience/);
+  assert.doesNotMatch(padel, /href="\/tennis\/?"/i);
 });
 
 test("server-renders the four-language pair registration form", async () => {

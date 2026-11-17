@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import { sportCopy } from "@/lib/sports";
 import SiteFooter from "../site-footer";
 import { Language, useLanguage } from "../i18n";
 import { trackEvent, withAttribution } from "../analytics";
@@ -23,28 +24,28 @@ const copy: Record<Language, TournamentCopy> = {
     tennis: "Tennis", padel: "Padel", tennisLine: "The long rhythm of the match.", padelLine: "Fast decisions. Shared momentum.",
     tennisTitle: "KYNG CUP Tennis", padelTitle: "KYNG CUP Padel", tennisDescription: "A day for focused play, considered organisation and people who value the game.", padelDescription: "Dynamic play, respectful competition and the atmosphere that carries beyond the court.",
     venue: "Venue", venueValue: "Vienna, Austria", registration: "Registration", registrationValue: "Open", waitlist: "Waitlist", closed: "Closed", note: "The form opens with the chosen discipline already selected.", registerTennis: "Register for Tennis", registerPadel: "Register for Padel", processLabel: "Registration", processTitle: "Clear from the first click to the first serve.",
-    steps: ["Choose a tournament", "Send your details", "Receive confirmation"], stepCopy: ["Select the padel tournament. The form remembers your choice.", "We ask only for the information needed to confirm participation.", "The KYNG CUP team contacts you with the next steps."],
+    steps: ["Choose a tournament", "Send your details", "Receive confirmation"], stepCopy: [sportCopy("Choose tennis or padel. The form remembers your choice.", "Select the padel tournament. The form remembers your choice."), "We ask only for the information needed to confirm participation.", "The KYNG CUP team contacts you with the next steps."],
   },
   uk: {
     eyebrow: "KYNG CUP · Міжнародна падел-спільнота", title: "Найближчі турніри.", intro: "Один корт. Одна спільнота. Знайдіть свій наступний матч з KYNG CUP.", choose: "Обрати турнір",
     tennis: "Теніс", padel: "Падел", tennisLine: "Довгий ритм матчу.", padelLine: "Швидкі рішення. Спільний темп.",
     tennisTitle: "KYNG CUP Tennis", padelTitle: "KYNG CUP Padel", tennisDescription: "День для зосередженої гри, продуманої організації та людей, які цінують саму гру.", padelDescription: "Динамічна гра, повага в суперництві та атмосфера, що триває за межами корту.",
     venue: "Локація", venueValue: "Відень, Австрія", registration: "Реєстрація", registrationValue: "Відкрита", waitlist: "Лист очікування", closed: "Закрита", note: "Форма відкриється з уже обраною дисципліною.", registerTennis: "Зареєструватися на теніс", registerPadel: "Зареєструватися на падел", processLabel: "Реєстрація", processTitle: "Зрозумілий шлях від першого кліку до першої подачі.",
-    steps: ["Оберіть турнір", "Надішліть дані", "Отримайте підтвердження"], stepCopy: ["Оберіть теніс або падел. Форма запам’ятає ваш вибір.", "Ми просимо лише дані, необхідні для підтвердження участі.", "Команда KYNG CUP зв’яжеться з вами щодо наступних кроків."],
+    steps: ["Оберіть турнір", "Надішліть дані", "Отримайте підтвердження"], stepCopy: [sportCopy("Оберіть теніс або падел. Форма запам’ятає ваш вибір.", "Оберіть падел-турнір. Форма запам’ятає ваш вибір."), "Ми просимо лише дані, необхідні для підтвердження участі.", "Команда KYNG CUP зв’яжеться з вами щодо наступних кроків."],
   },
   de: {
     eyebrow: "KYNG CUP · Internationale Padel-Community", title: "Kommende Turniere.", intro: "Ein Court. Eine Community. Finden Sie Ihr nächstes Match mit KYNG CUP.", choose: "Turnier wählen",
     tennis: "Tennis", padel: "Padel", tennisLine: "Der lange Rhythmus des Matches.", padelLine: "Schnelle Entscheidungen. Gemeinsamer Rhythmus.",
     tennisTitle: "KYNG CUP Tennis", padelTitle: "KYNG CUP Padel", tennisDescription: "Ein Tag für konzentriertes Spiel, durchdachte Organisation und Menschen, die das Spiel schätzen.", padelDescription: "Dynamisches Spiel, respektvoller Wettbewerb und eine Atmosphäre, die über den Court hinausgeht.",
     venue: "Ort", venueValue: "Wien, Österreich", registration: "Anmeldung", registrationValue: "Geöffnet", waitlist: "Warteliste", closed: "Geschlossen", note: "Das Formular öffnet sich mit der gewählten Sportart.", registerTennis: "Für Tennis anmelden", registerPadel: "Für Padel anmelden", processLabel: "Anmeldung", processTitle: "Klar vom ersten Klick bis zum ersten Aufschlag.",
-    steps: ["Turnier wählen", "Daten senden", "Bestätigung erhalten"], stepCopy: ["Wählen Sie das Padel-Turnier. Das Formular merkt sich Ihre Auswahl.", "Wir fragen nur die Daten ab, die für die Teilnahmebestätigung nötig sind.", "Das KYNG CUP Team meldet sich mit den nächsten Schritten."],
+    steps: ["Turnier wählen", "Daten senden", "Bestätigung erhalten"], stepCopy: [sportCopy("Wählen Sie Tennis oder Padel. Das Formular merkt sich Ihre Auswahl.", "Wählen Sie das Padel-Turnier. Das Formular merkt sich Ihre Auswahl."), "Wir fragen nur die Daten ab, die für die Teilnahmebestätigung nötig sind.", "Das KYNG CUP Team meldet sich mit den nächsten Schritten."],
   },
   ru: {
     eyebrow: "KYNG CUP · Международное падел-сообщество", title: "Ближайшие турниры.", intro: "Один корт. Одно сообщество. Найдите свой следующий матч вместе с KYNG CUP.", choose: "Выбрать турнир",
     tennis: "Теннис", padel: "Падел", tennisLine: "Длинный ритм матча.", padelLine: "Быстрые решения. Общий темп.",
     tennisTitle: "KYNG CUP Tennis", padelTitle: "KYNG CUP Padel", tennisDescription: "День для сосредоточенной игры, продуманной организации и людей, которые ценят саму игру.", padelDescription: "Динамичная игра, уважение в соперничестве и атмосфера, которая остаётся за пределами корта.",
     venue: "Локация", venueValue: "Вена, Австрия", registration: "Регистрация", registrationValue: "Открыта", waitlist: "Лист ожидания", closed: "Закрыта", note: "Форма откроется с уже выбранной дисциплиной.", registerTennis: "Зарегистрироваться на теннис", registerPadel: "Зарегистрироваться на падел", processLabel: "Регистрация", processTitle: "Понятный путь от первого клика до первой подачи.",
-    steps: ["Выберите турнир", "Отправьте данные", "Получите подтверждение"], stepCopy: ["Выберите теннис или падел. Форма запомнит ваш выбор.", "Мы запрашиваем только данные, необходимые для подтверждения участия.", "Команда KYNG CUP свяжется с вами и расскажет о следующих шагах."],
+    steps: ["Выберите турнир", "Отправьте данные", "Получите подтверждение"], stepCopy: [sportCopy("Выберите теннис или падел. Форма запомнит ваш выбор.", "Выберите падел-турнир. Форма запомнит ваш выбор."), "Мы запрашиваем только данные, необходимые для подтверждения участия.", "Команда KYNG CUP свяжется с вами и расскажет о следующих шагах."],
   },
 };
 

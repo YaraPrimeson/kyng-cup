@@ -1,5 +1,6 @@
 "use client";
 
+import { sportCopy } from "@/lib/sports";
 import { useLanguage } from "../i18n";
 
 const copy = {
@@ -7,7 +8,7 @@ const copy = {
     eyebrow: "Tournament rules · Updated 5 September 2026",
     title: "Tournament\nrules",
     sections: [
-      ["Purpose", "These are the general rules for KYNG CUP tennis and padel tournaments. The details published for an individual tournament, including its format, schedule and venue information, apply alongside these rules and take priority if there is a difference."],
+      ["Purpose", sportCopy("These are the general rules for KYNG CUP tennis and padel tournaments. The details published for an individual tournament, including its format, schedule and venue information, apply alongside these rules and take priority if there is a difference.", "These are the general rules for KYNG CUP padel tournaments. The details published for an individual tournament, including its format, schedule and venue information, apply alongside these rules and take priority if there is a difference.")],
       ["Registration", "Registration is for complete pairs. Please provide accurate and up-to-date details for both players. Sending an application does not by itself guarantee a place; the KYNG CUP team confirms participation after reviewing the application."],
       ["Your partner", "The person submitting the application confirms that their partner knows about the registration and agrees to the use of their contact details for organising the tournament."],
       ["Attendance & schedule", "Players should arrive on time and follow the schedule and court instructions communicated by the organisers. Please tell the team as early as possible if your pair cannot take part or needs to withdraw."],
@@ -20,7 +21,7 @@ const copy = {
     eyebrow: "Правила турніру · Оновлено 5 вересня 2026",
     title: "Правила\nтурніру",
     sections: [
-      ["Призначення", "Це загальні правила для тенісних і падел-турнірів KYNG CUP. Умови, опубліковані для конкретного турніру — зокрема формат, розклад і дані локації — діють разом із цими правилами та мають перевагу в разі розбіжностей."],
+      ["Призначення", sportCopy("Це загальні правила для тенісних і падел-турнірів KYNG CUP. Умови, опубліковані для конкретного турніру — зокрема формат, розклад і дані локації — діють разом із цими правилами та мають перевагу в разі розбіжностей.", "Це загальні правила для падел-турнірів KYNG CUP. Умови, опубліковані для конкретного турніру — зокрема формат, розклад і дані локації — діють разом із цими правилами та мають перевагу в разі розбіжностей.")],
       ["Реєстрація", "Реєстрація доступна для сформованих пар. Будь ласка, надавайте точні й актуальні дані обох гравців. Подання заявки саме по собі не гарантує місце: участь підтверджує команда KYNG CUP після розгляду заявки."],
       ["Ваш партнер", "Особа, яка подає заявку, підтверджує, що її партнер знає про реєстрацію та погоджується на використання контактних даних для організації турніру."],
       ["Участь і розклад", "Гравці мають прибути вчасно та дотримуватися розкладу й інструкцій щодо корту від організаторів. Будь ласка, якомога раніше повідомте команду, якщо ваша пара не зможе взяти участь або змушена знятися."],
@@ -33,7 +34,7 @@ const copy = {
     eyebrow: "Turnierregeln · Aktualisiert am 5. September 2026",
     title: "Turnier\nregeln",
     sections: [
-      ["Geltungsbereich", "Diese allgemeinen Regeln gelten für Tennis- und Padelturniere von KYNG CUP. Die für ein einzelnes Turnier veröffentlichten Angaben — etwa Format, Zeitplan und Ort — gelten zusätzlich und haben bei Abweichungen Vorrang."],
+      ["Geltungsbereich", sportCopy("Diese allgemeinen Regeln gelten für Tennis- und Padelturniere von KYNG CUP. Die für ein einzelnes Turnier veröffentlichten Angaben — etwa Format, Zeitplan und Ort — gelten zusätzlich und haben bei Abweichungen Vorrang.", "Diese allgemeinen Regeln gelten für Padelturniere von KYNG CUP. Die für ein einzelnes Turnier veröffentlichten Angaben — etwa Format, Zeitplan und Ort — gelten zusätzlich und haben bei Abweichungen Vorrang.")],
       ["Anmeldung", "Anmeldungen sind für vollständige Paare vorgesehen. Bitte gebt für beide Spieler korrekte und aktuelle Angaben an. Eine Anmeldung garantiert noch keinen Platz; das KYNG CUP Team bestätigt die Teilnahme nach Prüfung der Anmeldung."],
       ["Euer Partner", "Die anmeldende Person bestätigt, dass ihr Partner von der Anmeldung weiß und der Verwendung seiner Kontaktdaten zur Organisation des Turniers zustimmt."],
       ["Teilnahme & Zeitplan", "Spieler sollen pünktlich erscheinen und den von der Organisation kommunizierten Zeitplan und Court-Anweisungen befolgen. Bitte informiert das Team so früh wie möglich, falls euer Paar nicht teilnehmen kann oder zurückziehen muss."],
@@ -46,7 +47,7 @@ const copy = {
     eyebrow: "Правила турнира · Обновлено 5 сентября 2026",
     title: "Правила\nтурнира",
     sections: [
-      ["Назначение", "Это общие правила для теннисных и падел-турниров KYNG CUP. Условия, опубликованные для конкретного турнира — включая формат, расписание и информацию о локации, — действуют вместе с этими правилами и имеют приоритет при расхождении."],
+      ["Назначение", sportCopy("Это общие правила для теннисных и падел-турниров KYNG CUP. Условия, опубликованные для конкретного турнира — включая формат, расписание и информацию о локации, — действуют вместе с этими правилами и имеют приоритет при расхождении.", "Это общие правила для падел-турниров KYNG CUP. Условия, опубликованные для конкретного турнира — включая формат, расписание и информацию о локации, — действуют вместе с этими правилами и имеют приоритет при расхождении.")],
       ["Регистрация", "Регистрация предназначена для готовых пар. Пожалуйста, указывайте точные и актуальные данные обоих игроков. Подача заявки сама по себе не гарантирует место: участие подтверждает команда KYNG CUP после рассмотрения заявки."],
       ["Ваш партнёр", "Человек, подающий заявку, подтверждает, что партнёр знает о регистрации и согласен на использование его контактных данных для организации турнира."],
       ["Участие и расписание", "Игрокам следует приходить вовремя и следовать расписанию и инструкциям по кортам от организаторов. Пожалуйста, сообщите команде как можно раньше, если ваша пара не сможет участвовать или вынуждена сняться."],

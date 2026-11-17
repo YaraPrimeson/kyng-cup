@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { visibleSportItems, visibleSports } from "@/lib/sports";
 import type { Language } from "./i18n";
 
 export type PublicTournament = {
@@ -32,12 +33,12 @@ export function usePublicTournaments() {
     const result = await supabase
       .from("tournaments")
       .select("id,slug,name,sport,location,starts_at,ends_at,status,registration_status")
-      .eq("sport", "padel")
+      .in("sport", visibleSports)
       .in("status", ["published", "live"])
       .order("starts_at", { ascending: true, nullsFirst: false });
 
     setError(Boolean(result.error));
-    setTournaments((result.data ?? []) as PublicTournament[]);
+    setTournaments(visibleSportItems((result.data ?? []) as PublicTournament[]));
     setLoading(false);
   }, []);
 

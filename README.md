@@ -14,6 +14,11 @@ Landing page and live tournament bracket for the KYNG CUP tennis and padel commu
 - Supabase Postgres, Auth, Row Level Security and Realtime
 - GitHub Pages deployment from `main`
 
+### Sport visibility
+
+`lib/sports-config.json` controls which sports are visible. Tennis is temporarily hidden; set `tennis` to `true` and publish to restore its navigation, page, copy, tournament lists, profile filters and sitemap entry. The static `/tennis/` page redirects to `/padel/` while hidden. Existing tennis data, shared business rules, translations and assets remain intact. New features must support both sports and apply `lib/sports.ts` only at presentation boundaries.
+
+
 The browser uses only a Supabase publishable key. Anonymous visitors can read published, live, and completed tournaments. All writes are protected by authentication, tournament-admin membership, and database RLS policies.
 
 ## Bracket model
