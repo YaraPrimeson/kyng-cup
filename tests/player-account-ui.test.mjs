@@ -428,3 +428,15 @@ test('achievement translations preserve selected award, sport filtering and earn
   await click('Back'); await click('History and matches');
   assert.equal([...document.querySelectorAll('button')].some(button => button.textContent === 'Refresh results'), false);
 });
+
+
+test('My partners opens actual linked history and returns to the profile', async () => {
+  matchRows=[{id:'partner-match',tournament_id:'cup',tournament_name:'Partner cup',sport:'padel',tournament_status:'completed',tournament_date:'2026-10-01',pair_id:'ours',partner_user_id:second.id,partner_name:'Linked player',opponent_name:'Rivals',stage:'group',round:null,final_round:null,is_final:false,status:'completed',winner_id:'ours',pair_one_id:'ours',pair_two_id:'other',pair_one_sets:[6],pair_two_sets:[3],completed_at:'2026-10-01T10:00:00Z',scheduled_at:null}];
+  await mount(); await click('My partners');
+  assert.match(document.body.textContent,/Linked player/);
+  await act(async () => document.querySelector('.kv-partner-toggle').click());
+  assert.match(document.body.textContent,/Partner cup|Rivals/);
+  await click('Back');
+  assert.equal(document.querySelector('.kv-partners'),null);
+  assert.match(document.body.textContent,/Profile settings/);
+});

@@ -115,3 +115,54 @@ test('awards use played main rounds, completed tournaments and account-linked pa
   for (const id of ['top8','semi','final','champion','group','second-chance']) assert.equal(notEarned.achievements.find(a => a.id === id).earned, false, id);
 });
 
+
+test('partners combine linked accounts across tournaments and keep sports and identities separate', async () => {
+  const { playerPartners } = await import('../lib/player-results.ts');
+  const rows = [match(), match({ id:'second', tournament_id:'t2', partner_name:'New name', completed_at:'2026-10-02T10:00:00Z' }), match({ id:'namesake', partner_user_id:'different', partner_name:'Partner' }), match({ id:'tennis', sport:'tennis' })];
+  const partners = playerPartners(rows);
+  assert.equal(partners.length,3);
+  assert.equal(partners[0].accountId,'partner');
+  assert.equal(partners[0].sport,'padel');
+  assert.equal(partners[0].tournamentCount,2);
+  assert.equal(partners[0].name,'New name');
+  assert.equal(partners[0].lastPlayedAt,'2026-10-02T10:00:00Z');
+  assert.equal(partners[0].stats.wins,2);
+  assert.equal(partners.find(p=>p.sport==='tennis').stats.played,1);
+});
+
+test('unlinked partner names never merge across tournaments, pairs or linked accounts', async () => {
+  const { playerPartners } = await import('../lib/player-results.ts');
+  const first=match({partner_user_id:null});
+  const partners=playerPartners([first,match({id:'same-pair',partner_user_id:null}),match({id:'other-event',tournament_id:'t2',partner_user_id:null}),match({id:'other-pair',pair_id:'other',partner_user_id:null}),match({id:'linked'})]);
+  assert.equal(partners.length,4);
+  assert.deepEqual(partners.map(p=>p.stats.played).sort(),[1,1,1,2]);
+  assert.ok(partners.filter(p=>!p.accountId).every(p=>p.tournamentCount===1&&!p.duo.earned));
+});
+
+test('partner statistics ignore duplicate, future, invalid and reset results', async () => {
+  const { playerPartners } = await import('../lib/player-results.ts');
+  const win=match();
+  const loss=match({id:'loss',winner_id:'other',pair_one_sets:[3,4],pair_two_sets:[6,6]});
+  const partners=playerPartners([win,win,loss,match({id:'future',status:'scheduled'}),match({id:'bad',winner_id:'other'}),match({id:'reset',winner_id:null,pair_one_sets:[],pair_two_sets:[]})]);
+  assert.equal(partners.length,1);
+  assert.deepEqual([partners[0].stats.played,partners[0].stats.wins,partners[0].stats.losses,partners[0].stats.winRate],[2,1,1,50]);
+  assert.equal(playerPartners([match({status:'scheduled'})]).length,0);
+});
+
+test('duo progress uses three distinct completed tournaments for the same account and sport', async () => {
+  const { playerPartners } = await import('../lib/player-results.ts');
+  const rows=[match(),match({id:'two',tournament_id:'t2'}),match({id:'live',tournament_id:'live',tournament_status:'live'}),match({id:'tennis',tournament_id:'t3',sport:'tennis'})];
+  const partner=playerPartners(rows).find(p=>p.sport==='padel');
+  assert.equal(partner.tournamentCount,3);
+  assert.equal(partner.stats.completedTournaments,2);
+  assert.equal(partner.duo.earned,false);
+  assert.equal(partner.duo.progress,'2 из 3 турниров с одним партнёром');
+  assert.equal(playerPartners([...rows,match({id:'third',tournament_id:'t3'})]).find(p=>p.sport==='padel').duo.earned,true);
+});
+
+test('partner sorting prefers shared tournaments then matches and handles unknown dates', async () => {
+  const { playerPartners } = await import('../lib/player-results.ts');
+  const partners=playerPartners([match({id:'one',partner_user_id:'frequent'}),match({id:'two',tournament_id:'t2',partner_user_id:'frequent'}),...Array.from({length:4},(_,i)=>match({id:`many${i}`,partner_user_id:'one-event',completed_at:null,tournament_date:null}))]);
+  assert.equal(partners[0].accountId,'frequent');
+  assert.equal(partners[1].lastPlayedAt,null);
+});

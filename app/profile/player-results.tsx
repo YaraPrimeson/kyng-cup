@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { useState } from "react";
 import { visibleSportItems, visibleSports } from "@/lib/sports";
-import { matchScore, matchStage, playerResults, type PlayerMatch } from "@/lib/player-results";
+import { matchScore, matchStage, playerResults } from "@/lib/player-results";
+import { usePlayerMatches } from "./use-player-matches";
 import ProfileIcon from "./profile-icon";
 import { useProfileLanguage } from "./profile-i18n";
 
@@ -14,25 +14,10 @@ function dateLabel(value: string | null, locale: string) {
 
 export default function PlayerResults({ userId, mode }: { userId: string; mode: "summary" | "history" | "achievements" }) {
   const { text: t, locale } = useProfileLanguage();
-  const [loaded, setLoaded] = useState<{ owner: string; revision: number; rows: PlayerMatch[]; error: boolean } | null>(null);
-  const [revision, setRevision] = useState(0);
+  const { rows, loading, error, retry } = usePlayerMatches(userId);
   const [sport, setSport] = useState("all");
   const [selected, setSelected] = useState("debut");
-  useEffect(() => {
-    let active = true;
-    async function load() {
-      try {
-        const result = await supabase.rpc("get_my_match_history");
-        if (result.error || !Array.isArray(result.data)) throw result.error ?? new Error("Invalid history response");
-        if (active) setLoaded({ owner: userId, revision, rows: result.data as PlayerMatch[], error: false });
-      } catch { if (active) setLoaded({ owner: userId, revision, rows: [], error: true }); }
-    }
-    void load();
-    return () => { active = false; };
-  }, [userId, revision]);
-  function retry() { setRevision(value => value + 1); }
-  if (!loaded || loaded.owner !== userId || loaded.revision !== revision) return <p role="status" className="kv-section">{t("Загружаем результаты…")}</p>;
-  const { rows, error } = loaded;
+  if (loading) return <p role="status" className="kv-section">{t("Загружаем результаты…")}</p>;
   if (error) return <section className="kv-section"><p role="alert" className="player-error">{t("Не удалось загрузить результаты. Статистика и достижения пока недоступны.")}</p><button type="button" className="kv-secondary" onClick={retry}>{t("Повторить загрузку результатов")}</button></section>;
   const visibleRows = visibleSportItems(rows);
   const result = playerResults(sport === "all" ? visibleRows : visibleRows.filter(match => match.sport === sport));

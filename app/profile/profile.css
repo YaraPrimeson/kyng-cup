@@ -194,3 +194,24 @@
 .player-account .kv-medal:nth-child(3n) .player-award-tooltip { left:auto; right:0; transform:none; }
 @media(hover:hover) { .player-account .kv-medal:hover .player-award-tooltip,.player-account .kv-medal:focus-visible .player-award-tooltip { display:block; } }
 @media(min-width:700px) { .player-account .kv-body { padding-left:30px; padding-right:30px; } .player-account .kv-header { padding-left:30px; padding-right:30px; } .player-account .kv-medal-circle { max-width:124px; } .player-account .kv-medals { gap:22px 14px; } .player-account .kv-medal { min-height:153px; } .player-account .kv-body h1 { font-size:34px; } }
+
+/* Partner summaries share the profile's typography and narrow-screen spacing. */
+.player-account .kv-partners { display:grid; gap:16px; margin-top:20px; }
+.player-account .kv-partner { min-width:0; padding:16px; }
+.player-account .kv-partner-toggle { display:flex; gap:11px; align-items:center; width:100%; min-height:52px; padding:0; border:0; background:transparent; color:var(--ink); text-align:left; cursor:pointer; }
+.player-account .kv-partner-name { flex:1; min-width:0; }
+.player-account .kv-partner-name strong { display:block; overflow-wrap:anywhere; font-weight:500; }
+.player-account .kv-partner-name small { display:block; color:var(--sub); font-size:12px; margin-top:3px; overflow-wrap:anywhere; }
+.player-account .kv-partner-toggle>svg { width:18px; height:18px; flex-shrink:0; transition:transform .15s; }
+.player-account .kv-partner-toggle[aria-expanded="true"]>svg { transform:rotate(90deg); }
+.player-account .kv-partner-stats { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:13px 10px; margin:17px 0 12px; padding-top:15px; border-top:1px solid var(--line); }
+.player-account .kv-partner-stats>div { display:flex; flex-direction:column-reverse; min-width:0; }
+.player-account .kv-partner-stats dt { color:var(--sub); font-size:12px; overflow-wrap:anywhere; }
+.player-account .kv-partner-stats dd { margin:0 0 3px; font:400 24px/1.2 Georgia,serif; }
+.player-account .kv-partner-date { overflow-wrap:anywhere; }
+.player-account .kv-partner-details { border-top:1px solid var(--line); margin-top:16px; padding-top:17px; }
+.player-account .kv-partner-details>p { margin-top:8px; }
+.player-account .kv-partner-details .kv-match>span { min-width:0; overflow-wrap:anywhere; }
+.player-account .kv-partner-details .kv-match>b { flex-shrink:0; }
+.player-account .kv-partner-duo { display:grid; gap:8px; margin-top:17px; padding:13px; border-radius:11px; background:var(--soft); }
+.player-account .kv-partner-duo .kv-badge { justify-self:start; padding-left:0; }

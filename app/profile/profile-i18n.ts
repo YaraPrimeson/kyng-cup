@@ -8,6 +8,17 @@ export type ProfileLanguage = "en" | "uk" | "de";
 // Profile copy is rendered by React, outside the site's legacy DOM translator.
 // The original strings also identify messages returned by the account helpers.
 const copy: Record<string, readonly [string, string, string]> = {
+  "Совместные турниры и результаты": ["Shared tournaments and results", "Спільні турніри та результати", "Gemeinsame Turniere und Ergebnisse"],
+  "Загружаем партнёров…": ["Loading partners…", "Завантажуємо партнерів…", "Partner werden geladen…"],
+  "Не удалось загрузить партнёров. Попробуйте ещё раз.": ["Could not load partners. Please try again.", "Не вдалося завантажити партнерів. Спробуйте ще раз.", "Partner konnten nicht geladen werden. Bitte versuchen Sie es erneut."],
+  "Партнёры появляются после совместных матчей с подтверждённым счётом. Первыми — те, с кем вы чаще играли на турнирах.": ["Partners appear after shared matches with confirmed scores. Those with the most shared tournaments appear first.", "Партнери з’являються після спільних матчів із підтвердженим рахунком. Першими — ті, з ким ви частіше грали на турнірах.", "Partner erscheinen nach gemeinsamen Matches mit bestätigtem Ergebnis. Partner mit den meisten gemeinsamen Turnieren stehen zuerst."],
+  "Организатор должен связать подтверждённую заявку с парой в сетке и внести результат вашего матча.": ["The organiser needs to link your confirmed application to a pair in the draw and record your match result.", "Організатор має пов’язати підтверджену заявку з парою в сітці та внести результат вашого матчу.", "Der Veranstalter muss Ihre bestätigte Anmeldung mit einem Paar im Turnierbaum verknüpfen und Ihr Matchergebnis eintragen."],
+  "Аккаунт привязан": ["Account linked", "Акаунт прив’язано", "Konto verknüpft"],
+  "Отдельное выступление": ["Separate appearance", "Окремий виступ", "Einzelne Teilnahme"],
+  "Совместных турниров": ["Shared tournaments", "Спільних турнірів", "Gemeinsame Turniere"],
+  "Последнее выступление:": ["Last appearance:", "Останній виступ:", "Letzte Teilnahme:"],
+  "Совместная история": ["Shared history", "Спільна історія", "Gemeinsamer Verlauf"],
+  "Чтобы объединить выступления за разные турниры, партнёру нужно привязать заявки к своему аккаунту через код организатора. Совпадения имени недостаточно.": ["To combine appearances across tournaments, your partner needs to link their applications to their account using organiser codes. A matching name is not enough.", "Щоб об’єднати виступи за різні турніри, партнеру потрібно прив’язати заявки до свого акаунта через коди організатора. Збігу імені недостатньо.", "Um Teilnahmen aus mehreren Turnieren zusammenzuführen, muss Ihr Partner die Anmeldungen über Veranstaltercodes mit seinem Konto verknüpfen. Ein gleicher Name reicht nicht aus."],
   "Язык": ["Language", "Мова", "Sprache"],
   "Как вас представить?": ["What should we call you?", "Як вас представити?", "Wie dürfen wir Sie nennen?"],
   "Почта подтверждена:": ["Email verified:", "Пошту підтверджено:", "E-Mail bestätigt:"],

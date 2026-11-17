@@ -88,6 +88,37 @@ export function matchScore(match: PlayerMatch) {
   const b = oursFirst ? match.pair_two_sets : match.pair_one_sets;
   return a.map((value, index) => `${value}:${b[index]}`).join(" · ");
 }
+
+function appearanceDate(match: PlayerMatch) {
+  return [match.completed_at, match.tournament_date].find(value => value && Number.isFinite(Date.parse(value))) ?? null;
+}
+
+export function playerPartners(rows: PlayerMatch[]) {
+  // Reuse the history's score validation, de-duplication and played-match rules.
+  const matches = playerResults(rows).history.flatMap(event => event.matches);
+  const groups = new Map<string, PlayerMatch[]>();
+  for (const match of matches) {
+    // An unlinked name never establishes identity across pairs or tournaments.
+    const identity = match.partner_user_id ? ["account", match.partner_user_id] : ["appearance", match.tournament_id, match.pair_id];
+    const key = JSON.stringify([match.sport, ...identity]);
+    const games = groups.get(key) ?? [];
+    games.push(match); groups.set(key, games);
+  }
+  return [...groups].map(([key, games]) => {
+    const ordered = [...games].sort((a, b) => (Date.parse(appearanceDate(b) ?? "") || 0) - (Date.parse(appearanceDate(a) ?? "") || 0) || a.id.localeCompare(b.id));
+    const result = playerResults(games);
+    const partnerId = ordered[0].partner_user_id;
+    return {
+      key, sport: ordered[0].sport, accountId: partnerId,
+      name: ordered.find(match => match.partner_name.trim())?.partner_name.trim() ?? "",
+      tournamentCount: new Set(games.map(match => match.tournament_id)).size,
+      lastPlayedAt: ordered.map(appearanceDate).find(Boolean) ?? null,
+      stats: result.stats, history: result.history,
+      duo: result.achievements.find(award => award.id === "duo")!,
+    };
+  }).sort((a, b) => b.tournamentCount - a.tournamentCount || b.stats.played - a.stats.played
+    || (Date.parse(b.lastPlayedAt ?? "") || 0) - (Date.parse(a.lastPlayedAt ?? "") || 0) || a.key.localeCompare(b.key));
+}
 export function matchStage(match: PlayerMatch) {
   if (match.stage === "group") return "Групповой этап";
   if (match.round === null || match.round < 0) return match.stage === "basement" ? "Утешительная сетка" : "Плей-офф";
