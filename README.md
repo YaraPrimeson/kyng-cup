@@ -57,10 +57,14 @@ Admin form retention checks (tab focus, session refresh, reload and draft recove
 
 `npm run build:pages` exports both `/` and `/bracket/` into `_site` with the GitHub repository base path applied.
 
-The mobile player profile at `/profile/` has Home / My tournaments / Profile navigation,
-illustrated achievements and shareable PNG result cards. Name, email and an optional
-resized photo are stored on the current device; saved name/email prefill registration.
-Sports history, achievements and the example confirmed entry are explicitly demo data.
-Player authentication, verified results, invitation delivery and cross-device sync are
-not connected yet. Available tournaments use the existing public tournament feed.
-Sharing uses the device share sheet when supported, with an image-download fallback.
+The mobile player profile at `/profile/` uses Supabase authentication, private profiles
+and synced settings. My tournaments shows account-linked registrations. History,
+achievements and partners use confirmed played results through the authenticated
+`get_my_match_history()` RPC. Available tournaments use the public tournament feed.
+
+[My cards](docs/player-cards.md) creates PNGs from completed tournament results in
+story (9:16), post (4:5) and square (1:1) formats. Players can include their own profile
+photo and share the image through the device share sheet or download it. Main draw
+and consolation results remain separate; no sample result or fixed placement is used.
+Tennis remains supported by the shared logic and hidden through `lib/sports.ts`.
+Partner invitations remain future work.

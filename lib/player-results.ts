@@ -93,6 +93,43 @@ function appearanceDate(match: PlayerMatch) {
   return [match.completed_at, match.tournament_date].find(value => value && Number.isFinite(Date.parse(value))) ?? null;
 }
 
+export type PlayerCardResult = {
+  key: string; tournamentId: string; slug: string; name: string; sport: string;
+  date: string | null; result: string; consolation: string | null; partner: string;
+  wins: number; losses: number; matches: number;
+};
+
+export function playerCards(rows: PlayerMatch[]): PlayerCardResult[] {
+  const playedMatches = playerResults(rows).history.flatMap(event => event.matches);
+  const groups = new Map<string, PlayerMatch[]>();
+  for (const match of playedMatches) {
+    if (match.tournament_status !== "completed") continue;
+    // Keep independent pair entries and sports separate, even in one tournament.
+    const key = JSON.stringify([match.tournament_id, match.sport, match.pair_id]);
+    const games = groups.get(key) ?? [];
+    games.push(match); groups.set(key, games);
+  }
+  return [...groups].map(([key, games]) => {
+    const main = games.filter(match => match.stage === "playoffs" && match.round !== 0)
+      .sort((a, b) => (b.round ?? 0) - (a.round ?? 0))[0];
+    const consolation = games.filter(match => match.stage === "basement")
+      .sort((a, b) => (b.round ?? 0) - (a.round ?? 0))[0];
+    const latest = [...games].sort((a, b) => timestamp(b) - timestamp(a) || a.id.localeCompare(b.id))[0];
+    const date = games.map(match => match.tournament_date).find(value => value && Number.isFinite(Date.parse(value)))
+      ?? games.map(appearanceDate).filter((value): value is string => Boolean(value)).sort((a, b) => Date.parse(b) - Date.parse(a))[0] ?? null;
+    const result = main ? main.is_final && (main.round ?? 0) > 0 && main.winner_id === main.pair_id ? "Чемпион" : matchStage(main)
+      : games.some(match => match.stage === "group") ? "Групповой этап"
+      : games.some(match => match.stage === "playoffs" && match.round === 0) ? "Предварительный раунд" : "Утешительная сетка";
+    const wins = games.filter(match => match.winner_id === match.pair_id).length;
+    return {
+      key, tournamentId: latest.tournament_id, slug: latest.tournament_slug, name: latest.tournament_name, sport: latest.sport,
+      date, result, consolation: consolation ? consolation.is_final && (consolation.round ?? 0) > 0 && consolation.winner_id === consolation.pair_id
+        ? "Победитель утешительной сетки" : matchStage(consolation) : null,
+      partner: latest.partner_name.trim(), wins, losses: games.length - wins, matches: games.length,
+    };
+  }).sort((a, b) => (Date.parse(b.date ?? "") || 0) - (Date.parse(a.date ?? "") || 0) || a.key.localeCompare(b.key));
+}
+
 export function playerPartners(rows: PlayerMatch[]) {
   // Reuse the history's score validation, de-duplication and played-match rules.
   const matches = playerResults(rows).history.flatMap(event => event.matches);

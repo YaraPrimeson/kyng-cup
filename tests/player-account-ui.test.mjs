@@ -438,3 +438,14 @@ test('My partners opens actual linked history and returns to the profile', async
   assert.equal(document.querySelector('.kv-partners'),null);
   assert.match(document.body.textContent,/Profile settings/);
 });
+
+
+test("My cards opens the actual results panel and never offers sample PNGs for an empty account", async () => {
+  await mount(); await click("My cards");
+  assert.match(document.body.textContent, /No card results yet/);
+  assert.match(document.body.textContent, /Cards will appear after the tournament ends/);
+  assert.equal(document.querySelector('.player-card-image'), null);
+  assert.doesNotMatch(document.body.textContent, /Daniel Horvat|TOP 8|пример результата/);
+  await click("Back");
+  assert.match(document.body.textContent, /Results to share/);
+});
