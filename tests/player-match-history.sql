@@ -42,7 +42,7 @@ INSERT INTO public.tournament_registrations(id,tournament_id,status,player_one_f
   player_one_email,player_one_phone,player_one_level,player_two_first_name,player_two_last_name,
   player_two_email,player_two_phone,player_two_level,admin_notes)
 SELECT pg_temp.id(n),pg_temp.id(10),CASE WHEN n=32 THEN 'new' ELSE 'confirmed' END,
-  'Primary','Public','primary@example.test','123456','beginner','Partner','Public',
+  'Primary','Public',CASE WHEN n=30 THEN 'primary@example.test' ELSE 'primary-'||n||'@example.test' END,'123456','beginner','Partner','Public',
   'partner@example.test','123456','beginner','SECRET_ADMIN_NOTES'
 FROM generate_series(30,32) n;
 UPDATE public.tournament_registrations SET status='confirmed',admin_notes='SECRET_ADMIN_NOTES' WHERE id IN (pg_temp.id(30),pg_temp.id(31));

@@ -186,7 +186,7 @@ test("ships live bracket and protected tournament controls", async () => {
   assert.match(register, /function ContactFields/);
   assert.match(register, /function PairFields/);
   assert.match(register, /name="player_two_level"/);
-  assert.match(register, /player_two_email: null/);
+  // Partner email submission is exercised through the real form in registration-ui.test.mjs.
   assert.match(register, /rules_privacy_accepted/);
   assert.doesNotMatch(register, /partner_consent/);
   assert.match(register, /marketing_opt_in/);
