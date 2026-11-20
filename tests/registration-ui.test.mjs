@@ -6,7 +6,7 @@ import {build} from 'esbuild';
 import {JSDOM} from 'jsdom';
 
 const dom=new JSDOM('<div id="root"></div>',{url:'https://kyngcup.com/register/'});
-Object.assign(globalThis,{window:dom.window,document:dom.window.document,HTMLElement:dom.window.HTMLElement,Node:dom.window.Node,NodeFilter:dom.window.NodeFilter,MutationObserver:dom.window.MutationObserver,Element:dom.window.Element,FormData:dom.window.FormData,IS_REACT_ACT_ENVIRONMENT:true});
+Object.assign(globalThis,{window:dom.window,document:dom.window.document,HTMLElement:dom.window.HTMLElement,HTMLInputElement:dom.window.HTMLInputElement,HTMLSelectElement:dom.window.HTMLSelectElement,Node:dom.window.Node,NodeFilter:dom.window.NodeFilter,MutationObserver:dom.window.MutationObserver,Element:dom.window.Element,FormData:dom.window.FormData,IS_REACT_ACT_ENVIRONMENT:true});
 Object.defineProperty(globalThis,'navigator',{configurable:true,value:dom.window.navigator});
 dom.window.HTMLElement.prototype.scrollIntoView=function(){};
 const {createElement,act}=await import('react');
@@ -14,18 +14,18 @@ const {createRoot}=await import('react-dom/client');
 let root,Register,LanguageProvider,temp,submissions,insertError;
 const event={id:'qa-event',slug:'qa-event',name:'QA Event',sport:'padel',status:'published',registration_status:'open',starts_at:'2027-01-01',ends_at:'2027-01-01'};
 before(async()=>{
-  globalThis.__registrationClient={from(table){
+  globalThis.__registrationClient={rpc(...args){return globalThis.__repeatPayload(...args);},from(table){
     if(table==='tournaments'){const chain={select(){return chain;},in(){return chain;},order(){return Promise.resolve({data:[event],error:null});}};return chain;}
     assert.equal(table,'tournament_registrations');return {insert(payload){submissions.push(payload);return Promise.resolve({error:insertError});}};
   }};
   const repo=fileURLToPath(new URL('../',import.meta.url));await mkdir(`${repo}tmp`,{recursive:true});temp=await mkdtemp(`${repo}tmp/registration-ui-`);
   const output=await build({stdin:{contents:'export {default as Register} from "./app/register/page.tsx"; export {LanguageProvider} from "./app/i18n.tsx";',resolveDir:repo,loader:'tsx'},bundle:true,write:false,format:'esm',platform:'node',packages:'external',jsx:'automatic',plugins:[{name:'fixtures',setup(builder){
     builder.onResolve({filter:/^(next\/navigation|@\/lib\/supabase)$|(?:use-player-account|analytics|site-footer)$/},args=>({path:args.path,namespace:'fixture'}));
-    builder.onLoad({filter:/.*/,namespace:'fixture'},({path})=>({contents:path==='next/navigation'?'export const usePathname=()=>"/register/";':path.endsWith('supabase')?'export const supabase=globalThis.__registrationClient;':path.endsWith('use-player-account')?'export const usePlayerAccount=()=>({user:null,profile:null});':path.endsWith('analytics')?'export const getLeadAttribution=()=>({}); export const trackEvent=()=>{};':'export default function Footer(){return null;}'}));
+    builder.onLoad({filter:/.*/,namespace:'fixture'},({path})=>({contents:path==='next/navigation'?'export const usePathname=()=>"/register/";':path.endsWith('supabase')?'export const supabase=globalThis.__registrationClient;':path.endsWith('use-player-account')?'export const usePlayerAccount=()=>globalThis.__registrationAccount??({user:null,profile:null});':path.endsWith('analytics')?'export const getLeadAttribution=()=>({}); export const trackEvent=()=>{};':'export default function Footer(){return null;}'}));
   }}]});
   await writeFile(`${temp}/component.mjs`,output.outputFiles[0].contents);({Register,LanguageProvider}=await import(pathToFileURL(`${temp}/component.mjs`).href));
 });
-beforeEach(async()=>{if(root)await act(async()=>root.unmount());window.localStorage.clear();submissions=[];insertError=null;root=createRoot(document.getElementById('root'));});
+beforeEach(async()=>{if(root)await act(async()=>root.unmount());window.localStorage.clear();window.history.replaceState({},"","/register/");globalThis.__registrationAccount=null;submissions=[];insertError=null;root=createRoot(document.getElementById('root'));});
 after(async()=>{if(root)await act(async()=>root.unmount());dom.window.close();await rm(temp,{recursive:true,force:true});delete globalThis.__registrationClient;});
 async function render(language='en'){
   window.localStorage.setItem('kyng-language',language);
@@ -74,4 +74,32 @@ for(const [language,label,hint] of [['uk','Email партнера (за бажа
   assert.match(document.querySelector('[name="player_two_email"]').closest('label').textContent,new RegExp(label.replace(/[()]/g,'\\$&')));
   assert.ok(document.getElementById('partner-email-hint').textContent.includes(hint));
   fill();await submit();assert.equal(submissions[0].locale,language);
+});
+
+test('repeat registration fills only empty fields and requires a fresh confirmation',async()=>{
+  const source='11111111-1111-1111-1111-111111111111';
+  window.history.replaceState({},'',`/register/?sport=padel&repeat=${source}`);
+  globalThis.__registrationAccount={user:{id:'verified-player',email:'primary@example.invalid',email_confirmed_at:'2026-11-01'},profile:{display_name:'Primary Player'}};
+  globalThis.__repeatPayload=async(name,args)=>{
+    assert.equal(name,'get_my_repeat_registration');
+    assert.deepEqual(args,{p_registration_id:source});
+    return {data:{tournament_id:'old-event',sport:'padel',pair_name:'Previous pair',
+      player_one_phone:'+431234567',player_two_first_name:'Previous',player_two_last_name:'Partner',
+      player_two_email:'partner@example.invalid',player_one_level:'advanced',player_two_level:'advanced',
+      comment:'Do not reuse', player_one_email:'obsolete@example.invalid'},error:null};
+  };
+  await render();
+  const form=document.querySelector('form');
+  form.elements.namedItem('player_two_first_name').value='Edited';
+  form.elements.namedItem('rules_privacy_accepted').checked=true;
+  const fillButton=[...form.querySelectorAll('button')].find(button=>button.textContent.includes('Fill from my past application'));
+  await act(async()=>fillButton.click());
+  const values=new FormData(form);
+  assert.equal(values.get('pair_name'),'Previous pair');
+  assert.equal(values.get('player_two_first_name'),'Edited');
+  assert.equal(values.get('player_two_last_name'),'Partner');
+  assert.equal(values.get('player_one_email'),'primary@example.invalid');
+  assert.equal(values.get('comment'),'');
+  assert.equal(values.get('rules_privacy_accepted'),null);
+  assert.equal(submissions.length,0);
 });

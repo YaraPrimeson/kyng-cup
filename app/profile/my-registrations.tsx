@@ -11,6 +11,7 @@ type Registration = {
   status: "new" | "reviewing" | "confirmed" | "waitlist" | "rejected";
   pair_name: string | null;
   created_at: string;
+  submitted_by: string | null;
   tournaments: { name: string; sport: "tennis" | "padel"; starts_at: string | null; location: string | null } | null;
 };
 
@@ -18,7 +19,7 @@ const statusLabel: Record<Registration["status"], string> = {
   new: "Заявка получена", reviewing: "На рассмотрении", confirmed: "Подтверждена", waitlist: "Лист ожидания", rejected: "Не подтверждена",
 };
 
-export default function MyRegistrations({ userId }: { userId: string }) {
+export default function MyRegistrations({ userId, basePath = "" }: { userId: string; basePath?: string }) {
   const { text: t, locale } = useProfileLanguage();
   const [items, setItems] = useState<Registration[] | null>(null);
   const [error, setError] = useState(false);
@@ -48,7 +49,7 @@ export default function MyRegistrations({ userId }: { userId: string }) {
     void (async () => {
       try {
         const result = await supabase.from("tournament_registrations")
-          .select("id,status,pair_name,created_at,tournaments(name,sport,starts_at,location)")
+          .select("id,status,pair_name,created_at,submitted_by,tournaments(name,sport,starts_at,location)")
           .or(`submitted_by.eq.${userId},partner_user_id.eq.${userId}`)
           .order("created_at", { ascending: false });
         if (!active) return;
@@ -73,6 +74,7 @@ export default function MyRegistrations({ userId }: { userId: string }) {
         {item.pair_name && <p>{item.pair_name}</p>}
         {item.tournaments?.sport && <p className="kv-muted">{item.tournaments.sport === "tennis" ? t("Теннис") : t("Падел")}{item.tournaments.location ? ` · ${item.tournaments.location}` : ""}</p>}
         <p className="kv-muted kv-small">{t("Заявка отправлена ")}{new Intl.DateTimeFormat(locale, { day: "numeric", month: "long", year: "numeric", timeZone: "Europe/Vienna" }).format(new Date(item.created_at))}</p>
+        {item.submitted_by === userId && item.tournaments && <a className="kv-secondary" href={`${basePath}/register/?sport=${item.tournaments.sport}&repeat=${encodeURIComponent(item.id)}`}>{t("Заявиться снова")}</a>}
       </article>)}</div>}
     <form className="kv-fields kv-section" data-claim-application onSubmit={event => void redeem(event)}>
       <h3>{t("Привязать прежнюю заявку")}</h3>

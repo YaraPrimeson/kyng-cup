@@ -222,3 +222,8 @@
 .player-account .player-card-photo-option input { width:18px; height:18px; accent-color:var(--forest); }
 .player-account .player-caption-label { display:grid; gap:8px; margin-top:14px; font-size:13px; color:var(--sub); }
 .player-account .player-caption-label textarea { min-height:210px; resize:vertical; }
+.kv-tournament-actions { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .75rem; }
+.kv-notifications { list-style: none; padding: 0; }
+.kv-notifications li { display: grid; justify-items: start; gap: .3rem; padding: .75rem 0; border-bottom: 1px solid var(--line, #77685b); }
+.kv-ranking { display: flex; flex-wrap: wrap; gap: 1.25rem; margin-bottom: 0; }
+.kv-ranking dd { margin: 0; font-weight: 700; }

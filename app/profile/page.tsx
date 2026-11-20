@@ -16,9 +16,10 @@ import PlayerCards from "./player-cards";
 import AuthPanel from "./auth-panel";
 import MyRegistrations from "./my-registrations";
 import ProfileIcon from "./profile-icon";
+import { NextMatch, PlayerNotifications, SeasonRanking } from "./tournament-updates";
 import { usePlayerAccount } from "./use-player-account";
 
-type View = "profile" | "mine" | "settings" | "achievements" | "history" | "partners" | "cards";
+type View = "profile" | "mine" | "settings" | "achievements" | "history" | "partners" | "cards" | "ranking";
 
 function ProfileCompletion({ user, onSave }: { user: User; onSave: (profile: AccountProfile) => void }) {
   const { text: t } = useProfileLanguage();
@@ -139,13 +140,15 @@ function PlayerAccount({ user, profile, basePath, onSave, reload }: { user: User
     });
   }
   const displayPhoto = view === "settings" ? photo === null ? "" : photo instanceof Blob ? preview : source : source;
-  const title: Record<View, string> = { profile: "Профиль", mine: "Мои турниры", settings: "Настройки профиля", achievements: "Достижения", history: "История и матчи", partners: "Мои партнёры", cards: "Мои карточки" };
+  const title: Record<View, string> = { profile: "Профиль", mine: "Мои турниры", settings: "Настройки профиля", achievements: "Достижения", history: "История и матчи", partners: "Мои партнёры", cards: "Мои карточки", ranking: "Сезонный рейтинг" };
   return <>
     {view !== "profile" && view !== "mine" && <button className="kv-back" type="button" disabled={busy} onClick={() => move("profile")}><ProfileIcon name="back" />{t("Назад")}</button>}
     <h1 ref={heading} tabIndex={-1}>{t(title[view])}</h1>
     {view === "profile" && <>
       <div className="kv-person"><span className="kv-avatar">{source ? <img src={source} alt={t("Фото игрока")} width="72" height="72" referrerPolicy="no-referrer" /> : initials}</span><div><strong>{profile.display_name}</strong><small>{user.email}</small></div></div>
-      <section className="kv-section">{([["history", t("История и матчи"), t("Результаты и статистика")], ["partners", t("Мои партнёры"), t("Совместные турниры и результаты")], ["achievements", t("Достижения"), t("Награды и прогресс")], ["cards", t("Мои карточки"), t("Результаты для публикации")]] as const).map(([id, label, detail]) => <button type="button" key={id} className="kv-row" onClick={() => move(id)}><span>{label}<small>{detail}</small></span><ProfileIcon name="next" /></button>)}</section>
+      <NextMatch basePath={basePath} />
+      <PlayerNotifications basePath={basePath} />
+      <section className="kv-section">{([["history", t("История и матчи"), t("Результаты и статистика")], ["partners", t("Мои партнёры"), t("Совместные турниры и результаты")], ["achievements", t("Достижения"), t("Награды и прогресс")], ["cards", t("Мои карточки"), t("Результаты для публикации")], ["ranking", t("Сезонный рейтинг"), t("Место и очки по сезонам")]] as const).map(([id, label, detail]) => <button type="button" key={id} className="kv-row" onClick={() => move(id)}><span>{label}<small>{detail}</small></span><ProfileIcon name="next" /></button>)}</section>
       <section className="kv-section"><button type="button" className="kv-secondary" onClick={() => move("settings")}><ProfileIcon name="settings" />{t("Настройки профиля")}</button></section>
     </>}
     {view === "settings" && <>
@@ -161,9 +164,10 @@ function PlayerAccount({ user, profile, basePath, onSave, reload }: { user: User
         {!hasGoogle && <section className="kv-section"><button type="button" className="kv-secondary" disabled={!verified || !google} onClick={() => void action(async () => { requireVerification(); await startGoogle("link", user.id); })}>{t("Подключить Google")}</button>{!google && <p className="kv-muted kv-small">{t("Google ещё настраивается.")}</p>}</section>}
       </fieldset><p className="kv-muted kv-small kv-section">{t("ID игрока: ")}{profile.player_id}</p>
     </>}
-    {view === "mine" && <><MyRegistrations userId={user.id} /><section className="kv-empty"><div className="kv-empty-icon"><ProfileIcon name="calendar" /></div><h2>{t("Выберите следующую игру")}</h2><p>{t("Когда вы отправите новую заявку из своего аккаунта, она появится выше. Заявки, отправленные без входа, автоматически не привязываются.")}</p><button className="kv-primary" type="button" onClick={() => setShowEvents(value => !value)}>{showEvents ? t("Скрыть турниры") : t("Посмотреть турниры")}</button></section>{showEvents && <section className="player-event-list kv-section" aria-label={t("Доступные турниры")}><h3>{t("Доступные турниры")}</h3>{loading ? <p role="status">{t("Загружаем турниры…")}</p> : tournamentError ? <p role="alert">{t("Не удалось загрузить турниры. ")}<a href={`${basePath}/upcoming-tournaments/`}>{t("Открыть календарь")}</a></p> : available.length === 0 ? <p className="kv-note">{t("Новая регистрация пока не открыта.")}</p> : available.map(item => <article className="kv-box" key={item.id}><span className="kv-badge">{item.registration_status === "waitlist" ? t("Лист ожидания") : t("Регистрация открыта")}</span><p className="kv-when">{formatTournamentDate(item, language, true)}</p><h2>{item.name}</h2><p className="kv-muted">{item.location || t("Место будет объявлено")}</p><a className="kv-primary player-register-link" href={`${basePath}/register/?tournament=${encodeURIComponent(item.slug)}&sport=${item.sport}`}>{t("Открыть форму заявки")}</a></article>)}</section>}</>}
+    {view === "mine" && <><MyRegistrations userId={user.id} basePath={basePath} /><section className="kv-empty"><div className="kv-empty-icon"><ProfileIcon name="calendar" /></div><h2>{t("Выберите следующую игру")}</h2><p>{t("Когда вы отправите новую заявку из своего аккаунта, она появится выше. Заявки, отправленные без входа, автоматически не привязываются.")}</p><button className="kv-primary" type="button" onClick={() => setShowEvents(value => !value)}>{showEvents ? t("Скрыть турниры") : t("Посмотреть турниры")}</button></section>{showEvents && <section className="player-event-list kv-section" aria-label={t("Доступные турниры")}><h3>{t("Доступные турниры")}</h3>{loading ? <p role="status">{t("Загружаем турниры…")}</p> : tournamentError ? <p role="alert">{t("Не удалось загрузить турниры. ")}<a href={`${basePath}/upcoming-tournaments/`}>{t("Открыть календарь")}</a></p> : available.length === 0 ? <p className="kv-note">{t("Новая регистрация пока не открыта.")}</p> : available.map(item => <article className="kv-box" key={item.id}><span className="kv-badge">{item.registration_status === "waitlist" ? t("Лист ожидания") : t("Регистрация открыта")}</span><p className="kv-when">{formatTournamentDate(item, language, true)}</p><h2>{item.name}</h2><p className="kv-muted">{item.location || t("Место будет объявлено")}</p><a className="kv-primary player-register-link" href={`${basePath}/register/?tournament=${encodeURIComponent(item.slug)}&sport=${item.sport}`}>{t("Открыть форму заявки")}</a></article>)}</section>}</>}
     {(view === "history" || view === "achievements") && <PlayerResults key={view} userId={user.id} mode={view} />}
     {view === "partners" && <PlayerPartners userId={user.id} />}
+    {view === "ranking" && <SeasonRanking />}
     {view === "cards" && <PlayerCards userId={user.id} name={profile.display_name} photo={source} />}
     {notice && <p className="kv-message" role="status">{t(notice)}</p>}{error && <p className="kv-message player-error" role="alert">{t(error)}</p>}
     {view === "profile" && <section className="kv-section"><button type="button" className="kv-secondary player-sign-out" disabled={busy} onClick={() => void action(async () => { const result = await supabase.auth.signOut({ scope: "local" }); if (result.error) throw result.error; clearVerification(); })}>{t("Выйти из аккаунта")}</button></section>}

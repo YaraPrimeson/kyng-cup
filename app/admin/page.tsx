@@ -51,6 +51,7 @@ type Pair = {
 
 type Match = {
   id: string;
+  tournament_id: string;
   round: number;
   bracket_kind: "playoffs" | "basement";
   next_match_id: string | null;
@@ -388,6 +389,65 @@ function AdminGroupMatch({ match, pairMap, groupCode, onSaved }: { match: GroupM
   </form>;
 }
 
+function TournamentDay({ tournament, matches, groupMatches, groups, pairMap, onSaved }: {
+  tournament: Tournament; matches: Match[]; groupMatches: GroupMatch[]; groups: TournamentGroup[];
+  pairMap: Map<string, Pair>; onSaved: () => void;
+}) {
+  const { language } = useLanguage();
+  const [editing, setEditing] = useState("");
+  const [court, setCourt] = useState("");
+  const dates = new Intl.DateTimeFormat(language, { timeZone: "Europe/Vienna", dateStyle: "short", timeStyle: "short" });
+  const rows = [
+    ...groupMatches.filter(match => match.tournament_id === tournament.id).map(match => ({
+      key: `group:${match.id}`, match, group: match,
+      stage: `Group ${groups.find(group => group.id === match.group_id)?.code ?? "?"}`,
+    })),
+    ...matches.filter(match => match.tournament_id === tournament.id).map(match => ({
+      key: `knockout:${match.id}`, match, knockout: match,
+      stage: match.bracket_kind === "basement" ? "Consolation" : roundLabel(tournament.bracket_size, match.round),
+    })),
+  ].filter(({ match }) => match.pair_one_id && match.pair_two_id)
+    .sort((a, b) => ((a.match.scheduled_at ? Date.parse(a.match.scheduled_at) : Infinity)
+      - (b.match.scheduled_at ? Date.parse(b.match.scheduled_at) : Infinity)) || a.key.localeCompare(b.key));
+  const slots = new Map<string, string[]>();
+  const courts = new Set<string>();
+  for (const { key, match } of rows) {
+    const courtName = match.court?.trim();
+    if (courtName) courts.add(courtName);
+    if (!match.scheduled_at || match.status === "completed") continue;
+    const timestamp = Date.parse(match.scheduled_at);
+    const resources = [`pair:${match.pair_one_id}`, `pair:${match.pair_two_id}`];
+    if (courtName) resources.push(`court:${courtName.toLowerCase()}`);
+    for (const resource of resources) {
+      const slot = `${timestamp}:${resource}`;
+      slots.set(slot, [...(slots.get(slot) ?? []), key]);
+    }
+  }
+  const conflicts = new Set([...slots.values()].filter(ids => ids.length > 1).flat());
+  const current = rows.find(row => row.key === editing);
+  return <section className="admin-day">
+    <h2>Tournament day</h2>
+    {conflicts.size > 0 && <p role="status">Schedule conflict: {conflicts.size} matches share a court or pair at the same start time.</p>}
+    <label className="admin-field"><span>Court</span><select value={court} onChange={event => setCourt(event.target.value)}>
+      <option value="">All courts</option>
+      {[...courts].sort((a, b) => a.localeCompare(b, undefined, { numeric: true })).map(name => <option key={name}>{name}</option>)}
+    </select></label>
+    {!rows.length && <p>No matches with both pairs assigned.</p>}
+    {current && <div className="admin-day-editor">
+      <button type="button" onClick={() => setEditing("")}>Close match editor</button>
+      {"group" in current && current.group && <AdminGroupMatch key={current.group.id + current.group.updated_at} match={current.group} pairMap={pairMap} groupCode={groups.find(group => group.id === current.group?.group_id)?.code ?? "?"} onSaved={onSaved} />}
+      {"knockout" in current && current.knockout && <AdminMatch key={current.knockout.id + current.knockout.updated_at} match={current.knockout} pairMap={pairMap} bracketSize={tournament.bracket_size} onSaved={onSaved} />}
+    </div>}
+    <ul className="admin-day-list">{rows.filter(row => !court || row.match.court?.trim() === court).map(({ key, match, stage }) => <li key={key}>
+      <div><strong>{match.pair_one_id && pairMap.get(match.pair_one_id)?.name} · {match.pair_two_id && pairMap.get(match.pair_two_id)?.name}</strong>
+        <small>{stage} · {match.status}{conflicts.has(key) && " · Schedule conflict"}</small></div>
+      <div>{match.scheduled_at ? <time dateTime={match.scheduled_at}>{dates.format(new Date(match.scheduled_at))}</time> : "Time not set"}
+        <small>{match.court || "Court not set"}</small></div>
+      <button type="button" aria-pressed={editing === key} onClick={() => setEditing(key)}>Open match</button>
+    </li>)}</ul>
+  </section>;
+}
+
 function GroupStageManager({ tournament, pairs, groups, members, matches, playoffMatches, pairMap, onSaved }: { tournament: Tournament; pairs: Pair[]; groups: TournamentGroup[]; members: GroupMember[]; matches: GroupMatch[]; playoffMatches: Match[]; pairMap: Map<string, Pair>; onSaved: () => void }) {
   const memberGroup = useMemo(() => new Map(members.map((member) => [member.pair_id, groups.find((group) => group.id === member.group_id)?.code ?? "A"])), [groups, members]);
   const [assignments, setAssignments] = useState<Record<string, string>>(Object.fromEntries(pairs.map((pair) => [pair.id, memberGroup.get(pair.id) ?? "A"])));
@@ -587,6 +647,7 @@ export default function AdminPage() {
   const [checking, setChecking] = useState(true);
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   // undefined is the initial selection; null is an explicit choice to leave it empty.
+  const [dayView, setDayView] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null | undefined>(undefined);
   const loadRequest = useRef(0);
   const [pairs, setPairs] = useState<Pair[]>([]);
@@ -637,7 +698,7 @@ export default function AdminPage() {
     const groupIds = (groupsResult.data ?? []).map((item) => item.id);
     const [pairsResult, matchesResult, groupMembersResult, groupMatchesResult, registrationsResult] = await Promise.all([
       supabase.from("pairs").select("id,tournament_id,name,player_one,player_two,seed,updated_at").eq("tournament_id", selectedId).order("seed"),
-      supabase.from("matches").select("id,round,bracket_kind,position,next_match_id,next_slot,pair_one_id,pair_two_id,pair_one_sets,pair_two_sets,winner_id,status,court,scheduled_at,updated_at").eq("tournament_id", selectedId).order("round").order("position"),
+      supabase.from("matches").select("id,tournament_id,round,bracket_kind,position,next_match_id,next_slot,pair_one_id,pair_two_id,pair_one_sets,pair_two_sets,winner_id,status,court,scheduled_at,updated_at").eq("tournament_id", selectedId).order("round").order("position"),
       groupIds.length ? supabase.from("group_members").select("group_id,pair_id,position").in("group_id", groupIds) : Promise.resolve({ data: [], error: null }),
       supabase.from("group_matches").select("id,tournament_id,group_id,position,pair_one_id,pair_two_id,pair_one_sets,pair_two_sets,winner_id,status,court,scheduled_at,updated_at").eq("tournament_id", selectedId).order("group_id").order("position"),
       supabase.rpc("list_tournament_registrations", { p_tournament_id: selectedId }),
@@ -714,7 +775,12 @@ export default function AdminPage() {
           {showCreate && !selectedId && canCreateTournament && <CreateTournament key={user.id} userId={user.id} onClose={() => setShowCreate(false)} onCreated={(id) => { setShowCreate(false); void loadTournaments(user, id); }} />}
           {accessError && <div role="alert" className="admin-muted-note">{accessError} <button type="button" onClick={() => void loadTournaments(user)}>Retry</button></div>}
           {!accessError && organizerAccess && !tournaments.length && <div className="admin-muted-note">No tournaments yet. Create the first tournament to get started.</div>}
-          {selected && <>
+          {selected && <div className="admin-toolbar">
+            <button type="button" aria-pressed={!dayView} onClick={() => setDayView(false)}>Tournament management</button>
+            <button type="button" aria-pressed={dayView} onClick={() => setDayView(true)}>Tournament day</button>
+          </div>}
+          {selected && dayView && <TournamentDay key={selected.id} tournament={selected} matches={matches} groupMatches={groupMatches} groups={groups} pairMap={pairMap} onSaved={() => { void loadTournamentData(); void loadTournaments(user, selected.id); }} />}
+          {selected && !dayView && <>
             <div className="admin-section-heading admin-first-section"><div><span>01</span><h2>Tournament</h2></div><p>Publish, start live coverage or archive the completed tournament.</p></div>
             <TournamentSettings key={selected.updated_at} tournament={selected} onSaved={() => void loadTournaments(user)} />
             <TournamentReset tournament={selected} onReset={() => { void loadTournaments(user, selected.id); void loadTournamentData(); }} />

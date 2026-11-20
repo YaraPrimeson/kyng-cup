@@ -974,3 +974,15 @@ html[lang="ru"] .admin-round-group:not([open]) > summary::after { content: "По
 /* Sport sections expand naturally while a discipline is hidden. */
 .universal-hero.padel-home-hero { background-image: url('/assets/kyng-padel-action.webp'); }
 .sport-choice-card:only-child, .home-dates__events > a:only-child, .upcoming-page__selector > div > a:only-child { grid-column: 1 / -1; }
+.admin-day { display: grid; gap: 1rem; }
+.admin-day .admin-field { max-width: 18rem; }
+.admin-day-list { display: grid; gap: .5rem; margin: 0; padding: 0; list-style: none; }
+.admin-day-list li { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) auto; align-items: center; gap: .75rem; padding: .75rem; border: 1px solid currentColor; border-radius: .5rem; }
+.admin-day-list small { display: block; margin-top: .25rem; }
+.admin-day-editor { display: grid; gap: .75rem; }
+.admin-day button, .admin-toolbar button[aria-pressed] { cursor: pointer; padding: .5rem; }
+.admin-toolbar button[aria-pressed="true"] { text-decoration: underline; text-underline-offset: .2em; }
+@media (max-width: 540px) {
+  .admin-day-list li { grid-template-columns: minmax(0, 1fr) auto; }
+  .admin-day-list li > :first-child { grid-column: 1 / -1; }
+}
