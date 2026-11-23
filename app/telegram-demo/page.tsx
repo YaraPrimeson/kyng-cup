@@ -12,6 +12,7 @@ type DemoMatch = {
   sets: [number, number][];
   active: { number: number; one: number; two: number; kind: "short" | "standard" | "super" } | null;
   format: "short" | "best_of_three";
+  court?: string;
   winner: string | null;
 };
 
@@ -19,6 +20,7 @@ type Scoreboard = {
   tournament: string;
   group_match: DemoMatch | null;
   final_match: DemoMatch | null;
+  matches?: Partial<Record<"a" | "b" | "p" | "k", DemoMatch>>;
 };
 
 const labels = { scheduled: "Ожидает начала", live: "● LIVE", completed: "Завершён" };
@@ -27,7 +29,7 @@ function MatchCard({ title, match }: { title: string; match: DemoMatch | null })
   return <section style={{ border: "1px solid #59616a", borderRadius: 12, padding: "1rem", marginTop: "1rem" }}>
     <h2>{title}</h2>
     {match ? <>
-      <p style={{ fontWeight: 700 }}>{labels[match.status]} · Корт 1</p>
+      <p style={{ fontWeight: 700 }}>{labels[match.status]} · {match.court ?? "Корт 1"}</p>
       <p>{match.one} — {match.two}</p>
       <p><strong>Сеты · {match.sets_one}:{match.sets_two}</strong></p>
       {match.sets.map(([one, two], index) => <p key={index}>
@@ -53,8 +55,10 @@ export default function TelegramDemoPage() {
   useEffect(() => {
     let active = true;
     let timer: number;
+    const endpoint = new URLSearchParams(window.location.search).get("mode") === "4"
+      ? "telegram_cup_scoreboard" : "telegram_demo_scoreboard";
     async function refresh() {
-      const { data, error } = await supabase.rpc("telegram_demo_scoreboard");
+      const { data, error } = await supabase.rpc(endpoint);
       if (!active) return;
       if (error) setStatus("Связь потеряна. Переподключаемся…");
       else {
@@ -71,8 +75,15 @@ export default function TelegramDemoPage() {
     <h1>{board?.tournament ?? "KYNG CUP · Telegram-демо"}</h1>
     <p role="status">{status}</p>
     {board && <div aria-live="polite">
-      <MatchCard title="Группа A" match={board.group_match} />
-      <MatchCard title="Финал" match={board.final_match} />
+      {board.matches ? <>
+        <MatchCard title="Группа A" match={board.matches.a ?? null} />
+        <MatchCard title="Группа B" match={board.matches.b ?? null} />
+        <MatchCard title="Основной финал" match={board.matches.p ?? null} />
+        <MatchCard title="Короли подвала" match={board.matches.k ?? null} />
+      </> : <>
+        <MatchCard title="Группа A" match={board.group_match} />
+        <MatchCard title="Финал" match={board.final_match} />
+      </>}
     </div>}
   </main>;
 }

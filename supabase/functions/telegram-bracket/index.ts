@@ -45,6 +45,7 @@ const helpText = [
   "/tournaments — активные турниры",
   "/matches <slug> — матчи турнира",
   "/demo — тестовый турнир по приглашению",
+  "/cup — пульт демо на четыре пары",
   "",
   editingDisabledMessage,
 ].join("\n");
@@ -250,14 +251,24 @@ const demo = telegramDemo(
   async () => Number((await loadSecrets()).bot_token.split(":")[0]),
 );
 
+const cup = telegramDemo(
+  (userId, action, params) => supabase("rpc/telegram_cup_control", {
+    method: "POST",
+    body: JSON.stringify({ p_user_id: userId, p_action: action, ...params }),
+  }),
+  telegram,
+  async () => Number((await loadSecrets()).bot_token.split(":")[0]),
+  true,
+);
+
 async function handleUpdate(update: TelegramUpdate) {
   if (update.callback_query) {
     const callback = update.callback_query;
     try {
-      await demo.callback(callback);
+      await (callback.data?.startsWith("kc:") ? cup : demo).callback(callback);
     } catch {
       if (callback.message?.chat?.type === "private" && callback.message.chat.id === callback.from.id) {
-        await reply(callback.from.id, "Не удалось обновить демо. Откройте /demo и проверьте текущий счёт.");
+        await reply(callback.from.id, "Не удалось обновить демо. Откройте пульт и проверьте текущий счёт.");
       }
     }
     return;
@@ -275,7 +286,9 @@ async function handleUpdate(update: TelegramUpdate) {
     const privateChat = message.chat?.type === "private" && userId === chatId;
     if (command === "/demo" || invite !== undefined) {
       if (privateChat) await demo.open(userId, invite);
-    } else if (privateChat && await demo.textReply(userId, message, text)) return;
+    } else if (command === "/cup") {
+      if (privateChat) await cup.open(userId);
+    } else if (privateChat && (await demo.textReply(userId, message, text) || await cup.textReply(userId, message, text))) return;
     else if (command === "/start" || command === "/help") await reply(chatId, helpText);
     else if (command === "/tournaments") await listTournaments(chatId);
     else if (command === "/matches") await listMatches(chatId, args[0]);

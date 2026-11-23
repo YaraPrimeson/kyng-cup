@@ -11,7 +11,7 @@ const code = stripTypeScriptTypes([
   entry.replace(/^import .*"\.\/demo\.ts";\n/m, ""),
 ].join("\n"));
 
-function webhook(demoControl) {
+function webhook(demoControl, cupControl) {
   let handler;
   const calls = [], replies = [];
   runInNewContext(code, {
@@ -25,6 +25,9 @@ function webhook(demoControl) {
       if (url === "https://database.test/rest/v1/rpc/telegram_bot_secrets") return Response.json([{ bot_token: "900:test", webhook_secret: "test-webhook" }]);
       if (url === "https://database.test/rest/v1/rpc/telegram_demo_control" && demoControl) {
         return Response.json(demoControl(JSON.parse(init.body)));
+      }
+      if (url === "https://database.test/rest/v1/rpc/telegram_cup_control" && cupControl) {
+        return Response.json(cupControl(JSON.parse(init.body)));
       }
       if (url.startsWith("https://api.telegram.org/bot900:test/")) {
         replies.push(JSON.parse(init.body));
@@ -173,4 +176,37 @@ test("the deciding super tie-break uses points and a completed set can be select
   assert.ok(bot.replies.at(-1).reply_markup.inline_keyboard.flat().some(button => button.text === "Записать очко"));
   await tap("kd:f:edit:9");
   assert.equal(bot.replies.at(-1).reply_markup.inline_keyboard[0][0].callback_data, "kd:f:input1:9");
+});
+
+test("four-pair dashboard edits each court with its own revision and previews both finals", async () => {
+  const calls = [];
+  const state = { revision: 10, draw_ready: false, matches: {
+    a: { revision: 7, court: "Корт 1", status: "completed", one: "Север", two: "Юг", winner: "Север",
+      sets: [[3, 1]], sets_one: 1, sets_two: 0, active: null },
+    b: { revision: 3, court: "Корт 2", status: "live", one: "Восток", two: "Запад",
+      sets: [[2, 3]], sets_one: 0, sets_two: 1, active: null },
+  } };
+  const bot = webhook(undefined, request => {
+    calls.push(request);
+    if (request.p_action === "finish") {
+      state.matches.b.status = "completed";
+      state.matches.b.winner = "Запад";
+      state.matches.b.revision = 4;
+      state.revision = 11;
+      state.draw_ready = true;
+    }
+    return state;
+  });
+  const chat = { id: 123, type: "private" };
+  const from = { id: 123 };
+  await bot.update({ message: { from, chat, text: "/cup" } });
+  assert.match(bot.replies.at(-1).text, /Корт 1[\s\S]*Корт 2/);
+  const tap = data => bot.update({ callback_query: { id: "tap", from, message: { chat, message_id: 1 }, data } });
+  await tap("kc:b:review:3");
+  assert.match(bot.replies.at(-1).text, /Победитель: Запад/);
+  await tap("kc:b:finish:3");
+  assert.equal(calls.at(-1).p_stage, "b");
+  assert.equal(calls.at(-1).p_revision, 3);
+  await tap("kc:b:qualifiers:11");
+  assert.match(bot.replies.at(-1).text, /Основной финал\nСевер — Запад[\s\S]*Короли подвала\nЮг — Восток/);
 });
