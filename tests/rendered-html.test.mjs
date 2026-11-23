@@ -131,7 +131,9 @@ test("ships live bracket and protected tournament controls", async () => {
   assert.match(bracket, /BasementKing/);
   assert.match(bracket, /Basement King/);
   assert.match(bracket, /\["published", "live", "completed"\]/);
-  assert.doesNotMatch(bracket, /archive/);
+  assert.match(bracket, /<TournamentPicker.*archive=\{archive\}/);
+  const picker = await readFile(new URL("../app/bracket/tournament-picker.tsx", import.meta.url), "utf8");
+  assert.match(picker, /<details className="bracket-selector__archive"/);
   assert.doesNotMatch(bracket, /text\.matches/);
   assert.match(bracket, /\["Quarterfinal", "Semifinal", "Final"\]/);
   assert.doesNotMatch(bracket, /Quarterfinals|Semifinals/);
@@ -147,12 +149,13 @@ test("ships live bracket and protected tournament controls", async () => {
   assert.match(upcoming, /\/register\/\?tournament=/);
   assert.match(upcoming, /registration_status/);
   assert.doesNotMatch(upcoming, /<button type="button">\{t\("participate"\)\}/);
-  assert.match(upcoming, /starts_at,ends_at/);
+  const publicTournaments = await readFile(new URL("../app/public-tournaments.ts", import.meta.url), "utf8");
+  assert.match(publicTournaments, /starts_at,ends_at/);
   assert.match(upcoming, /upcoming-date-point/);
-  assert.match(upcoming, /const isSingleDay = Boolean/);
+  assert.match(upcoming, /const isRange =/);
   assert.match(upcoming, /is-single-day/);
   assert.match(upcoming, /timeZone: "Europe\/Vienna"/);
-  assert.match(upcoming, /if \(loading \|\| !tournament\) return null/);
+  assert.match(upcoming, /if \(!upcoming.length\) return null/);
   assert.doesNotMatch(upcoming, /bracket_size/);
   assert.match(i18n, /localStorage\.setItem\(languageStorageKey/);
   assert.match(i18n, /Request a place/);

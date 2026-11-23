@@ -355,7 +355,7 @@ test("sign-out clears the player and reopening uses the server profile", async (
 });
 
 async function chooseLanguage(value) {
-  const select = document.querySelector('.kv-language select');
+  const select = document.querySelector('.language-select select');
   assert.ok(select, 'Profile language selector is available');
   await act(async () => { select.value = value; select.dispatchEvent(new window.Event('change', { bubbles: true })); });
   await settle();
@@ -364,8 +364,8 @@ async function chooseLanguage(value) {
 test('profile login supports UA, EN and DE, keeps typed fields and remembers the choice', async () => {
   user = null;
   await mount();
-  const options = [...document.querySelector('.kv-language select').options].map(option => option.value);
-  assert.deepEqual(options, ['uk', 'en', 'de']);
+  const options = [...document.querySelector('.language-select select').options].map(option => option.value);
+  assert.deepEqual(options, ['en', 'uk', 'de']);
   const input = document.querySelector('input[name="name"]');
   await enter(input, 'Anna Example');
   for (const [language, heading, label] of [['uk', 'Ваш KYNG CUP', 'Ім’я та прізвище'], ['de', 'Ihr KYNG CUP', 'Vor- und Nachname'], ['en', 'Your KYNG CUP', 'Full name']]) {
@@ -388,7 +388,7 @@ test('a previously saved Russian preference falls back to English without a Russ
   window.localStorage.setItem('kyng-language', 'ru');
   await mount();
   assert.equal(document.querySelector('main').lang, 'en');
-  assert.equal(document.querySelector('.kv-language select').value, 'en');
+  assert.equal(document.querySelector('.language-select select').value, 'en');
   assert.equal(document.querySelector('option[value="ru"]'), null);
   assert.equal(document.querySelector('h1').textContent, 'Your KYNG CUP');
 });

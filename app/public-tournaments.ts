@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { visibleSportItems, visibleSports } from "@/lib/sports";
+import { isTestTournament, lastTournamentDay, viennaDate } from "@/lib/tournament-schedule";
 import type { Language } from "./i18n";
 
 export type PublicTournament = {
@@ -59,28 +60,19 @@ export function usePublicTournaments() {
   return { tournaments, loading, error };
 }
 
-function dateKey(value: string) {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Europe/Vienna",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date(value));
-}
-
 export function selectUpcomingTournaments(tournaments: PublicTournament[], now = new Date()) {
-  const today = dateKey(now.toISOString());
+  const today = viennaDate(now);
   const upcoming = tournaments.filter((tournament) => {
-    if (/^(?:kyng|kyngcup)-qa-/.test(tournament.slug)) return false;
+    if (isTestTournament(tournament.slug)) return false;
     if (tournament.status === "live") return true;
-    const lastDay = tournament.ends_at ?? tournament.starts_at;
-    return Boolean(lastDay && dateKey(lastDay) >= today);
+    const lastDay = lastTournamentDay(tournament);
+    return Boolean(lastDay && lastDay >= today);
   });
 
   return upcoming.sort((a, b) => Number(b.status === "live") - Number(a.status === "live"));
 }
 
-export function formatTournamentDate(tournament: PublicTournament, language: Language, includeYear = false) {
+export function formatTournamentDate(tournament: Pick<PublicTournament, "starts_at" | "ends_at">, language: Language, includeYear = false) {
   if (!tournament.starts_at) return "—";
   const formatter = new Intl.DateTimeFormat(locales[language], {
     timeZone: "Europe/Vienna",
@@ -89,7 +81,7 @@ export function formatTournamentDate(tournament: PublicTournament, language: Lan
     ...(includeYear ? { year: "numeric" as const } : {}),
   });
   const start = formatter.format(new Date(tournament.starts_at));
-  if (!tournament.ends_at || dateKey(tournament.starts_at) === dateKey(tournament.ends_at)) return start;
+  if (!tournament.ends_at || viennaDate(tournament.starts_at) === viennaDate(tournament.ends_at)) return start;
   return `${start} – ${formatter.format(new Date(tournament.ends_at))}`;
 }
 

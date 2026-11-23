@@ -1,6 +1,7 @@
 "use client";
 
 import { useProfileLanguage } from "./profile-i18n";
+import LanguageSelect from "../language-select";
 
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { usePathname } from "next/navigation";
@@ -176,10 +177,10 @@ function PlayerAccount({ user, profile, basePath, onSave, reload }: { user: User
 }
 
 export default function ProfilePage() {
-  const { text: t, language, setLanguage } = useProfileLanguage();
+  const { text: t, language } = useProfileLanguage();
   const basePath = siteBasePath(usePathname());
   const account = usePlayerAccount();
-  return <main className="player-account" lang={language} translate="no"><div className="kv-phone"><header className="kv-header"><a className="kv-logo" href={`${basePath}/`} aria-label={t("Главная KYNG CUP")}>KYNG CUP</a><label className="kv-language"><span>{t("Язык")}</span><select value={language} onChange={event => setLanguage(event.target.value as "en" | "uk" | "de")}><option value="uk">UA</option><option value="en">EN</option><option value="de">DE</option></select></label></header><div className="kv-body">
+  return <main className="player-account" lang={language} translate="no"><div className="kv-phone"><header className="kv-header"><a className="kv-logo" href={`${basePath}/`} aria-label={t("Главная KYNG CUP")}>KYNG CUP</a><LanguageSelect /></header><div className="kv-body">
     {account.loading ? <p role="status">{t("Открываем ваш кабинет…")}</p> : !account.user ? <AuthPanel basePath={basePath} /> : !account.user.email_confirmed_at ? <><h1>{t("Подтвердите почту")}</h1><p>{t("Подтвердите адрес, чтобы открыть профиль.")}</p><button className="kv-link" type="button" onClick={() => void supabase.auth.signOut({ scope: "local" })}>{t("Выйти")}</button></> : account.error && !account.profile ? <><h1>{t("Не удалось открыть профиль")}</h1><p className="player-error" role="alert">{t(account.error)}</p><button className="kv-secondary" type="button" onClick={() => void account.reload()}>{t("Повторить")}</button><button className="kv-link" type="button" onClick={() => void supabase.auth.signOut({ scope: "local" })}>{t("Выйти")}</button></> : account.profile ? <PlayerAccount key={account.user.id} user={account.user} profile={account.profile} basePath={basePath} onSave={account.acceptProfile} reload={account.reload} /> : <ProfileCompletion key={account.user.id} user={account.user} onSave={account.acceptProfile} />}
     {account.error && account.profile && <p className="kv-message player-error" role="alert">{t("Не удалось обновить данные. ")}{t(account.error)}</p>}
   </div></div></main>;

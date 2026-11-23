@@ -1,9 +1,11 @@
 "use client";
 
 import KnockoutBoard from "../knockout-board";
+import TournamentPicker from "./tournament-picker";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { visibleSportItems } from "@/lib/sports";
 import { supabase } from "@/lib/supabase";
+import { bracketTournamentLists } from "@/lib/tournament-schedule";
 import { Language, useLanguage } from "../i18n";
 import { calculateStandings, GroupMatch, GroupMember, TournamentGroup } from "../group-stage";
 
@@ -16,6 +18,7 @@ type Tournament = {
   sport: Sport;
   location: string | null;
   starts_at: string | null;
+  ends_at: string | null;
   bracket_size: number;
   format: "knockout" | "group_knockout";
   participant_count: number;
@@ -127,25 +130,35 @@ export default function BracketPage() {
   const [stage, setStage] = useState<"groups" | "playoffs" | "basement">("groups");
   const [activeRound, setActiveRound] = useState(1);
   const displayedTournament = useRef<string | null>(null);
+  const requestNumber = useRef(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const loadBracket = useCallback(async (requestedSlug?: string) => {
-    const tournamentResult = await supabase.from("tournaments").select("id,slug,name,sport,location,starts_at,bracket_size,format,participant_count,status").in("status", ["published", "live", "completed"]).order("starts_at", { ascending: false, nullsFirst: false });
-    if (tournamentResult.error || !tournamentResult.data?.length) { setError(text.noBracket); setLoading(false); return; }
-    const available = visibleSportItems(tournamentResult.data as Tournament[]);
-    if (!available.length) { setTournaments([]); setTournament(null); setError(text.noBracket); setLoading(false); return; }
-    const urlSlug = requestedSlug ?? new URLSearchParams(window.location.search).get("tournament") ?? undefined;
-    const requestedSport = new URLSearchParams(window.location.search).get("sport") as Sport | null;
-    const sportAvailable = requestedSport ? available.filter((item) => item.sport === requestedSport) : available;
-    const now = Date.now();
-    const current = available.find((item) => item.slug === urlSlug)
-      ?? sportAvailable.find((item) => item.status === "live")
-      ?? [...sportAvailable].reverse().find((item) => item.status === "published" && item.starts_at && new Date(item.starts_at).getTime() >= now)
-      ?? sportAvailable.find((item) => item.status === "completed")
-      ?? sportAvailable[0]
-      ?? available[0];
+  const loadBracket = useCallback(async () => {
+    const request = ++requestNumber.current;
+    const params = new URLSearchParams(window.location.search);
+    const tournamentResult = await supabase.from("tournaments").select("id,slug,name,sport,location,starts_at,ends_at,bracket_size,format,participant_count,status").in("status", ["published", "live", "completed"]);
+    if (request !== requestNumber.current) return;
+    if (tournamentResult.error) { setError(text.noBracket); setLoading(false); return; }
+
+    const available = visibleSportItems((tournamentResult.data ?? []) as Tournament[]);
+    const { active, archive } = bracketTournamentLists(available);
+    const sport = params.get("sport");
+    const scheduled = active.filter((item) => item.status === "live" || item.starts_at || item.ends_at);
+    const current = available.find((item) => item.slug === params.get("tournament"))
+      ?? scheduled.find((item) => item.sport === sport)
+      ?? archive.find((item) => item.sport === sport && item.status === "completed")
+      ?? active.find((item) => item.sport === sport)
+      ?? archive.find((item) => item.sport === sport)
+      ?? scheduled[0]
+      ?? archive.find((item) => item.status === "completed")
+      ?? active[0]
+      ?? archive[0];
+    setTournaments(available);
+    if (!current) { setTournament(null); setError(text.noBracket); setLoading(false); return; }
+
     const groupsResult = await supabase.from("tournament_groups").select("id,code,qualify_count").eq("tournament_id", current.id).order("code");
+    if (request !== requestNumber.current) return;
     const groupIds = (groupsResult.data ?? []).map((item) => item.id);
     const [pairsResult, matchesResult, membersResult, groupMatchesResult] = await Promise.all([
       supabase.from("pairs").select("id,name,player_one,player_two,seed,country_code").eq("tournament_id", current.id).order("seed"),
@@ -153,15 +166,16 @@ export default function BracketPage() {
       groupIds.length ? supabase.from("group_members").select("group_id,pair_id,position").in("group_id", groupIds) : Promise.resolve({ data: [], error: null }),
       supabase.from("group_matches").select("id,tournament_id,group_id,position,pair_one_id,pair_two_id,pair_one_sets,pair_two_sets,winner_id,status,court,scheduled_at,updated_at").eq("tournament_id", current.id).order("group_id").order("position"),
     ]);
+    if (request !== requestNumber.current) return;
     if (pairsResult.error || matchesResult.error || groupsResult.error || membersResult.error || groupMatchesResult.error) setError(text.loadError);
-    else { setTournaments(available); setTournament(current); setPairs((pairsResult.data ?? []) as Pair[]); setMatches((matchesResult.data ?? []) as Match[]); setGroups((groupsResult.data ?? []) as TournamentGroup[]); setGroupMembers((membersResult.data ?? []) as GroupMember[]); setGroupMatches((groupMatchesResult.data ?? []) as GroupMatch[]); if (displayedTournament.current !== current.id) { setStage(current.format === "group_knockout" && !(matchesResult.data ?? []).some((match) => (match.round === 0 || match.round === 1) && match.pair_one_id && match.bracket_kind !== "basement") ? "groups" : "playoffs"); displayedTournament.current = current.id; } setError(null); }
+    else { setTournament(current); setPairs((pairsResult.data ?? []) as Pair[]); setMatches((matchesResult.data ?? []) as Match[]); setGroups((groupsResult.data ?? []) as TournamentGroup[]); setGroupMembers((membersResult.data ?? []) as GroupMember[]); setGroupMatches((groupMatchesResult.data ?? []) as GroupMatch[]); if (displayedTournament.current !== current.id) { setStage(current.format === "group_knockout" && !(matchesResult.data ?? []).some((match) => (match.round === 0 || match.round === 1) && match.pair_one_id && match.bracket_kind !== "basement") ? "groups" : "playoffs"); displayedTournament.current = current.id; } setError(null); }
     setLoading(false);
   }, [text.loadError, text.noBracket]);
 
   useEffect(() => { const timer = window.setTimeout(() => void loadBracket(), 0); return () => window.clearTimeout(timer); }, [loadBracket]);
   useEffect(() => {
     if (!tournament?.id) return;
-    const channel = supabase.channel(`public:${tournament.id}`).on("postgres_changes", { event: "*", schema: "public", table: "matches", filter: `tournament_id=eq.${tournament.id}` }, () => void loadBracket(tournament.slug)).on("postgres_changes", { event: "*", schema: "public", table: "group_matches", filter: `tournament_id=eq.${tournament.id}` }, () => void loadBracket(tournament.slug)).on("postgres_changes", { event: "*", schema: "public", table: "pairs", filter: `tournament_id=eq.${tournament.id}` }, () => void loadBracket(tournament.slug)).on("postgres_changes", { event: "*", schema: "public", table: "tournaments", filter: `id=eq.${tournament.id}` }, () => void loadBracket(tournament.slug)).subscribe();
+    const channel = supabase.channel(`public:${tournament.id}`).on("postgres_changes", { event: "*", schema: "public", table: "matches", filter: `tournament_id=eq.${tournament.id}` }, () => void loadBracket()).on("postgres_changes", { event: "*", schema: "public", table: "group_matches", filter: `tournament_id=eq.${tournament.id}` }, () => void loadBracket()).on("postgres_changes", { event: "*", schema: "public", table: "pairs", filter: `tournament_id=eq.${tournament.id}` }, () => void loadBracket()).on("postgres_changes", { event: "*", schema: "public", table: "tournaments", filter: `id=eq.${tournament.id}` }, () => void loadBracket()).subscribe();
     return () => { void supabase.removeChannel(channel); };
   }, [loadBracket, tournament?.id, tournament?.slug]);
 
@@ -179,11 +193,14 @@ export default function BracketPage() {
   function selectTournament(slug: string) {
     const next = tournaments.find((item) => item.slug === slug);
     const url = new URL(window.location.href); url.searchParams.set("tournament", slug); if (next) url.searchParams.set("sport", next.sport); window.history.replaceState({}, "", url);
-    setLoading(true); setActiveRound(1); void loadBracket(slug);
+    setLoading(true); setActiveRound(1); void loadBracket();
   }
 
+  const { active, archive } = bracketTournamentLists(tournaments);
+  const hasAnotherTournament = [...active, ...archive].some((item) => item.slug !== tournament?.slug);
+
   return <main className="bracket-page">
-    <section className="bracket-intro"><div><p className="eyebrow">Live tournament experience</p><h1>{text.headingA}<br />{text.headingB}<span className="accent-dot">.</span></h1></div><div className="bracket-summary"><span className={`live-indicator${tournament?.status === "live" ? " is-live" : ""}`}><i /> {tournament?.status === "live" ? "Live updates" : "Tournament schedule"}</span><strong>{tournament?.name ?? "KYNG CUP"}</strong><span>{tournament?.location ?? text.locationTba} · {tournament?.participant_count ?? tournament?.bracket_size ?? 16} {text.pairs}</span>{tournaments.length > 1 && <label className="bracket-selector"><span>Choose tournament</span><select value={tournament?.slug ?? ""} onChange={(event) => selectTournament(event.target.value)}>{tournaments.map((item) => <option value={item.slug} key={item.id}>{item.name}</option>)}</select></label>}</div></section>
+    <section className="bracket-intro"><div><p className="eyebrow">Live tournament experience</p><h1>{text.headingA}<br />{text.headingB}<span className="accent-dot">.</span></h1></div><div className="bracket-summary"><span className={`live-indicator${tournament?.status === "live" ? " is-live" : ""}`}><i /> {tournament?.status === "live" ? "Live updates" : "Tournament schedule"}</span><strong>{tournament?.name ?? "KYNG CUP"}</strong><span>{tournament?.location ?? text.locationTba} · {tournament?.participant_count ?? tournament?.bracket_size ?? 16} {text.pairs}</span>{hasAnotherTournament && <TournamentPicker active={active} archive={archive} currentSlug={tournament?.slug} language={language} onSelect={selectTournament} />}</div></section>
     {champion && <section className="champion-banner"><span>Champion</span><div><strong>{champion.name}</strong><small>{champion.player_one} · {champion.player_two}</small></div><b>KYNG CUP</b></section>}
     {loading ? <div className="bracket-state" role="status" aria-live="polite">Loading the draw…</div> : error ? <div className="bracket-state is-error" role="alert">{error}</div> : <>
       {tournament?.format === "group_knockout" && <nav className="stage-tabs" aria-label="Tournament stages"><button type="button" className={stage === "groups" ? "is-active" : ""} onClick={() => setStage("groups")}>{text.groups}</button><button type="button" className={stage === "playoffs" ? "is-active" : ""} onClick={() => setStage("playoffs")}>{text.playoffs}</button><button type="button" className={stage === "basement" ? "is-active basement-tab" : "basement-tab"} onClick={() => setStage("basement")}>{basementCopy[language].tab}</button></nav>}

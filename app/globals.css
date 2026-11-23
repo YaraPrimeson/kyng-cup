@@ -329,8 +329,8 @@ body { font-size: 18px; }
 .global-header nav a::after { content: ""; position: absolute; left: 0; right: 100%; bottom: -7px; height: 1px; background: var(--peach); transition: right .2s; }
 .global-header nav a:hover::after { right: 0; }
 .language-select { position: relative; justify-self: end; display: flex; align-items: center; gap: 10px; }
-.language-select > span { text-transform: uppercase; letter-spacing: .12em; font-size: 12px; color: rgba(255,255,255,.66); }
-.language-select select { width: 52px; height: 34px; min-width: 0; border: 1px solid rgba(255,255,255,.3); border-radius: 999px; padding: 0 10px; color: #fff; background: rgba(255,255,255,.07); appearance: none; cursor: pointer; font-size: 14px; line-height: 1; font-weight: 400; text-align: center; text-align-last: center; }
+.language-select > span { text-transform: uppercase; letter-spacing: .12em; font-size: 12px; color: var(--language-label, rgba(255,255,255,.66)); }
+.language-select select { width: 52px; height: 34px; min-width: 0; border: 1px solid var(--language-border, rgba(255,255,255,.3)); border-radius: 999px; padding: 0 10px; color: var(--language-text, #fff); background: var(--language-background, rgba(255,255,255,.07)); appearance: none; cursor: pointer; font-size: 14px; line-height: 1; font-weight: 400; text-align: center; text-align-last: center; }
 .language-select option { color: var(--ink); }
 .admin-page, .bracket-page, .legal-page, .registration-page { padding-top: 74px; }
 
@@ -770,9 +770,15 @@ html[lang="ru"] .admin-round-group:not([open]) > summary::after { content: "По
 .admin-registration-controls textarea:focus { border-color: var(--forest); }
 .admin-registration-card > .admin-save-button { justify-self: start; }
 /* Flexible public bracket */
-.bracket-selector { margin-top: 10px; display: grid; gap: 6px; }
-.bracket-selector span { font-size: 10px; text-transform: uppercase; letter-spacing: .1em; opacity: .5; }
-.bracket-selector select { width: 100%; border: 1px solid var(--line); border-radius: 10px; background: #fff; padding: 9px 10px; font: inherit; font-size: 13px; }
+.bracket-selector { margin-top: 10px; border: 1px solid var(--line); border-radius: 10px; background: #fff; font-size: 13px; }
+.bracket-selector summary { padding: 11px 12px; cursor: pointer; }
+.bracket-selector__panel { padding: 0 5px 5px; }
+.bracket-selector ul { max-height: 16rem; margin: 0; padding: 0; overflow-y: auto; list-style: none; }
+.bracket-selector button { display: block; width: 100%; padding: 9px 8px; border: 0; border-radius: 6px; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.bracket-selector button:hover, .bracket-selector button[aria-current] { background: var(--paper); }
+.bracket-selector button[aria-current], .bracket-selector__live { font-weight: 600; }
+.bracket-selector__archive { border-top: 1px solid var(--line); }
+.bracket-selector__archive summary { padding-inline: 8px; }
 .champion-banner { margin: 0 42px 30px; padding: 20px 24px; border-radius: 18px; background: var(--forest); color: #fff; display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 25px; }
 .champion-banner > span, .champion-banner > b { text-transform: uppercase; letter-spacing: .12em; font-size: 11px; }
 .champion-banner > div { display: grid; }
