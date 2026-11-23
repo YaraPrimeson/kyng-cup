@@ -15,6 +15,7 @@ export type PublicTournament = {
   ends_at: string | null;
   status: "published" | "live";
   registration_status: "open" | "waitlist" | "closed";
+  prize_pool: string | null;
 };
 
 const locales: Record<Language, string> = {
@@ -32,7 +33,7 @@ export function usePublicTournaments() {
   const load = useCallback(async () => {
     const result = await supabase
       .from("tournaments")
-      .select("id,slug,name,sport,location,starts_at,ends_at,status,registration_status")
+      .select("id,slug,name,sport,location,starts_at,ends_at,status,registration_status,prize_pool")
       .in("sport", visibleSports)
       .in("status", ["published", "live"])
       .order("starts_at", { ascending: true, nullsFirst: false });
@@ -65,6 +66,18 @@ function dateKey(value: string) {
     month: "2-digit",
     day: "2-digit",
   }).format(new Date(value));
+}
+
+export function selectUpcomingTournaments(tournaments: PublicTournament[], now = new Date()) {
+  const today = dateKey(now.toISOString());
+  const upcoming = tournaments.filter((tournament) => {
+    if (/^(?:kyng|kyngcup)-qa-/.test(tournament.slug)) return false;
+    if (tournament.status === "live") return true;
+    const lastDay = tournament.ends_at ?? tournament.starts_at;
+    return Boolean(lastDay && dateKey(lastDay) >= today);
+  });
+
+  return upcoming.sort((a, b) => Number(b.status === "live") - Number(a.status === "live"));
 }
 
 export function formatTournamentDate(tournament: PublicTournament, language: Language, includeYear = false) {

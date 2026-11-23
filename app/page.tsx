@@ -1,10 +1,10 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { isSportVisible, visibleSports } from "@/lib/sports";
+import { isSportVisible } from "@/lib/sports";
 import SiteFooter from "./site-footer";
 import { Language, useLanguage } from "./i18n";
-import { formatTournamentDate, formatTournamentMonth, usePublicTournaments } from "./public-tournaments";
+import { formatTournamentDate, formatTournamentMonth, selectUpcomingTournaments, usePublicTournaments } from "./public-tournaments";
 
 const copy: Record<Language, { eyebrow: string; title: string; intro: string; datesLabel: string; datesTitle: string; datesIntro: string; details: string; aboutLabel: string; aboutTitle: string; aboutText: string; choose: string; chooseTitle: string; tennisText: string; padelText: string; enter: string }> = {
   en: { eyebrow: "Tennis · Padel · Community", title: "More than a game. A standard.", intro: "High-level play. Uncompromising organization. An experience worth repeating.", datesLabel: "Vienna · Upcoming tournaments", datesTitle: "Two sports. One community.", datesIntro: "Discover the next KYNG CUP tennis and padel tournaments in Vienna.", details: "Details", aboutLabel: "What is KYNG CUP", aboutTitle: "Competition creates the moment. Community gives it meaning.", aboutText: "We create tennis and padel tournaments for people who value a high level of play, quality company, and an exceptional experience.\n\nThoughtful formats. Attention to detail. Strong players. An atmosphere you want to come back to.", choose: "Choose your court", chooseTitle: "Where do you want to play?", tennisText: "Tradition, precision and the long rhythm of the match.", padelText: "Speed, instinct and a game built around partnership.", enter: "Explore" },
@@ -26,16 +26,14 @@ export default function Home() {
   const { language } = useLanguage();
   const c = { ...copy[language], ...(!isSportVisible("tennis") ? padelCopy[language] : {}) };
   const { tournaments, loading } = usePublicTournaments();
-  const featured = visibleSports
-    .map((sport) => tournaments.find((item) => item.sport === sport && item.status === "live") ?? tournaments.find((item) => item.sport === sport))
-    .filter((item) => item !== undefined);
+  const featured = selectUpcomingTournaments(tournaments);
   const tournamentYear = featured.find((item) => item.starts_at)?.starts_at
     ? new Intl.DateTimeFormat("en", { timeZone: "Europe/Vienna", year: "numeric" }).format(new Date(featured.find((item) => item.starts_at)!.starts_at!))
     : null;
   return <main className="universal-page" data-language={language} key={language}>
     <section className={`universal-hero${!isSportVisible("tennis") ? " padel-home-hero" : ""}`}><div><p className="eyebrow">{c.eyebrow}</p><h1>{c.title}</h1><p>{c.intro}</p></div><span className="universal-scroll">KYNG CUP{tournamentYear ? ` · ${tournamentYear}` : ""}</span></section>
     <section className="home-dates" aria-labelledby="home-dates-title"><div className="section-index"><span>01</span><span>{loading ? c.datesLabel : formatTournamentMonth(featured, language)}</span></div><div className="home-dates__intro"><h2 id="home-dates-title">{c.datesTitle}</h2><p>{c.datesIntro}</p></div><div className="home-dates__events">
-      {featured.map((tournament) => <a href={`${basePath}/upcoming-tournaments/#${tournament.sport}-${tournament.slug}`} key={tournament.id}><span>{tournament.sport === "tennis" ? "Tennis" : "Padel"}</span><strong>{formatTournamentDate(tournament, language)}</strong><small>{c.details} <i aria-hidden="true">↗</i></small></a>)}
+      {featured.map((tournament) => <a href={`${basePath}/upcoming-tournaments/#${tournament.sport}-${tournament.slug}`} key={tournament.id}><span>{tournament.name}</span><strong>{formatTournamentDate(tournament, language)}</strong><small>{c.details} <i aria-hidden="true">↗</i></small></a>)}
     </div></section>
     <section className="universal-about"><div className="section-index"><span>02</span><span>{c.aboutLabel}</span></div><div><h2>{c.aboutTitle}</h2><p>{c.aboutText}</p></div></section>
     <section className="sport-choice"><div className="section-index"><span>02</span><span>{c.choose}</span></div><h2>{c.chooseTitle}</h2><div className="sport-choice-grid">
