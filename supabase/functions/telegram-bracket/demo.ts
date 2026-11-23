@@ -42,7 +42,7 @@ const matchFor = (board: Board, stage: Stage) => stage === "g" ? board.group_mat
 const isGroup = (stage: Stage) => stage === "g" || stage === "a" || stage === "b";
 const status = (match: Match) => ({ scheduled: "Ожидает начала", live: "🔴 LIVE", completed: "Завершён" })[match.status];
 const format = (stage: Stage) => isGroup(stage) ? "Один сет до 3 выигранных геймов"
-  : "До 2 выигранных сетов. При 1:1 — супер-тай-брейк до 10 очков с разницей в 2.";
+  : "До 2 выигранных сетов. Обычные сеты — от 6 геймов с разницей в два, при 6:6 — тай-брейк. При 1:1 по сетам — супер-тай-брейк до 10 очков с разницей в два.";
 const setLabel = (number: number) => number === 3 ? "Супер-тай-брейк" : "Сет " + number;
 const setScore = (match: Match) => match.sets_one + ":" + match.sets_two;
 
@@ -52,6 +52,14 @@ function segmentDone({ kind, one, two }: Segment) {
   if (kind === "short") return high === 3 && low < 3;
   if (kind === "super") return (high === 10 && low <= 8) || (high > 10 && high - low === 2);
   return (high === 6 && low <= 4) || (high === 7 && (low === 5 || low === 6));
+}
+
+function unfinishedSegment({ kind, number, one, two }: Segment) {
+  const score = one + ":" + two;
+  if (kind === "short") return "При " + score + " сет ещё идёт. В группе сет выигрывает пара, первой взявшая 3 гейма.";
+  if (kind === "super") return "При " + score + " супер-тай-брейк ещё идёт. Нужно минимум 10 очков и преимущество в два.";
+  if (one === 6 && two === 6) return "При 6:6 сыграйте тай-брейк. Нажмите кнопку пары, которая выиграла его.";
+  return "При " + score + " сет " + number + " ещё идёт. Для победы нужно минимум 6 геймов и преимущество в два.";
 }
 
 function button(text: string, stage: Stage, action: string, revision: number): Button {
@@ -100,12 +108,15 @@ export function telegramDemo(
         if (active) {
           const superBreak = active.kind === "super";
           const tiebreak = active.kind === "standard" && active.one === 6 && active.two === 6;
-          if (!segmentDone(active)) {
-            const text = superBreak ? "Записать очко" : tiebreak ? "Завершить тай-брейк" : "Завершить гейм";
-            keyboard.push([button(text, stage, "game", revision)]);
+          if (segmentDone(active)) {
+            const label = superBreak ? "Подтвердить супер-тай-брейк" : "Подтвердить сет " + active.number;
+            keyboard.push([button(label + " · " + active.one + ":" + active.two, stage, "setreview", revision)]);
+          } else {
+            const label = superBreak ? "+1 очко · " : tiebreak ? "Тай-брейк · " : "+1 гейм · ";
+            keyboard.push([button(label + match.one, stage, "plus1", revision)]);
+            keyboard.push([button(label + match.two, stage, "plus2", revision)]);
           }
-          keyboard.push([button(superBreak ? "Ввести очки" : "Ввести геймы сета " + active.number, stage, "input0", revision)]);
-          keyboard.push([button(superBreak ? "Завершить супер-тай-брейк" : "Завершить сет " + active.number, stage, "setreview", revision)]);
+          keyboard.push([button("Ввести счёт вручную", stage, "input0", revision)]);
         }
         const edits: Button[] = [];
         if (match.sets.length) edits.push(button("Исправить завершённый сет", stage, "edit", revision));
@@ -207,7 +218,7 @@ export function telegramDemo(
     }
     if (action === "setreview" && match?.active) {
       const active = match.active;
-      if (!segmentDone(active)) return panel(userId, { ...board, error: "Сначала внесите итоговый счёт этого сета." }, stage, messageId);
+      if (!segmentDone(active)) return panel(userId, { ...board, error: unfinishedSegment(active) }, stage, messageId);
       const winner = active.one > active.two ? match.one : match.two;
       return card(userId, setLabel(active.number) + " · " + active.one + ":" + active.two + "\nВыиграли: " + winner, [
         [button("Подтвердить счёт сета", stage, "set", revision)],
@@ -215,7 +226,10 @@ export function telegramDemo(
       ], messageId);
     }
     if (action === "review" && match?.status === "live") {
-      if (match.active) return panel(userId, { ...board, error: "Сначала сыграйте и подтвердите оставшиеся сеты." }, stage, messageId);
+      if (match.active) {
+        const error = segmentDone(match.active) ? "Сначала подтвердите сыгранный сет." : unfinishedSegment(match.active);
+        return panel(userId, { ...board, error }, stage, messageId);
+      }
       const winner = match.sets_one > match.sets_two ? match.one : match.two;
       return card(userId, [stageLabel(stage) + " · Итог", ...matchLines(match), "Победитель: " + winner].join("\n"), [
         [button("Подтвердить итог матча", stage, "finish", revision)],

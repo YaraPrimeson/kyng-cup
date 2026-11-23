@@ -144,16 +144,18 @@ test("a game, set and match are confirmed separately before qualification", asyn
     message: { chat: { id: 123, type: "private" }, message_id: 5 }, data } });
   const buttons = () => bot.replies.at(-1).reply_markup.inline_keyboard.flat();
   await tap("kd:g:open:3");
-  assert.ok(buttons().some(button => button.text === "Завершить гейм"));
+  assert.deepEqual(buttons().slice(0, 2).map(({text, callback_data}) => [text, callback_data]), [
+    ["+1 гейм · Pair one", "kd:g:plus1:3"],
+    ["+1 гейм · Pair two", "kd:g:plus2:3"],
+  ]);
   assert.ok(buttons().some(button => button.text === "Завершить матч"));
   await tap("kd:g:review:3");
-  assert.match(bot.replies.at(-1).text, /подтвердите оставшиеся сеты/);
-  await tap("kd:g:game:3");
-  assert.match(bot.replies.at(-1).text, /Кто выиграл гейм/);
+  assert.match(bot.replies.at(-1).text, /первой взявшая 3 гейма/);
   await tap("kd:g:plus1:3");
   assert.match(bot.replies.at(-1).text, /3:1/);
   assert.match(bot.replies.at(-1).text, /Сеты: 0:0/);
-  assert.ok(!buttons().some(button => button.text === "Завершить гейм"));
+  assert.ok(!buttons().some(button => button.callback_data?.includes(":plus")));
+  assert.ok(buttons().some(button => button.text === "Подтвердить сет 1 · 3:1"));
   await tap("kd:g:setreview:4");
   assert.equal(buttons()[0].callback_data, "kd:g:set:4");
   await tap("kd:g:set:4");
@@ -173,9 +175,28 @@ test("the deciding super tie-break uses points and a completed set can be select
   await tap("kd:f:open:9");
   assert.match(bot.replies.at(-1).text, /Сеты: 1:1/);
   assert.match(bot.replies.at(-1).text, /Супер-тай-брейк — 8:8 по очкам/);
-  assert.ok(bot.replies.at(-1).reply_markup.inline_keyboard.flat().some(button => button.text === "Записать очко"));
+  assert.ok(bot.replies.at(-1).reply_markup.inline_keyboard.flat().some(button => button.text === "+1 очко · Pair one"));
   await tap("kd:f:edit:9");
   assert.equal(bot.replies.at(-1).reply_markup.inline_keyboard[0][0].callback_data, "kd:f:input1:9");
+});
+
+test("a standard final set at 3:0 explains its format and cannot be confirmed until 6:0", async () => {
+  const active = { number: 1, kind: "standard", one: 3, two: 0 };
+  const board = { revision: 12, final_match: { status: "live", one: "Север", two: "Юг",
+    sets: [], sets_one: 0, sets_two: 0, active } };
+  const bot = webhook(() => board);
+  const chat = { id: 123, type: "private" };
+  const tap = data => bot.update({ callback_query: { id: "tap", from: { id: 123 }, message: { chat, message_id: 1 }, data } });
+  const buttons = () => bot.replies.at(-1).reply_markup.inline_keyboard.flat();
+  await tap("kd:f:open:12");
+  assert.equal(buttons()[0].callback_data, "kd:f:plus1:12");
+  assert.equal(buttons()[1].callback_data, "kd:f:plus2:12");
+  assert.ok(!buttons().some(button => button.callback_data === "kd:f:setreview:12"));
+  await tap("kd:f:setreview:12");
+  assert.match(bot.replies.at(-1).text, /При 3:0 сет 1 ещё идёт. Для победы нужно минимум 6 геймов/);
+  active.one = 6;
+  await tap("kd:f:open:12");
+  assert.equal(buttons()[0].text, "Подтвердить сет 1 · 6:0");
 });
 
 test("four-pair dashboard edits each court with its own revision and previews both finals", async () => {
