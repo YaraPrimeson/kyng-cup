@@ -1,8 +1,8 @@
 import { createClient } from "@supabase/supabase-js";
 
-// Publishable browser credentials. Database writes are protected by Supabase RLS.
-export const SUPABASE_URL = "https://omkytvxgjhdjfglnarfe.supabase.co";
-export const SUPABASE_PUBLIC_KEY = "sb_publishable_UWUPO6sWX6KD3BtwMetz2A_0LKuI4b7";
+import { SUPABASE_PUBLIC_KEY, SUPABASE_URL } from "./supabase-public-config";
+export { SUPABASE_PUBLIC_KEY, SUPABASE_URL } from "./supabase-public-config";
+
 // Capture only the redirect shape before Auth consumes and clears its fragment.
 // Do not retain credentials. These flags are UI checks, not authorization.
 const redirectShape = (() => {

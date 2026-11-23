@@ -88,15 +88,21 @@ export default function UpcomingTournamentsPage() {
   const c = copy[language];
   const { tournaments, loading, error } = usePublicTournaments();
   const featured = selectUpcomingTournaments(tournaments);
+  const useInitialCalendar = loading || error;
 
   useEffect(() => {
-    if (loading) return;
+    if (useInitialCalendar) return;
     const anchor = document.getElementById(window.location.hash.slice(1));
     if (anchor?.classList.contains("upcoming-page__detail")) anchor.scrollIntoView();
-  }, [loading]);
+  }, [useInitialCalendar]);
   return <main className="upcoming-page" key={language}>
     <section className="upcoming-page__hero"><div><p>{c.eyebrow}</p><h1>{c.title}</h1><p className="upcoming-page__hero-intro">{c.intro}</p></div><aside><span>{loading ? "…" : formatTournamentMonth(featured, language)}</span><strong>{featured.map((tournament) => `${tournament.name} — ${formatTournamentDate(tournament, language)}`).join("\n") || (error ? "—" : "…")}</strong><a className="upcoming-page__button" href="#choose">{c.choose} <span>↓</span></a></aside></section>
     <section className="upcoming-page__selector" id="choose"><p className="upcoming-page__label">01 — {c.choose}</p><div>{featured.map((tournament) => <TournamentCard key={tournament.id} sport={tournament.sport} date={formatTournamentDate(tournament, language, true)} label={tournament.registration_status === "closed" ? c.closed : tournament.sport === "tennis" ? c.registerTennis : c.registerPadel} processLabel={c.processLabel} sportLabel={tournament.name} registrationHref={tournament.registration_status === "closed" ? `#${tournament.sport}-${tournament.slug}` : `${basePath}/register/?tournament=${encodeURIComponent(tournament.slug)}&sport=${tournament.sport}`} />)}</div></section>
+    {useInitialCalendar && <div
+      suppressHydrationWarning
+      data-calendar-initial=""
+      dangerouslySetInnerHTML={{ __html: "<!--KYNG_CALENDAR_INITIAL-->" }}
+    />}
     {featured.map((tournament) => <TournamentDetail key={tournament.id} tournament={tournament} title={tournament.sport === "tennis" ? c.tennisTitle : c.padelTitle} line={tournament.sport === "tennis" ? c.tennisLine : c.padelLine} description={tournament.sport === "tennis" ? c.tennisDescription : c.padelDescription} date={formatTournamentDate(tournament, language, true)} register={tournament.sport === "tennis" ? c.registerTennis : c.registerPadel} copy={c} registrationHref={`${basePath}/register/?tournament=${encodeURIComponent(tournament.slug)}&sport=${tournament.sport}`} />)}
     <section className="upcoming-page__process"><p className="upcoming-page__label">04 — {c.processLabel}</p><h2>{c.processTitle}</h2><div>{c.steps.map((step, index) => <article key={step}><span>0{index + 1}</span><h3>{step}</h3><p>{c.stepCopy[index]}</p></article>)}</div></section>
     <SiteFooter />

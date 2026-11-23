@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { cp, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import sportsVisibility from "../lib/sports-config.json" with { type: "json" };
+import { SUPABASE_PUBLIC_KEY, SUPABASE_URL } from "../lib/supabase-public-config.ts";
 
 const port = 4173;
 const repository = process.env.GITHUB_REPOSITORY?.split("/")[1] || "kyng-cup";
@@ -79,6 +80,17 @@ try {
     await mkdir(routeDir, { recursive: true });
     await writeFile(join(routeDir, "index.html"), html);
   }
+  const calendarDir = join(outputDir, "upcoming-tournaments");
+  const calendarHtml = await readFile(join(calendarDir, "index.html"), "utf8");
+  if (calendarHtml.split('<div data-calendar-initial=""><!--KYNG_CALENDAR_INITIAL--></div>').length !== 2) {
+    throw new Error("The calendar export is missing its server-rendering slot.");
+  }
+  await cp(new URL("./hostinger-calendar/", import.meta.url), calendarDir, { recursive: true });
+  await writeFile(join(calendarDir, "calendar-config.json"), JSON.stringify({
+    supabaseUrl: SUPABASE_URL,
+    publishableKey: SUPABASE_PUBLIC_KEY,
+    sports: Object.keys(sportsVisibility).filter((sport) => sportsVisibility[sport]),
+  }));
   await writeFile(join(outputDir, ".nojekyll"), "");
   console.log(`Static GitHub Pages export created in ${outputDir}`);
 } finally {
