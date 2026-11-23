@@ -113,3 +113,37 @@ test("demo opens only in a private chat and stale buttons cannot change the scor
   await tap("kd:g:s64:3");
   assert.deepEqual(calls.at(-1), { p_user_id: 123, p_action: "score", p_stage: "g", p_revision: 3, p_one: 6, p_two: 4 });
 });
+
+test("a live match can record a finished game and move straight to qualification after the result", async () => {
+  const match = { status: "live", one: "Pair one", two: "Pair two", score_one: 2, score_two: 1 };
+  const board = { revision: 3, group_target: 3, group_match: match };
+  const bot = webhook(request => {
+    if (request.p_action === "plus1") {
+      match.score_one += 1;
+      board.revision += 1;
+    }
+    if (request.p_action === "finish") {
+      match.status = "completed";
+      match.winner = match.one;
+      board.revision += 1;
+    }
+    return board;
+  });
+  const tap = data => bot.update({ callback_query: { id: "callback", from: { id: 123 },
+    message: { chat: { id: 123, type: "private" }, message_id: 5 }, data } });
+  const buttons = () => bot.replies.at(-1).reply_markup.inline_keyboard.flat();
+  await tap("kd:g:open:3");
+  assert.ok(buttons().some(button => button.text === "Завершить гейм"));
+  assert.ok(buttons().some(button => button.text === "Завершить матч"));
+  await tap("kd:g:review:3");
+  assert.equal(buttons()[0].callback_data, "kd:g:finishearly:3");
+  await tap("kd:g:game:3");
+  assert.match(bot.replies.at(-1).text, /Кто выиграл гейм/);
+  await tap("kd:g:plus1:3");
+  assert.match(bot.replies.at(-1).text, /3:1/);
+  assert.ok(!buttons().some(button => button.text === "Завершить гейм"));
+  await tap("kd:g:review:4");
+  assert.equal(buttons()[0].callback_data, "kd:g:finish:4");
+  await tap("kd:g:finish:4");
+  assert.ok(buttons().some(button => button.text === "Посмотреть состав финала"));
+});

@@ -19,6 +19,8 @@ type Board = {
   tournament?: string;
   group_match?: Match | null;
   final_match?: Match | null;
+  group_target?: 3 | 6;
+  final_target?: 3 | 6;
   revision?: number;
   undo_stage?: Stage;
   error?: string;
@@ -30,10 +32,13 @@ const stageLabel = (stage: Stage) => stage === "g" ? "Группа A" : "Фин�
 const matchFor = (board: Board, stage: Stage) => stage === "g" ? board.group_match : board.final_match;
 const score = (match: Match) => match.score_one === null ? "—" : match.score_one + ":" + match.score_two;
 const status = (match: Match) => ({ scheduled: "Ожидает начала", live: "🔴 LIVE", completed: "Завершён" })[match.status];
+const targetFor = (board: Board, stage: Stage) => (stage === "g" ? board.group_target : board.final_target) ?? 6;
+const format = (target: 3 | 6) => target === 3 ? "До 3 выигранных геймов" : "Обычный сет до 6 геймов";
 
-function isFinal(match: Match) {
+function isFinal(match: Match, target: 3 | 6) {
   const high = Math.max(match.score_one ?? 0, match.score_two ?? 0);
   const low = Math.min(match.score_one ?? 0, match.score_two ?? 0);
+  if (target === 3) return high === 3 && low < 3;
   return (high === 6 && low <= 4) || (high === 7 && (low === 5 || low === 6));
 }
 
@@ -62,23 +67,30 @@ export function telegramDemo(
     const error = board.error ? board.error + "\n\n" : "";
     const match = stage && matchFor(board, stage);
     if (stage && match) {
-      if (match.status === "scheduled") keyboard.push([button("▶️ Начать матч", stage, "start", revision)]);
+      const target = targetFor(board, stage);
+      if (match.status === "scheduled") {
+        keyboard.push([button("▶️ Начать матч", stage, "start", revision)]);
+        keyboard.push([button("Выбрать формат", stage, "format", revision)]);
+      }
       if (match.status === "live") {
-        if (!isFinal(match)) {
-          const label = score(match) === "6:6" ? "Тай-брейк: " : "+1: ";
-          keyboard.push([button(label + match.one, stage, "plus1", revision), button(label + match.two, stage, "plus2", revision)]);
+        if (!isFinal(match, target)) {
+          const text = target === 6 && score(match) === "6:6" ? "Завершить тай-брейк" : "Завершить гейм";
+          keyboard.push([button(text, stage, "game", revision)]);
         }
         const edits = [button("Ввести счёт", stage, "input", revision)];
         if (board.undo_stage === stage) edits.push(button("Отменить последнее", stage, "undo", revision));
         keyboard.push(edits);
-        if (isFinal(match)) keyboard.push([button("Завершить матч", stage, "review", revision)]);
+        keyboard.push([button("Завершить матч", stage, "review", revision)]);
+      }
+      if (stage === "g" && match.status === "completed" && !board.final_match) {
+        keyboard.push([button("Посмотреть состав финала", stage, "qualifiers", revision)]);
       }
       keyboard.push([button("← К матчам", stage, "home", revision)]);
       return card(chatId, error + [
         stageLabel(stage) + " · Корт 1 · " + status(match),
         match.one + " — " + match.two,
         "Счёт: " + score(match),
-        match.winner ? "Победитель: " + match.winner : "Формат: один сет.",
+        match.winner ? "Победитель: " + match.winner : "Формат: " + format(target),
       ].join("\n"), keyboard, messageId);
     }
     if (board.group_match) keyboard.push([button("Группа A · Корт 1", "g", "open", revision)]);
@@ -112,18 +124,39 @@ export function telegramDemo(
       return panel(userId, { ...board, error: "Счёт уже обновился. Вот свежая карточка." }, stage, messageId);
     }
     const match = matchFor(board, stage);
+    const target = targetFor(board, stage);
+    if (action === "format" && match?.status === "scheduled") {
+      return card(userId, stageLabel(stage) + " · Формат матча\nСейчас: " + format(target), [
+        [button("До 3 геймов", stage, "short", revision)],
+        [button("Обычный сет", stage, "standard", revision)],
+        [button("← К матчу", stage, "open", revision)],
+      ], messageId);
+    }
+    if (action === "game" && match?.status === "live" && !isFinal(match, target)) {
+      const tiebreak = target === 6 && score(match) === "6:6";
+      return card(userId, stageLabel(stage) + " · " + score(match) + "\nКто выиграл " + (tiebreak ? "тай-брейк" : "гейм") + "?", [
+        [button(match.one, stage, "plus1", revision)],
+        [button(match.two, stage, "plus2", revision)],
+        [button("← К матчу", stage, "open", revision)],
+      ], messageId);
+    }
     if (action === "input" && match?.status === "live") {
       return telegram("sendMessage", {
         chat_id: userId,
         text: stageLabel(stage) + " · " + match.one + " — " + match.two
-          + "\nВведите счёт сета, например 3:2.\n#kd:" + stage + ":" + revision,
+          + "\nВведите счёт матча, например 3:2.\n#kd:" + stage + ":" + revision,
         reply_markup: { force_reply: true, input_field_placeholder: "3:2" },
       });
     }
-    if (action === "review" && match?.status === "live" && isFinal(match)) {
+    if (action === "review" && match?.status === "live") {
+      if (match.score_one === match.score_two) {
+        return panel(userId, { ...board, error: "Счёт равный. Сначала внесите решающий гейм или исправьте счёт." }, stage, messageId);
+      }
+      const early = !isFinal(match, target);
       const winner = (match.score_one ?? 0) > (match.score_two ?? 0) ? match.one : match.two;
-      return card(userId, stageLabel(stage) + " · Итог " + score(match) + "\nПобедитель: " + winner, [
-        [button("Подтвердить итог", stage, "finish", revision)],
+      return card(userId, stageLabel(stage) + " · Итог " + score(match) + "\nПобедитель: " + winner
+        + (early ? "\nМатч ещё не достиг лимита по формату. Сохранить этот счёт как итог?" : ""), [
+        [button(early ? "Завершить досрочно" : "Подтвердить итог", stage, early ? "finishearly" : "finish", revision)],
         [button("← К матчу", stage, "open", revision)],
       ], messageId);
     }
@@ -139,6 +172,9 @@ export function telegramDemo(
       p_stage: stage, p_revision: revision,
       ...(manual ? { p_one: Number(manual[1]), p_two: Number(manual[2]) } : {}),
     });
+    if (stage === "f" && (action === "finish" || action === "finishearly") && !saved.error) {
+      return panel(userId, saved, undefined, messageId);
+    }
     return panel(userId, saved, action === "advance" && !saved.error ? "f" : stage, messageId);
   }
 
@@ -155,7 +191,7 @@ export function telegramDemo(
     }
     const values = text.match(/^([0-7])\s*[:–-]\s*([0-7])$/);
     if (!values) {
-      await reply(userId, "Введите счёт одного сета, например 3:2, ответом на запрос бота.");
+      await reply(userId, "Введите счёт матча, например 3:2, ответом на запрос бота.");
       return true;
     }
     await card(userId, stageLabel(stage) + " · " + match.one + " — " + match.two
