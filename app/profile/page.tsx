@@ -7,9 +7,9 @@ import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "r
 import { usePathname } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
-import { accountEmail, accountError, accountPassword, authCallbackUrl, siteBasePath, type AccountProfile } from "@/lib/player-account";
+import { accountEmail, accountError, accountPassword, authCallbackUrl, profileName, siteBasePath, type AccountProfile } from "@/lib/player-account";
 import { avatarUrl, createPlayerProfile, suggestedPlayerName, prepareAvatar, saveAccountProfile } from "@/lib/player-account-client";
-import { clearVerification, googleEnabled, recentlyVerified, rememberVerification, startGoogle } from "@/lib/player-security";
+import { clearVerification, recentlyVerified, rememberVerification, startGoogle } from "@/lib/player-security";
 import { formatTournamentDate, usePublicTournaments } from "../public-tournaments";
 import PlayerResults from "./player-results";
 import PlayerPartners from "./player-partners";
@@ -17,8 +17,10 @@ import PlayerCards from "./player-cards";
 import AuthPanel from "./auth-panel";
 import MyRegistrations from "./my-registrations";
 import ProfileIcon from "./profile-icon";
-import { NextMatch, PlayerNotifications, SeasonRanking } from "./tournament-updates";
+import { SeasonRanking } from "./tournament-updates";
 import { usePlayerAccount } from "./use-player-account";
+
+type Credential = "email" | "password";
 
 type View = "profile" | "mine" | "settings" | "achievements" | "history" | "partners" | "cards" | "ranking";
 
@@ -40,6 +42,8 @@ function PlayerAccount({ user, profile, basePath, onSave, reload }: { user: User
   const { text: t, language } = useProfileLanguage();
   const [view, setView] = useState<View>("profile");
   const [draft, setDraft] = useState(profile);
+  const [name, setName] = useState(profile.display_name);
+  const [profileNotice, setProfileNotice] = useState<{ text: string; saved?: boolean }>();
   const [source, setSource] = useState("");
   const [preview, setPreview] = useState("");
   const [photo, setPhoto] = useState<Blob | null | undefined>();
@@ -52,7 +56,7 @@ function PlayerAccount({ user, profile, basePath, onSave, reload }: { user: User
   const [repeat, setRepeat] = useState("");
   const [currentPassword, setCurrentPassword] = useState("");
   const [verified, setVerified] = useState(false);
-  const [google, setGoogle] = useState(false);
+  const [credential, setCredential] = useState<Credential>();
   const photoJob = useRef({ id: 0 });
   const fileInput = useRef<HTMLInputElement>(null);
   const heading = useRef<HTMLHeadingElement>(null);
@@ -69,7 +73,6 @@ function PlayerAccount({ user, profile, basePath, onSave, reload }: { user: User
       setVerified(recentlyVerified(user.id)); history.replaceState({}, "", `${basePath}/profile/`);
     }, 0);
     const interval = window.setInterval(() => setVerified(recentlyVerified(user.id)), 1000);
-    void googleEnabled().then(setGoogle).catch(() => setGoogle(false));
     return () => { window.clearTimeout(timer); window.clearInterval(interval); jobs.id++; };
   }, [user.id, basePath]);
   useEffect(() => {
@@ -85,7 +88,9 @@ function PlayerAccount({ user, profile, basePath, onSave, reload }: { user: User
 
   function move(next: View) {
     if (busy) return; photoJob.current.id++; setNotice(""); setError("");
-    if (next === "settings") { setDraft(profile); setPhoto(undefined); setPreview(""); }
+    resetCredentialForm();
+    setProfileNotice(undefined);
+    if (next === "settings") { setDraft(profile); setName(profile.display_name); setPhoto(undefined); setPreview(""); }
     setView(next); window.scrollTo({ top: 0, behavior: "instant" });
     window.requestAnimationFrame(() => heading.current?.focus({ preventScroll: true }));
   }
@@ -93,49 +98,78 @@ function PlayerAccount({ user, profile, basePath, onSave, reload }: { user: User
     if (busy) return; setBusy(true); setNotice(""); setError("");
     try { await work(); } catch (cause) { setError(accountError(cause)); } finally { setBusy(false); }
   }
-  function requireVerification() {
-    if (!recentlyVerified(user.id)) { setVerified(false); throw new Error("Сначала подтвердите вход в блоке ниже."); }
+  function resetCredentialForm(next?: Credential) {
+    setCredential(next);
+    setCurrentPassword("");
+    setNewEmail("");
+    setPassword("");
+    setRepeat("");
+  }
+  function toggleCredential(next: Credential) {
+    setError("");
+    setNotice("");
+    resetCredentialForm(credential === next ? undefined : next);
+  }
+  async function verifyForChange() {
+    if (recentlyVerified(user.id)) return;
+    if (!currentPassword) {
+      setVerified(false);
+      throw new Error("Введите текущий пароль.");
+    }
+    const result = await supabase.auth.signInWithPassword({ email: user.email!, password: currentPassword });
+    setCurrentPassword("");
+    if (result.error) throw result.error;
+    if (result.data.user?.id !== user.id) {
+      await supabase.auth.signOut({ scope: "local" });
+      throw new Error("Войдите в исходный аккаунт и повторите.");
+    }
+    rememberVerification(user.id);
+    setVerified(true);
   }
   async function save(event: FormEvent) {
     event.preventDefault();
     await action(async () => {
-      const saved = await saveAccountProfile(draft, draft.display_name, photo);
-      onSave(saved.profile); setDraft(saved.profile); setPhoto(undefined); setPreview("");
-      setNotice(saved.cleanupFailed ? "Профиль сохранён. Старый файл пока не удалось удалить." : "Профиль сохранён на всех устройствах.");
+      setProfileNotice(undefined);
+      const displayName = profileName(name);
+      if (displayName === draft.display_name && (photo === undefined || (photo === null && !draft.avatar_path))) {
+        setName(displayName);
+        setProfileNotice({ text: "Изменений нет." });
+        return;
+      }
+      const saved = await saveAccountProfile(draft, displayName, photo);
+      onSave(saved.profile); setDraft(saved.profile); setName(saved.profile.display_name); setPhoto(undefined); setPreview("");
+      setProfileNotice({
+        saved: true,
+        text: saved.cleanupFailed ? "Профиль сохранён. Старый файл пока не удалось удалить." : "Изменения профиля сохранены.",
+      });
     });
   }
   async function upload(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]; event.target.value = ""; if (!file || busy) return;
-    const job = ++photoJob.current.id; setBusy(true); setError(""); setNotice("Подготавливаем фото…");
-    try { const blob = await prepareAvatar(file); if (job === photoJob.current.id) { setPhoto(blob); setNotice("Фото готово. Сохраните изменения."); } }
-    catch (cause) { if (job === photoJob.current.id) setError(accountError(cause)); }
+    const job = ++photoJob.current.id; setBusy(true); setError(""); setProfileNotice({ text: "Подготавливаем фото…" });
+    try { const blob = await prepareAvatar(file); if (job === photoJob.current.id) { setPhoto(blob); setProfileNotice({ text: "Фото готово. Сохраните изменения." }); } }
+    catch (cause) { if (job === photoJob.current.id) { setProfileNotice(undefined); setError(accountError(cause)); } }
     finally { if (job === photoJob.current.id) setBusy(false); }
-  }
-  async function verify(event: FormEvent) {
-    event.preventDefault();
-    await action(async () => {
-      const result = await supabase.auth.signInWithPassword({ email: user.email!, password: currentPassword });
-      setCurrentPassword(""); if (result.error) throw result.error;
-      if (result.data.user?.id !== user.id) { await supabase.auth.signOut({ scope: "local" }); throw new Error("Войдите в исходный аккаунт и повторите."); }
-      rememberVerification(user.id); setVerified(true); setNotice("Вход подтверждён на 5 минут.");
-    });
   }
   async function changeEmail(event: FormEvent) {
     event.preventDefault();
     await action(async () => {
-      requireVerification(); const email = accountEmail(newEmail);
+      const email = accountEmail(newEmail);
       if (email.toLowerCase() === user.email?.toLowerCase()) throw new Error("Укажите новый адрес почты.");
+      await verifyForChange();
       const result = await supabase.auth.updateUser({ email }, { emailRedirectTo: authCallbackUrl(location.origin, location.pathname, "email") });
       if (result.error) throw result.error;
-      setNewEmail(""); setNotice("Подтвердите изменение по ссылкам на старой и новой почте. До завершения действует прежний адрес."); await reload();
+      resetCredentialForm(); setNotice("Подтвердите изменение по ссылкам на старой и новой почте. До завершения действует прежний адрес."); await reload();
     });
   }
   async function changePassword(event: FormEvent) {
     event.preventDefault();
     await action(async () => {
-      requireVerification(); accountPassword(password); if (password !== repeat) throw new Error("Пароли не совпадают.");
+      accountPassword(password);
+      if (password !== repeat) throw new Error("Пароли не совпадают.");
+      await verifyForChange();
       const result = await supabase.auth.updateUser({ password }); if (result.error) throw result.error;
-      setPassword(""); setRepeat(""); clearVerification(); setVerified(false);
+      resetCredentialForm(); clearVerification(); setVerified(false);
       const signOut = await supabase.auth.signOut({ scope: "others" });
       setNotice(signOut.error ? "Пароль сохранён. Не удалось завершить остальные сессии." : "Пароль сохранён. Можно входить с почтой и паролем. Остальные устройства попросят войти повторно после завершения их сессий.");
     });
@@ -147,23 +181,47 @@ function PlayerAccount({ user, profile, basePath, onSave, reload }: { user: User
     <h1 ref={heading} tabIndex={-1}>{t(title[view])}</h1>
     {view === "profile" && <>
       <div className="kv-person"><span className="kv-avatar">{source ? <img src={source} alt={t("Фото игрока")} width="72" height="72" referrerPolicy="no-referrer" /> : initials}</span><div><strong>{profile.display_name}</strong><small>{user.email}</small></div></div>
-      <NextMatch basePath={basePath} />
-      <PlayerNotifications basePath={basePath} />
       <section className="kv-section">{([["history", t("История и матчи"), t("Результаты и статистика")], ["partners", t("Мои партнёры"), t("Совместные турниры и результаты")], ["achievements", t("Достижения"), t("Награды и прогресс")], ["cards", t("Мои карточки"), t("Результаты для публикации")], ["ranking", t("Сезонный рейтинг"), t("Место и очки по сезонам")]] as const).map(([id, label, detail]) => <button type="button" key={id} className="kv-row" onClick={() => move(id)}><span>{label}<small>{detail}</small></span><ProfileIcon name="next" /></button>)}</section>
       <section className="kv-section"><button type="button" className="kv-secondary" onClick={() => move("settings")}><ProfileIcon name="settings" />{t("Настройки профиля")}</button></section>
     </>}
     {view === "settings" && <>
       <fieldset className="player-settings-fields" disabled={busy}>
-        <div className="kv-photo-setting"><span className="kv-avatar">{displayPhoto ? <img src={displayPhoto} alt={t("Фото игрока")} width="72" height="72" /> : initials}</span><div><button type="button" className="kv-secondary" onClick={() => fileInput.current?.click()}>{displayPhoto ? t("Заменить фото") : t("Добавить фото")}</button><small>{t("JPG, PNG, WebP · до 5 МБ")}</small>{displayPhoto && <button className="kv-link" type="button" onClick={() => { photoJob.current.id++; setPhoto(null); setPreview(""); }}>{t("Удалить фото")}</button>}</div></div>
+        <div className="kv-photo-setting"><span className="kv-avatar">{displayPhoto ? <img src={displayPhoto} alt={t("Фото игрока")} width="72" height="72" /> : initials}</span><div><button type="button" className="kv-secondary" onClick={() => fileInput.current?.click()}>{displayPhoto ? t("Заменить фото") : t("Добавить фото")}</button><small>{t("JPG, PNG, WebP · до 5 МБ")}</small>{displayPhoto && <button className="kv-link" type="button" onClick={() => { photoJob.current.id++; setPhoto(null); setPreview(""); setProfileNotice(undefined); }}>{t("Удалить фото")}</button>}</div></div>
         <input type="file" accept="image/jpeg,image/png,image/webp" ref={fileInput} hidden onChange={event => void upload(event)} />
-        <form className="kv-fields" onSubmit={event => void save(event)}><label>{t("Имя и фамилия")}<input autoComplete="name" maxLength={80} required value={draft.display_name} onChange={event => setDraft(value => ({ ...value, display_name: event.target.value }))} /></label><p className="kv-muted kv-small">{t("Имя и фото хранятся в аккаунте. Изменение имени сохраняет ваш ID игрока.")}</p><button className="kv-primary" type="submit">{busy ? t("Сохраняем…") : t("Сохранить профиль")}</button></form>
+        <form className="kv-fields" onSubmit={event => void save(event)}>
+          <label>{t("Имя и фамилия")}<input autoComplete="name" maxLength={80} required value={name} onChange={event => { setName(event.target.value); setProfileNotice(undefined); }} /></label>
+          <button className="kv-primary" type="submit">{busy ? t("Сохраняем…") : t("Сохранить профиль")}</button>
+        </form>
+        <div role="status">
+          {profileNotice && <p className={profileNotice.saved ? "kv-message player-profile-saved" : "kv-message"}>
+            {profileNotice.saved && <ProfileIcon name="check" />}{t(profileNotice.text)}
+          </p>}
+        </div>
         <button type="button" className="kv-link" onClick={() => void action(async () => { if (!await reload()) return; setPhoto(undefined); setPreview(""); setNotice("Актуальные данные загружены. Откройте настройки снова для редактирования."); setView("profile"); })}>{t("Загрузить актуальные данные")}</button>
-        <section className="kv-section"><h3>{t("Почта и способы входа")}</h3><p className="kv-muted player-settings-copy">{user.email} {t(" · подтверждена")}</p>{user.new_email && <p className="kv-note">{t("Ожидает подтверждения: ")}{user.new_email}{t(". Завершите подтверждение на обеих почтах.")}</p>}<p className="kv-muted kv-small">{hasGoogle ? t("Google подключён. Смена почты KYNG CUP не меняет ваш аккаунт Google.") : t("Google пока не подключён.")}</p></section>
-        <section className="kv-section player-security"><h3>{t("Подтвердите вход")}</h3><p className="kv-muted kv-small player-settings-copy">{t("Перед сменой почты, пароля или подключением Google подтвердите, что это вы.")}</p>{verified ? <p className="kv-badge">{t("Вход подтверждён")}</p> : <><form className="kv-fields" onSubmit={event => void verify(event)}><label>{t("Текущий пароль")}<input type="password" autoComplete="current-password" maxLength={128} required value={currentPassword} onChange={event => setCurrentPassword(event.target.value)} /></label><button className="kv-secondary" type="submit">{t("Подтвердить паролем")}</button></form>{hasGoogle && <button className="kv-secondary player-google" type="button" onClick={() => void action(() => startGoogle("reauthenticate", user.id))}>{t("Подтвердить через Google")}</button>}</>}</section>
-        <section className="kv-section"><form className="kv-fields" onSubmit={event => void changeEmail(event)}><label>{t("Новый email")}<input type="email" autoComplete="email" maxLength={254} required value={newEmail} onChange={event => setNewEmail(event.target.value)} /></label><button type="submit" className="kv-secondary" disabled={!verified}>{t("Подтвердить смену email")}</button></form></section>
-        <section className="kv-section"><h3>{t("Задать или изменить пароль")}</h3><form className="kv-fields player-settings-copy" onSubmit={event => void changePassword(event)}><label>{t("Новый пароль")}<input type="password" autoComplete="new-password" minLength={12} maxLength={128} required value={password} onChange={event => setPassword(event.target.value)} /></label><label>{t("Повторите пароль")}<input type="password" autoComplete="new-password" minLength={12} maxLength={128} required value={repeat} onChange={event => setRepeat(event.target.value)} /></label><button type="submit" className="kv-secondary" disabled={!verified}>{t("Сохранить пароль")}</button></form></section>
-        {!hasGoogle && <section className="kv-section"><button type="button" className="kv-secondary" disabled={!verified || !google} onClick={() => void action(async () => { requireVerification(); await startGoogle("link", user.id); })}>{t("Подключить Google")}</button>{!google && <p className="kv-muted kv-small">{t("Google ещё настраивается.")}</p>}</section>}
-      </fieldset><p className="kv-muted kv-small kv-section">{t("ID игрока: ")}{profile.player_id}</p>
+        <div className="kv-section player-credential-actions">
+          {(["password", "email"] as const).map(next => <div key={next}>
+            <button className="kv-secondary" type="button" aria-expanded={credential === next} aria-controls={`player-change-${next}`} onClick={() => toggleCredential(next)}>
+              {t(next === "password" ? "Изменить пароль" : "Изменить email")}
+            </button>
+            <div id={`player-change-${next}`} hidden={credential !== next}>
+              {credential === next && <form className="kv-fields player-credential-form" onSubmit={event => void (next === "password" ? changePassword(event) : changeEmail(event))}>
+                {!verified && <>
+                  <label>{t("Текущий пароль")}<input type="password" autoComplete="current-password" maxLength={128} required value={currentPassword} onChange={event => setCurrentPassword(event.target.value)} /></label>
+                  {hasGoogle && <button className="kv-link" type="button" onClick={() => void action(() => startGoogle("reauthenticate", user.id))}>{t("Подтвердить через Google")}</button>}
+                </>}
+                {next === "password" ? <>
+                  <label>{t("Новый пароль")}<input type="password" autoComplete="new-password" minLength={12} maxLength={128} required value={password} onChange={event => setPassword(event.target.value)} /></label>
+                  <label>{t("Повторите пароль")}<input type="password" autoComplete="new-password" minLength={12} maxLength={128} required value={repeat} onChange={event => setRepeat(event.target.value)} /></label>
+                </> : <>
+                  {user.new_email && <p className="kv-note">{t("Ожидает подтверждения: ")}{user.new_email}{t(". Завершите подтверждение на обеих почтах.")}</p>}
+                  <label>{t("Новый email")}<input type="email" autoComplete="email" maxLength={254} required value={newEmail} onChange={event => setNewEmail(event.target.value)} /></label>
+                </>}
+                <button type="submit" className="kv-primary">{t(next === "password" ? "Сохранить пароль" : "Подтвердить смену email")}</button>
+              </form>}
+            </div>
+          </div>)}
+        </div>
+      </fieldset>
     </>}
     {view === "mine" && <><MyRegistrations userId={user.id} basePath={basePath} /><section className="kv-empty"><div className="kv-empty-icon"><ProfileIcon name="calendar" /></div><h2>{t("Выберите следующую игру")}</h2><p>{t("Когда вы отправите новую заявку из своего аккаунта, она появится выше. Заявки, отправленные без входа, автоматически не привязываются.")}</p><button className="kv-primary" type="button" onClick={() => setShowEvents(value => !value)}>{showEvents ? t("Скрыть турниры") : t("Посмотреть турниры")}</button></section>{showEvents && <section className="player-event-list kv-section" aria-label={t("Доступные турниры")}><h3>{t("Доступные турниры")}</h3>{loading ? <p role="status">{t("Загружаем турниры…")}</p> : tournamentError ? <p role="alert">{t("Не удалось загрузить турниры. ")}<a href={`${basePath}/upcoming-tournaments/`}>{t("Открыть календарь")}</a></p> : available.length === 0 ? <p className="kv-note">{t("Новая регистрация пока не открыта.")}</p> : available.map(item => <article className="kv-box" key={item.id}><span className="kv-badge">{item.registration_status === "waitlist" ? t("Лист ожидания") : t("Регистрация открыта")}</span><p className="kv-when">{formatTournamentDate(item, language, true)}</p><h2>{item.name}</h2><p className="kv-muted">{item.location || t("Место будет объявлено")}</p><a className="kv-primary player-register-link" href={`${basePath}/register/?tournament=${encodeURIComponent(item.slug)}&sport=${item.sport}`}>{t("Открыть форму заявки")}</a></article>)}</section>}</>}
     {(view === "history" || view === "achievements") && <PlayerResults key={view} userId={user.id} mode={view} />}

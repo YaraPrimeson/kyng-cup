@@ -9,7 +9,7 @@ const dom = new JSDOM('<div id="root"></div>', { url: "http://localhost:3000/pro
 Object.assign(globalThis, { window: dom.window, document: dom.window.document, HTMLElement: dom.window.HTMLElement, Node: dom.window.Node, NodeFilter: dom.window.NodeFilter, Element: dom.window.Element, MutationObserver: dom.window.MutationObserver, location: dom.window.location, history: dom.window.history, sessionStorage: dom.window.sessionStorage, IS_REACT_ACT_ENVIRONMENT: true });
 window.scrollTo = () => {};
 window.requestAnimationFrame = callback => callback();
-let googleAvailable = false, signupError = null, oauthCalls;
+let googleAvailable = false, signupError = null, oauthCalls, credentialCalls, credentialError;
 globalThis.fetch = async () => ({ ok: true, json: async () => ({ external: { google: googleAvailable } }) });
 const { createElement, act } = await import("react");
 const { createRoot } = await import("react-dom/client");
@@ -23,7 +23,18 @@ const client = {
     signUp: async () => ({ data: { user: { identities: [] }, session: null }, error: signupError }),
     signInWithOAuth: async options => { oauthCalls.push(options); return { data: { url: null }, error: null }; },
     onAuthStateChange(callback) { listener = callback; const timer = setTimeout(() => callback("INITIAL_SESSION", user ? { user } : null), 0); return { data: { subscription: { unsubscribe() { clearTimeout(timer); listener = null; } } } }; },
-    async signOut() { user = null; listener?.("SIGNED_OUT", null); return { error: null }; },
+    async signInWithPassword(values) {
+      credentialCalls.push(["verify", values]);
+      return credentialError ? { data: { user: null }, error: credentialError } : { data: { user }, error: null };
+    },
+    async updateUser(values, options) {
+      credentialCalls.push(["update", values, options]);
+      return { data: { user }, error: null };
+    },
+    async signOut({ scope } = {}) {
+      if (scope === "others") { credentialCalls.push(["sign-out", scope]); return { error: null }; }
+      user = null; listener?.("SIGNED_OUT", null); return { error: null };
+    },
   },
   async rpc(name, args) { if (name === "get_my_match_history") { assert.equal(args, undefined); return { data: matchRows, error: matchFailure }; } assert.equal(name, "redeem_registration_claim_code"); assert.equal(args.p_code, "a".repeat(64)); if (claimFailure) return { data: null, error: claimFailure }; registrationRows[0].submitted_by = first.id; return { data: registrationRows[0].id, error: null }; },
   from(table) {
@@ -61,7 +72,7 @@ before(async () => {
 });
 async function settle() { for (let i=0;i<4;i++) await act(async () => { await new Promise(resolve => setTimeout(resolve, 30)); }); }
 async function unmount() { if (root) { await act(async () => root.unmount()); root = null; } }
-beforeEach(async () => { await unmount(); sessionStorage.clear(); window.localStorage.clear(); history.replaceState({}, "", "/profile/"); user = { ...first }; rows = { [first.id]: row(first, "Первый игрок"), [second.id]: row(second, "Второй игрок") }; writes = 0; authFailure = null; profileFailure = null; createFailure = null; googleAvailable = false; signupError = null; oauthCalls = []; registrationRows = []; registrationFailure = null; claimFailure = null; matchRows = []; matchFailure = null; });
+beforeEach(async () => { await unmount(); sessionStorage.clear(); window.localStorage.clear(); history.replaceState({}, "", "/profile/"); user = { ...first }; rows = { [first.id]: row(first, "Первый игрок"), [second.id]: row(second, "Второй игрок") }; writes = 0; authFailure = null; profileFailure = null; createFailure = null; googleAvailable = false; signupError = null; oauthCalls = []; credentialCalls = []; credentialError = null; registrationRows = []; registrationFailure = null; claimFailure = null; matchRows = []; matchFailure = null; });
 after(async () => { await unmount(); dom.window.close(); await rm(temp, { recursive: true, force: true }); delete globalThis.__playerAccountClient; });
 async function mount() { root = createRoot(document.getElementById("root")); await act(async () => root.render(createElement(LanguageProvider, null, createElement(Page)))); await settle(); }
 function button(text) { const node = [...document.querySelectorAll("button")].find(value => value.textContent.includes(text)); assert.ok(node, `Missing button: ${text}`); return node; }
@@ -88,6 +99,77 @@ test("profile settings uses the balanced replacement gear SVG", async () => {
   assert.equal(icon.getAttribute('viewBox'), '0 0 24 24');
   assert.equal(icon.getAttribute('aria-hidden'), 'true');
   assert.match(icon.querySelector('path').getAttribute('d'), /^M9\.671 4\.136a2\.34/);
+});
+
+test("settings hides the removed sections and opens only the selected credential form", async () => {
+  await mount();
+  assert.doesNotMatch(document.body.textContent, /My next match|Notifications/);
+  await click("Profile settings");
+  assert.doesNotMatch(document.body.textContent, /Your name and photo|Email and sign-in methods|Verify your identity|Current password|New email|Connect Google|Player ID/);
+  assert.equal(document.querySelector('input[autocomplete="current-password"]'), null);
+
+  await click("Change password");
+  assert.equal(button("Change password").getAttribute("aria-expanded"), "true");
+  assert.equal(document.querySelectorAll('input[autocomplete="new-password"]').length, 2);
+  assert.ok(document.querySelector('input[autocomplete="current-password"]'));
+  await enter(document.querySelector('input[autocomplete="new-password"]'), "discard-this-password");
+
+  await click("Change email");
+  assert.equal(button("Change password").getAttribute("aria-expanded"), "false");
+  assert.equal(button("Change email").getAttribute("aria-expanded"), "true");
+  assert.ok(document.querySelector('input[type="email"]'));
+  assert.equal(document.querySelector('input[autocomplete="new-password"]'), null);
+  await click("Change password");
+  assert.equal(document.querySelector('input[autocomplete="new-password"]').value, "");
+});
+
+test("saving a profile reports unchanged data without a write and shows a check after an update", async () => {
+  await mount(); await click("Profile settings");
+  const input = document.querySelector('input[autocomplete="name"]');
+  await enter(input, `  ${rows[first.id].display_name}  `);
+  await click("Save profile");
+  assert.match(document.querySelector('[role="status"]').textContent, /No changes to save/);
+  assert.equal(writes, 0);
+  assert.equal(document.querySelector(".player-profile-saved"), null);
+
+  await enter(input, "Updated player name");
+  await click("Save profile");
+  assert.equal(writes, 1);
+  assert.equal(rows[first.id].display_name, "Updated player name");
+  assert.match(document.querySelector('[role="status"]').textContent, /Profile changes saved/);
+  assert.ok(document.querySelector(".player-profile-saved svg"));
+  await click("Save profile");
+  assert.equal(writes, 1);
+});
+
+test("email and password changes reverify the account before updating it", async () => {
+  await mount(); await click("Profile settings"); await click("Change email");
+  const email = document.querySelector('input[type="email"]');
+  const current = document.querySelector('input[autocomplete="current-password"]');
+  await enter(email, "new@example.com"); await enter(current, "wrong-password");
+  credentialError = { code: "invalid_credentials" };
+  await click("Confirm email change");
+  assert.deepEqual(credentialCalls, [["verify", { email: first.email, password: "wrong-password" }]]);
+  assert.equal(email.value, "new@example.com");
+
+  await enter(current, "old-password");
+  credentialError = null;
+  await click("Confirm email change");
+  assert.deepEqual(credentialCalls.slice(1), [
+    ["verify", { email: first.email, password: "old-password" }],
+    ["update", { email: "new@example.com" }, { emailRedirectTo: "http://localhost:3000/auth/callback/?intent=email" }],
+  ]);
+  assert.equal(button("Change email").getAttribute("aria-expanded"), "false");
+
+  await click("Change password");
+  const [password, confirmation] = document.querySelectorAll('input[autocomplete="new-password"]');
+  await enter(password, "new-test-password"); await enter(confirmation, "new-test-password");
+  await click("Save password");
+  assert.deepEqual(credentialCalls.slice(3), [
+    ["update", { password: "new-test-password" }, undefined],
+    ["sign-out", "others"],
+  ]);
+  assert.equal(button("Change password").getAttribute("aria-expanded"), "false");
 });
 
 test("sign-out appears only on the profile home, below profile settings", async () => {

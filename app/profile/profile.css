@@ -14,7 +14,10 @@
 .player-account .player-auth-note { margin-top:25px!important; }
 .player-account .player-auth-note a { text-decoration:underline; text-underline-offset:3px; }
 .player-account .player-error { color:#9c3226; }
-.player-account .player-settings-copy { margin:12px 0!important; }
+.player-account .player-credential-actions { display:grid; gap:10px; }
+.player-account .player-credential-form { margin-top:12px; padding:14px; border:1px solid var(--line); border-radius:11px; background:var(--surface); }
+.player-account .player-profile-saved { display:flex; align-items:center; gap:8px; padding:9px 12px; border-radius:8px; background:var(--soft); color:var(--forest); }
+.player-account .player-profile-saved svg { flex:none; width:18px; height:18px; }
 .player-account .player-callback-link { margin-top:25px; text-decoration:none; }
 .player-account .kv-phone button:focus-visible { outline:3px solid var(--clay); outline-offset:3px; }
 .player-account .kv-phone [hidden] { display:none!important; }
