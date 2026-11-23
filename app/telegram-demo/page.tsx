@@ -7,8 +7,11 @@ type DemoMatch = {
   status: "scheduled" | "live" | "completed";
   one: string;
   two: string;
-  score_one: number | null;
-  score_two: number | null;
+  sets_one: number;
+  sets_two: number;
+  sets: [number, number][];
+  active: { number: number; one: number; two: number; kind: "short" | "standard" | "super" } | null;
+  format: "short" | "best_of_three";
   winner: string | null;
 };
 
@@ -25,8 +28,20 @@ function MatchCard({ title, match }: { title: string; match: DemoMatch | null })
     <h2>{title}</h2>
     {match ? <>
       <p style={{ fontWeight: 700 }}>{labels[match.status]} · Корт 1</p>
-      <p>{match.one} <strong style={{ float: "right" }}>{match.score_one ?? "—"}</strong></p>
-      <p>{match.two} <strong style={{ float: "right" }}>{match.score_two ?? "—"}</strong></p>
+      <p>{match.one} — {match.two}</p>
+      <p><strong>Сеты · {match.sets_one}:{match.sets_two}</strong></p>
+      {match.sets.map(([one, two], index) => <p key={index}>
+        {index === 2 ? "Супер-тай-брейк" : `Сет ${index + 1}`} · {one}:{two} · завершён
+      </p>)}
+      {match.active && <p>
+        {match.active.kind === "super" ? "Супер-тай-брейк" : `Сет ${match.active.number}`} ·{" "}
+        <strong>{match.active.one}:{match.active.two}</strong>{" "}
+        {match.active.kind === "super" ? "по очкам" : "по геймам"}
+      </p>}
+      {match.status === "live" && !match.active && <p>Ожидает подтверждения итога.</p>}
+      {match.status === "scheduled" && <p>{match.format === "short"
+        ? "Один сет до 3 выигранных геймов."
+        : "До 2 выигранных сетов. При 1:1 — супер-тай-брейк до 10 очков с разницей в 2."}</p>}
       {match.winner && <p>Победитель · <strong>{match.winner}</strong></p>}
     </> : <p>Откроется после завершения группы и подтверждения состава.</p>}
   </section>;

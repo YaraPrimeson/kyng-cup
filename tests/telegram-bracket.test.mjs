@@ -90,7 +90,8 @@ test("demo opens only in a private chat and stale buttons cannot change the scor
     calls.push(action);
     return {
       revision: 3, tournament: "Demo", group_match: {
-        status: "live", one: "Pair one", two: "Pair two", score_one: 1, score_two: 0,
+        status: "live", one: "Pair one", two: "Pair two", sets: [], sets_one: 0, sets_two: 0,
+        active: { number: 1, kind: "short", one: 1, two: 0 },
       },
     };
   });
@@ -104,22 +105,29 @@ test("demo opens only in a private chat and stale buttons cannot change the scor
   await tap("kd:g:plus1:2");
   assert.match(bot.replies.at(-1).text, /уже обновился/);
   assert.equal(calls.at(-1).p_action, "view");
-  await tap("kd:g:input:3");
+  await tap("kd:g:input0:3");
   const prompt = bot.replies.at(-1);
   assert.equal(prompt.reply_markup.force_reply, true);
   await bot.update({ message: { from, chat, text: "6:4", reply_to_message: { from: { id: 900 }, text: prompt.text } } });
-  assert.equal(bot.replies.at(-1).reply_markup.inline_keyboard[0][0].callback_data, "kd:g:s64:3");
+  assert.equal(bot.replies.at(-1).reply_markup.inline_keyboard[0][0].callback_data, "kd:g:s0x6x4:3");
   assert.equal(calls.at(-1).p_action, "view");
-  await tap("kd:g:s64:3");
+  await tap("kd:g:s0x6x4:3");
   assert.deepEqual(calls.at(-1), { p_user_id: 123, p_action: "score", p_stage: "g", p_revision: 3, p_one: 6, p_two: 4 });
 });
 
-test("a live match can record a finished game and move straight to qualification after the result", async () => {
-  const match = { status: "live", one: "Pair one", two: "Pair two", score_one: 2, score_two: 1 };
-  const board = { revision: 3, group_target: 3, group_match: match };
+test("a game, set and match are confirmed separately before qualification", async () => {
+  const match = { status: "live", one: "Pair one", two: "Pair two", sets: [], sets_one: 0, sets_two: 0,
+    active: { number: 1, kind: "short", one: 2, two: 1 } };
+  const board = { revision: 3, group_match: match };
   const bot = webhook(request => {
     if (request.p_action === "plus1") {
-      match.score_one += 1;
+      match.active.one += 1;
+      board.revision += 1;
+    }
+    if (request.p_action === "set") {
+      match.sets = [[match.active.one, match.active.two]];
+      match.sets_one = 1;
+      match.active = null;
       board.revision += 1;
     }
     if (request.p_action === "finish") {
@@ -136,14 +144,33 @@ test("a live match can record a finished game and move straight to qualification
   assert.ok(buttons().some(button => button.text === "Завершить гейм"));
   assert.ok(buttons().some(button => button.text === "Завершить матч"));
   await tap("kd:g:review:3");
-  assert.equal(buttons()[0].callback_data, "kd:g:finishearly:3");
+  assert.match(bot.replies.at(-1).text, /подтвердите оставшиеся сеты/);
   await tap("kd:g:game:3");
   assert.match(bot.replies.at(-1).text, /Кто выиграл гейм/);
   await tap("kd:g:plus1:3");
   assert.match(bot.replies.at(-1).text, /3:1/);
+  assert.match(bot.replies.at(-1).text, /Сеты: 0:0/);
   assert.ok(!buttons().some(button => button.text === "Завершить гейм"));
-  await tap("kd:g:review:4");
-  assert.equal(buttons()[0].callback_data, "kd:g:finish:4");
-  await tap("kd:g:finish:4");
+  await tap("kd:g:setreview:4");
+  assert.equal(buttons()[0].callback_data, "kd:g:set:4");
+  await tap("kd:g:set:4");
+  assert.match(bot.replies.at(-1).text, /Сеты: 1:0/);
+  await tap("kd:g:review:5");
+  assert.equal(buttons()[0].callback_data, "kd:g:finish:5");
+  await tap("kd:g:finish:5");
   assert.ok(buttons().some(button => button.text === "Посмотреть состав финала"));
+});
+
+test("the deciding super tie-break uses points and a completed set can be selected for correction", async () => {
+  const board = { revision: 9, final_match: { status: "live", one: "Pair one", two: "Pair two",
+    sets: [[6, 4], [3, 6]], sets_one: 1, sets_two: 1, active: { number: 3, kind: "super", one: 8, two: 8 } } };
+  const bot = webhook(() => board);
+  const tap = data => bot.update({ callback_query: { id: "callback", from: { id: 123 },
+    message: { chat: { id: 123, type: "private" }, message_id: 5 }, data } });
+  await tap("kd:f:open:9");
+  assert.match(bot.replies.at(-1).text, /Сеты: 1:1/);
+  assert.match(bot.replies.at(-1).text, /Супер-тай-брейк — 8:8 по очкам/);
+  assert.ok(bot.replies.at(-1).reply_markup.inline_keyboard.flat().some(button => button.text === "Записать очко"));
+  await tap("kd:f:edit:9");
+  assert.equal(bot.replies.at(-1).reply_markup.inline_keyboard[0][0].callback_data, "kd:f:input1:9");
 });
