@@ -18,16 +18,19 @@ type DemoMatch = {
 
 type Scoreboard = {
   tournament: string;
-  group_match: DemoMatch | null;
-  final_match: DemoMatch | null;
-  matches?: Partial<Record<"a" | "b" | "p" | "k", DemoMatch>>;
+  matches: Record<string, DemoMatch>;
 };
 
 const labels = { scheduled: "Ожидает начала", live: "● LIVE", completed: "Завершён" };
+const sections = [
+  ["Групповой этап", [["a", "Группа A"], ["b", "Группа B"], ["c", "Группа C"], ["d", "Группа D"]]],
+  ["Основная сетка", [["m", "Полуфинал 1"], ["n", "Полуфинал 2"], ["p", "Финал"]]],
+  ["Короли подвала", [["x", "Полуфинал 1"], ["y", "Полуфинал 2"], ["k", "Финал"]]],
+] as const;
 
 function MatchCard({ title, match }: { title: string; match: DemoMatch | null }) {
   return <section style={{ border: "1px solid #59616a", borderRadius: 12, padding: "1rem", marginTop: "1rem" }}>
-    <h2>{title}</h2>
+    <h3>{title}</h3>
     {match ? <>
       <p style={{ fontWeight: 700 }}>{labels[match.status]} · {match.court ?? "Корт 1"}</p>
       <p>{match.one} — {match.two}</p>
@@ -45,7 +48,7 @@ function MatchCard({ title, match }: { title: string; match: DemoMatch | null })
         ? "Один сет до 3 выигранных геймов."
         : "До 2 выигранных сетов. При 1:1 — супер-тай-брейк до 10 очков с разницей в 2."}</p>}
       {match.winner && <p>Победитель · <strong>{match.winner}</strong></p>}
-    </> : <p>Откроется после завершения группы и подтверждения состава.</p>}
+    </> : <p>Ожидает участников.</p>}
   </section>;
 }
 
@@ -55,10 +58,8 @@ export default function TelegramDemoPage() {
   useEffect(() => {
     let active = true;
     let timer: number;
-    const endpoint = new URLSearchParams(window.location.search).get("mode") === "4"
-      ? "telegram_cup_scoreboard" : "telegram_demo_scoreboard";
     async function refresh() {
-      const { data, error } = await supabase.rpc(endpoint);
+      const { data, error } = await supabase.rpc("telegram_cup_scoreboard");
       if (!active) return;
       if (error) setStatus("Связь потеряна. Переподключаемся…");
       else {
@@ -75,15 +76,12 @@ export default function TelegramDemoPage() {
     <h1>{board?.tournament ?? "KYNG CUP · Telegram-демо"}</h1>
     <p role="status">{status}</p>
     {board && <div aria-live="polite">
-      {board.matches ? <>
-        <MatchCard title="Группа A" match={board.matches.a ?? null} />
-        <MatchCard title="Группа B" match={board.matches.b ?? null} />
-        <MatchCard title="Основной финал" match={board.matches.p ?? null} />
-        <MatchCard title="Короли подвала" match={board.matches.k ?? null} />
-      </> : <>
-        <MatchCard title="Группа A" match={board.group_match} />
-        <MatchCard title="Финал" match={board.final_match} />
-      </>}
+      {sections.map(([heading, slots]) =>
+        <section key={heading} style={{ marginTop: "2rem" }}>
+          <h2>{heading}</h2>
+          {slots.map(([slot, title]) => <MatchCard key={slot} title={title} match={board.matches[slot] ?? null} />)}
+        </section>
+      )}
     </div>}
   </main>;
 }

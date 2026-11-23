@@ -44,8 +44,7 @@ const helpText = [
   "",
   "/tournaments — активные турниры",
   "/matches <slug> — матчи турнира",
-  "/demo — тестовый турнир по приглашению",
-  "/cup — пульт демо на четыре пары",
+  "/cup — пульт турнира на восемь пар",
   "",
   editingDisabledMessage,
 ].join("\n");
@@ -284,9 +283,9 @@ async function handleUpdate(update: TelegramUpdate) {
   try {
     const invite = command === "/start" && args[0]?.startsWith("demo_") ? args[0].slice(5) : undefined;
     const privateChat = message.chat?.type === "private" && userId === chatId;
-    if (command === "/demo" || invite !== undefined) {
+    if (invite !== undefined) {
       if (privateChat) await demo.open(userId, invite);
-    } else if (command === "/cup") {
+    } else if (command === "/cup" || command === "/demo") {
       if (privateChat) await cup.open(userId);
     } else if (privateChat && (await demo.textReply(userId, message, text) || await cup.textReply(userId, message, text))) return;
     else if (command === "/start" || command === "/help") await reply(chatId, helpText);

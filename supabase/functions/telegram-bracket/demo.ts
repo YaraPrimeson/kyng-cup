@@ -6,7 +6,9 @@ export type Message = {
   reply_to_message?: Message;
 };
 type Callback = { id: string; from: { id: number }; message?: Message; data?: string };
-type Stage = "g" | "f" | "a" | "b" | "p" | "k";
+const cupGroups = ["a", "b", "c", "d"] as const;
+const cupStages = [...cupGroups, "m", "n", "p", "x", "y", "k"] as const;
+type Stage = "g" | "f" | typeof cupStages[number];
 type Segment = { number: number; one: number; two: number; kind: "short" | "standard" | "super" };
 type Match = {
   status: "scheduled" | "live" | "completed";
@@ -35,11 +37,13 @@ type Button = { text: string; callback_data: string } | { text: string; url: str
 type Payload = Record<string, unknown>;
 
 const stageLabel = (stage: Stage) => ({
-  g: "Группа A", f: "Финал", a: "Группа A", b: "Группа B", p: "Основной финал", k: "Короли подвала",
+  g: "Группа A", f: "Финал", a: "Группа A", b: "Группа B", c: "Группа C", d: "Группа D",
+  m: "Основная сетка · Полуфинал 1", n: "Основная сетка · Полуфинал 2", p: "Основной финал",
+  x: "Короли подвала · Полуфинал 1", y: "Короли подвала · Полуфинал 2", k: "Короли подвала · Финал",
 })[stage];
 const matchFor = (board: Board, stage: Stage) => stage === "g" ? board.group_match
   : stage === "f" ? board.final_match : board.matches?.[stage];
-const isGroup = (stage: Stage) => stage === "g" || stage === "a" || stage === "b";
+const isGroup = (stage: Stage) => stage === "g" || stage === "a" || stage === "b" || stage === "c" || stage === "d";
 const status = (match: Match) => ({ scheduled: "Ожидает начала", live: "🔴 LIVE", completed: "Завершён" })[match.status];
 const format = (stage: Stage) => isGroup(stage) ? "Один сет до 3 выигранных геймов"
   : "До 2 выигранных сетов. Обычные сеты — от 6 геймов с разницей в два, при 6:6 — тай-брейк. При 1:1 по сетам — супер-тай-брейк до 10 очков с разницей в два.";
@@ -138,8 +142,8 @@ export function telegramDemo(
       ].join("\n"), keyboard, messageId);
     }
     if (cup) {
-      const lines = [board.tournament ?? "KYNG CUP · Демо на четыре пары"];
-      for (const slot of ["a", "b", "p", "k"] as const) {
+      const lines = [board.tournament ?? "KYNG CUP · Демо на восемь пар"];
+      for (const slot of cupStages) {
         const game = matchFor(board, slot);
         if (!game) continue;
         const label = stageLabel(slot) + " · " + game.court;
@@ -150,7 +154,7 @@ export function telegramDemo(
       }
       if (board.draw_ready) keyboard.push([button("Посмотреть обе сетки", "a", "qualifiers", revision)]);
       keyboard.push([button("Обновить пульт", "a", "home", revision)]);
-      keyboard.push([{ text: "Открыть тестовую сетку", url: "https://kyngcup.com/telegram-demo/?mode=4" }]);
+      keyboard.push([{ text: "Открыть тестовую сетку", url: "https://kyngcup.com/telegram-demo/?mode=8" }]);
       return card(chatId, error + lines.join("\n"), keyboard, messageId);
     }
     if (board.group_match) keyboard.push([button("Группа A · Корт 1", "g", "open", revision)]);
@@ -168,7 +172,7 @@ export function telegramDemo(
   }
 
   async function callback(update: Callback) {
-    const data = update.data?.match(cup ? /^kc:([abpk]):([a-z0-9]+):(\d{1,10})$/ : /^kd:([gf]):([a-z0-9]+):(\d{1,10})$/);
+    const data = update.data?.match(cup ? /^kc:([abcdmnpxyk]):([a-z0-9]+):(\d{1,10})$/ : /^kd:([gf]):([a-z0-9]+):(\d{1,10})$/);
     const message = update.message;
     await telegram("answerCallbackQuery", { callback_query_id: update.id });
     if (!data || message?.chat?.type !== "private" || message.chat.id !== update.from.id) return;
@@ -245,11 +249,11 @@ export function telegramDemo(
       ], messageId);
     }
     if (action === "qualifiers" && cup && board.draw_ready) {
-      const games = [matchFor(board, "a"), matchFor(board, "b")];
-      const main = games.map(game => game?.winner).join(" — ");
-      const basement = games.map(game => game?.winner === game?.one ? game?.two : game?.one).join(" — ");
-      return card(userId, ["Групповой этап завершён", "", "Основной финал", main,
-        "", "Короли подвала", basement, "", "Формат обоих финалов: " + format("p")].join("\n"), [
+      const games = cupGroups.map(slot => matchFor(board, slot)).filter(game => game != null);
+      const main = games.map(game => game.winner).join(" · ");
+      const basement = games.map(game => game.winner === game.one ? game.two : game.one).join(" · ");
+      return card(userId, ["Групповой этап завершён", "", "Основная сетка", main,
+        "", "Короли подвала", basement, "", "В каждой сетке — полуфиналы и финал."].join("\n"), [
         [button("Подтвердить обе сетки", stage, "advance", revision)],
         [button("← К матчам", stage, "home", revision)],
       ], messageId);
@@ -267,7 +271,7 @@ export function telegramDemo(
 
   async function textReply(userId: number, message: Message, text: string) {
     const original = message.reply_to_message;
-    const context = original?.text?.match(cup ? /\n#kc:([abpk]):([0-3]):(\d{1,10})$/ : /\n#kd:([gf]):([0-3]):(\d{1,10})$/);
+    const context = original?.text?.match(cup ? /\n#kc:([abcdmnpxyk]):([0-3]):(\d{1,10})$/ : /\n#kd:([gf]):([0-3]):(\d{1,10})$/);
     if (!context || original?.from?.id !== await getBotId()) return false;
     const stage = context[1] as Stage;
     const index = Number(context[2]);

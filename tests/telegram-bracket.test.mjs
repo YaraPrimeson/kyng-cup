@@ -100,9 +100,9 @@ test("demo opens only in a private chat and stale buttons cannot change the scor
   });
   const from = { id: 123 };
   const chat = { id: 123, type: "private" };
-  await bot.update({ message: { from, chat: { ...chat, type: "group" }, text: "/demo" } });
+  await bot.update({ message: { from, chat: { ...chat, type: "group" }, text: "/start demo_test" } });
   assert.equal(calls.length, 0);
-  await bot.update({ message: { from, chat, text: "/demo" } });
+  await bot.update({ message: { from, chat, text: "/start demo_test" } });
   assert.match(bot.replies.at(-1).text, /Группа A/);
   const tap = data => bot.update({ callback_query: { id: "callback", from, message: { chat, message_id: 5 }, data } });
   await tap("kd:g:plus1:2");
@@ -199,12 +199,16 @@ test("a standard final set at 3:0 explains its format and cannot be confirmed un
   assert.equal(buttons()[0].text, "Подтвердить сет 1 · 6:0");
 });
 
-test("four-pair dashboard edits each court with its own revision and previews both finals", async () => {
+test("eight-pair dashboard edits each court with its own revision and previews both draws", async () => {
   const calls = [];
   const state = { revision: 10, draw_ready: false, matches: {
     a: { revision: 7, court: "Корт 1", status: "completed", one: "Север", two: "Юг", winner: "Север",
       sets: [[3, 1]], sets_one: 1, sets_two: 0, active: null },
     b: { revision: 3, court: "Корт 2", status: "live", one: "Восток", two: "Запад",
+      sets: [[2, 3]], sets_one: 0, sets_two: 1, active: null },
+    c: { revision: 4, court: "Корт 3", status: "completed", one: "Альфа", two: "Бета", winner: "Альфа",
+      sets: [[3, 0]], sets_one: 1, sets_two: 0, active: null },
+    d: { revision: 6, court: "Корт 4", status: "completed", one: "Омега", two: "Сигма", winner: "Сигма",
       sets: [[2, 3]], sets_one: 0, sets_two: 1, active: null },
   } };
   const bot = webhook(undefined, request => {
@@ -221,7 +225,7 @@ test("four-pair dashboard edits each court with its own revision and previews bo
   const chat = { id: 123, type: "private" };
   const from = { id: 123 };
   await bot.update({ message: { from, chat, text: "/cup" } });
-  assert.match(bot.replies.at(-1).text, /Корт 1[\s\S]*Корт 2/);
+  assert.match(bot.replies.at(-1).text, /Корт 1[\s\S]*Корт 2[\s\S]*Корт 3[\s\S]*Корт 4/);
   const tap = data => bot.update({ callback_query: { id: "tap", from, message: { chat, message_id: 1 }, data } });
   await tap("kc:b:review:3");
   assert.match(bot.replies.at(-1).text, /Победитель: Запад/);
@@ -229,5 +233,5 @@ test("four-pair dashboard edits each court with its own revision and previews bo
   assert.equal(calls.at(-1).p_stage, "b");
   assert.equal(calls.at(-1).p_revision, 3);
   await tap("kc:b:qualifiers:11");
-  assert.match(bot.replies.at(-1).text, /Основной финал\nСевер — Запад[\s\S]*Короли подвала\nЮг — Восток/);
+  assert.match(bot.replies.at(-1).text, /Основная сетка\nСевер · Запад · Альфа · Сигма[\s\S]*Короли подвала\nЮг · Восток · Бета · Омега/);
 });
