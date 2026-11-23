@@ -1,9 +1,8 @@
+import { telegramDemo, type Message } from "./demo.ts";
+
 type TelegramUpdate = {
-  message?: {
-    chat?: { id?: number };
-    from?: { id?: number };
-    text?: string;
-  };
+  message?: Message;
+  callback_query?: Parameters<ReturnType<typeof telegramDemo>["callback"]>[0];
 };
 
 type Tournament = { id: string; slug: string; name: string; status: string };
@@ -45,6 +44,7 @@ const helpText = [
   "",
   "/tournaments — активные турниры",
   "/matches <slug> — матчи турнира",
+  "/demo — тестовый турнир по приглашению",
   "",
   editingDisabledMessage,
 ].join("\n");
@@ -63,7 +63,10 @@ async function telegram(method: string, payload: Record<string, unknown>) {
     headers: { "content-type": "application/json" },
     body: JSON.stringify(payload),
   });
-  if (!response.ok) throw new Error(`Telegram API returned ${response.status}`);
+  const data = await response.json() as { ok: boolean; description?: string };
+  if (method === "editMessageText" && data.description?.includes("message is not modified")) return;
+  if (method === "answerCallbackQuery" && data.description?.includes("query is too old")) return;
+  if (!response.ok || !data.ok) throw new Error(`Telegram API returned ${response.status}`);
 }
 
 async function reply(chatId: number, text: string) {
@@ -238,16 +241,42 @@ async function resetResult(chatId: number, userId: number, args: string[]) {
   await reply(chatId, `Результат сброшен: ${tournament.name}, раунд ${round}, матч ${position}.`);
 }
 
+const demo = telegramDemo(
+  (userId, action, params) => supabase("rpc/telegram_demo_control", {
+    method: "POST",
+    body: JSON.stringify({ p_user_id: userId, p_action: action, ...params }),
+  }),
+  telegram,
+  async () => Number((await loadSecrets()).bot_token.split(":")[0]),
+);
+
 async function handleUpdate(update: TelegramUpdate) {
-  const userId = update.message?.from?.id;
-  const chatId = update.message?.chat?.id;
-  const text = update.message?.text?.trim();
+  if (update.callback_query) {
+    const callback = update.callback_query;
+    try {
+      await demo.callback(callback);
+    } catch {
+      if (callback.message?.chat?.type === "private" && callback.message.chat.id === callback.from.id) {
+        await reply(callback.from.id, "Не удалось обновить демо. Откройте /demo и проверьте текущий счёт.");
+      }
+    }
+    return;
+  }
+  const message = update.message;
+  const userId = message?.from?.id;
+  const chatId = message?.chat?.id;
+  const text = message?.text?.trim();
   if (!userId || !chatId || !text) return;
 
   const [rawCommand, ...args] = text.split(/\s+/);
   const command = rawCommand.toLowerCase().split("@")[0];
   try {
-    if (command === "/start" || command === "/help") await reply(chatId, helpText);
+    const invite = command === "/start" && args[0]?.startsWith("demo_") ? args[0].slice(5) : undefined;
+    const privateChat = message.chat?.type === "private" && userId === chatId;
+    if (command === "/demo" || invite !== undefined) {
+      if (privateChat) await demo.open(userId, invite);
+    } else if (privateChat && await demo.textReply(userId, message, text)) return;
+    else if (command === "/start" || command === "/help") await reply(chatId, helpText);
     else if (command === "/tournaments") await listTournaments(chatId);
     else if (command === "/matches") await listMatches(chatId, args[0]);
     else if (command === "/result") await recordResult(chatId, userId, args);

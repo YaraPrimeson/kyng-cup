@@ -56,7 +56,7 @@ try {
     await writeFile(cssPath, css.replaceAll("url(/", `url(${basePath}/`));
   }
 
-  for (const route of ["/", "/tennis/", "/padel/", "/bracket/", "/profile/", "/auth/callback/", "/admin/", "/cookies/", "/rules/", "/register/", "/upcoming-tournaments/"]) {
+  for (const route of ["/", "/tennis/", "/padel/", "/bracket/", "/telegram-demo/", "/profile/", "/auth/callback/", "/admin/", "/cookies/", "/rules/", "/register/", "/upcoming-tournaments/"]) {
     const sport = route.split("/")[1];
     if (Object.hasOwn(sportsVisibility, sport) && !sportsVisibility[sport]) {
       const routeDir = join(outputDir, route);
