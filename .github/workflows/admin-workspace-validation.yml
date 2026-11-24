@@ -1,0 +1,18 @@
+name: Validate admin workspace
+on:
+  push:
+    branches: [codex/admin-workspace-validation]
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: node scripts/export-pages.mjs
