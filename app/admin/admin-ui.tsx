@@ -34,8 +34,13 @@ export function AdminUI({ children }: { children: ReactNode }) {
   const answer = useRef<((accepted: boolean) => void) | null>(null);
 
   useEffect(() => {
-    try { if (window.localStorage.getItem(localeKey) === "ru") setLocale("ru"); } catch { /* Storage may be disabled. */ }
-    return () => answer.current?.(false);
+    const timer = window.setTimeout(() => {
+      try { if (window.localStorage.getItem(localeKey) === "ru") setLocale("ru"); } catch { /* Storage may be disabled. */ }
+    }, 0);
+    return () => {
+      window.clearTimeout(timer);
+      answer.current?.(false);
+    };
   }, []);
 
   useEffect(() => {

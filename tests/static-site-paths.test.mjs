@@ -46,7 +46,7 @@ test("gallery and bracket links use the correct prefix after the Hostinger rewri
   const { siteBasePath } = await deployedPaths(true);
   for (const page of ["gallery", "bracket"]) {
     const source = await readFile(new URL(`../app/${page}/page.tsx`, import.meta.url), "utf8");
-    const declaration = source.match(/^  const basePath = .+;$/m)?.[0];
+    const declaration = source.match(/^ {2}const basePath = .+;$/m)?.[0];
     assert.ok(declaration, `${page} uses the deployed site base path`);
     const getBasePath = Function("pathname", "siteBasePath", `${declaration.replaceAll("/kyng-cup/", "/")} return basePath;`);
     assert.equal(`${getBasePath(`/${page}/`, siteBasePath)}/gallery/?tournament=vienna`,

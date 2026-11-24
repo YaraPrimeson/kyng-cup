@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { visibleSportItems } from "@/lib/sports";
+import { isTestTournament, lastTournamentDay, viennaDate } from "@/lib/tournament-schedule";
 import { supabase } from "@/lib/supabase";
 import { Language, useLanguage } from "../i18n";
 import SiteFooter from "../site-footer";
@@ -125,6 +126,7 @@ export default function RegisterPage() {
   const text = copy[language];
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [selectedSlug, setSelectedSlug] = useState("");
+  const [requestedUnavailable, setRequestedUnavailable] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [submissionState, setSubmissionState] = useState<"idle" | "submitting" | "success">("idle");
@@ -143,13 +145,23 @@ export default function RegisterPage() {
   const loadTournaments = useCallback(async () => {
     const result = await supabase.from("tournaments").select("id,slug,name,sport,location,format_description,prize_pool,starts_at,ends_at,status,registration_status").in("status", ["published", "live"]).in("registration_status", ["open", "waitlist"]).order("starts_at", { ascending: true, nullsFirst: false });
     if (result.error) { setLoadError(true); setLoading(false); return; }
-    const available = visibleSportItems((result.data ?? []) as Tournament[]);
+    const today = viennaDate(new Date());
+    const available = visibleSportItems((result.data ?? []) as Tournament[]).filter(item => {
+      const lastDay = lastTournamentDay(item);
+      return !isTestTournament(item.slug) && (!lastDay || lastDay >= today);
+    });
     const params = new URLSearchParams(window.location.search);
     const repeat = params.get("repeat") ?? "";
     setRepeatId(/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(repeat) ? repeat : "");
     const requested = params.get("tournament");
     const requestedSport = params.get("sport") as Sport | null;
-    const chosen = available.find((item) => item.slug === requested) ?? available.find((item) => item.sport === requestedSport && item.status === "live") ?? available.find((item) => item.sport === requestedSport) ?? available.find((item) => item.status === "live") ?? available[0];
+    const chosen = requested !== null
+      ? available.find(item => item.slug === requested)
+      : available.find(item => item.sport === requestedSport && item.status === "live")
+        ?? available.find(item => item.sport === requestedSport)
+        ?? available.find(item => item.status === "live")
+        ?? available[0];
+    setRequestedUnavailable(requested !== null && !chosen);
     setTournaments(available);
     setSelectedSlug(chosen?.slug ?? "");
     setLoadError(false);
@@ -186,6 +198,7 @@ export default function RegisterPage() {
   function selectTournament(slug: string) {
     const next = tournaments.find((item) => item.slug === slug);
     setSelectedSlug(slug);
+    setRequestedUnavailable(false);
     setSubmissionError(null);
     const url = new URL(window.location.href);
     url.searchParams.set("tournament", slug);
@@ -279,8 +292,18 @@ export default function RegisterPage() {
     <section className="registration-shell">
       <aside className="registration-tournament-card">
         <div className="registration-card-index"><span>01</span><span>{text.tournament}</span></div>
-        {loading ? <p className="registration-message" role="status">{text.loading}</p> : loadError ? <p className="registration-message is-error" role="alert">{text.loadError}</p> : !tournament ? <p className="registration-message">{text.unavailable}</p> : <>
-          {tournaments.length > 1 && <label className="registration-tournament-select"><span>{text.choose}</span><select value={selectedSlug} disabled={repeatState === "loading" || submissionState === "submitting"} onChange={(event) => selectTournament(event.target.value)}>{tournaments.map((item) => <option key={item.id} value={item.slug}>{item.name}</option>)}</select></label>}
+        {!loading && !loadError && (tournaments.length > 1 || (!tournament && tournaments.length > 0)) && (
+          <label className="registration-tournament-select"><span>{text.choose}</span>
+            <select value={selectedSlug} disabled={repeatState === "loading" || submissionState !== "idle"} onChange={event => selectTournament(event.target.value)}>
+              {!tournament && <option value="" disabled>{text.choose}</option>}
+              {tournaments.map(item => <option key={item.id} value={item.slug}>{item.name}</option>)}
+            </select>
+          </label>
+        )}
+        {requestedUnavailable && tournaments.length > 0 && <p className="registration-message is-error" role="alert">{text.unavailableError}</p>}
+        {loading ? <p className="registration-message" role="status">{text.loading}</p> : loadError ? <p className="registration-message is-error" role="alert">{text.loadError}</p> : !tournament ? (
+          tournaments.length === 0 && <p className="registration-message">{text.unavailable}</p>
+        ) : <>
           <span className={`registration-status is-${tournament.registration_status}`}><i />{tournament.registration_status === "waitlist" ? text.waitlist : text.open}</span>
           <strong className="registration-tournament-name">{tournament.name}</strong>
           <span className="registration-sport">{tournament.sport === "tennis" ? text.tennis : text.padel}</span>

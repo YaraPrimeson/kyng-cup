@@ -151,8 +151,10 @@ export default function BracketPage() {
     const { active, archive } = bracketTournamentLists(available);
     const sport = params.get("sport");
     const scheduled = active.filter((item) => item.status === "live" || item.starts_at || item.ends_at);
-    const current = available.find((item) => item.slug === params.get("tournament"))
-      ?? scheduled.find((item) => item.sport === sport)
+    const requested = params.get("tournament");
+    const current = requested !== null
+      ? [...active, ...archive].find(item => item.slug === requested)
+      : scheduled.find((item) => item.sport === sport)
       ?? archive.find((item) => item.sport === sport && item.status === "completed")
       ?? active.find((item) => item.sport === sport)
       ?? archive.find((item) => item.sport === sport)
@@ -176,7 +178,7 @@ export default function BracketPage() {
     if (pairsResult.error || matchesResult.error || groupsResult.error || membersResult.error || groupMatchesResult.error) setError(text.loadError);
     else { setTournament(current); setPairs((pairsResult.data ?? []) as Pair[]); setMatches((matchesResult.data ?? []) as Match[]); setGroups((groupsResult.data ?? []) as TournamentGroup[]); setGroupMembers((membersResult.data ?? []) as GroupMember[]); setGroupMatches((groupMatchesResult.data ?? []) as GroupMatch[]); if (displayedTournament.current !== current.id) { setStage(current.format === "group_knockout" && !(matchesResult.data ?? []).some((match) => (match.round === 0 || match.round === 1) && match.pair_one_id && match.bracket_kind !== "basement") ? "groups" : "playoffs"); displayedTournament.current = current.id; } setError(null); }
     setLoading(false);
-  }, [text.loadError, text.noBracket]);
+  }, [setStage, text.loadError, text.noBracket]);
 
   useEffect(() => { const timer = window.setTimeout(() => void loadBracket(), 0); return () => window.clearTimeout(timer); }, [loadBracket]);
   useEffect(() => {
@@ -185,7 +187,7 @@ export default function BracketPage() {
     return () => { void supabase.removeChannel(channel); };
   }, [loadBracket, tournament?.id, tournament?.slug]);
 
-  const publicTournamentId = tournament && tournament.status !== "draft" ? tournament.id : null;
+  const publicTournamentId = tournament?.id;
   useEffect(() => {
     if (!publicTournamentId) return;
     const id = publicTournamentId;
@@ -212,7 +214,7 @@ export default function BracketPage() {
   function selectTournament(slug: string) {
     const next = tournaments.find((item) => item.slug === slug);
     const url = new URL(window.location.href); url.searchParams.set("tournament", slug); if (next) url.searchParams.set("sport", next.sport); window.history.replaceState({}, "", url);
-    setLoading(true); setActiveRound(1); void loadBracket();
+    setTournament(null); setLoading(true); setActiveRound(1); void loadBracket();
   }
 
   const { active, archive } = bracketTournamentLists(tournaments);
@@ -220,7 +222,7 @@ export default function BracketPage() {
 
   return <main className="bracket-page">
     <section className="bracket-intro"><div><p className="eyebrow">Live tournament experience</p><h1>{text.headingA}<br />{text.headingB}<span className="accent-dot">.</span></h1></div><div className="bracket-summary"><span className={`live-indicator${tournament?.status === "live" ? " is-live" : ""}`}><i /> {tournament?.status === "live" ? "Live updates" : "Tournament schedule"}</span><strong>{tournament?.name ?? "KYNG CUP"}</strong><span>{tournament?.location ?? text.locationTba} · {tournament?.participant_count ?? tournament?.bracket_size ?? 16} {text.pairs}</span>{tournament && albumTournamentId === tournament.id && <a className="bracket-link" href={galleryAlbumHref(tournament.slug, basePath)}>{({ en: "View tournament photos", uk: "Фото турніру", de: "Turnierfotos ansehen", ru: "Фото турнира" })[language]} ↗</a>}{hasAnotherTournament && <TournamentPicker active={active} archive={archive} currentSlug={tournament?.slug} language={language} onSelect={selectTournament} />}</div></section>
-    {champion && <section className="champion-banner"><span>Champion</span><div><strong>{champion.name}</strong><small>{champion.player_one} · {champion.player_two}</small></div><b>KYNG CUP</b></section>}
+    {!loading && !error && champion && <section className="champion-banner"><span>Champion</span><div><strong>{champion.name}</strong><small>{champion.player_one} · {champion.player_two}</small></div><b>KYNG CUP</b></section>}
     {loading ? <div className="bracket-state" role="status" aria-live="polite">Loading the draw…</div> : error ? <div className="bracket-state is-error" role="alert">{error}</div> : <>
       {tournament?.format === "group_knockout" && <nav className="stage-tabs" aria-label="Tournament stages"><button type="button" className={stage === "groups" ? "is-active" : ""} onClick={() => setStage("groups")}>{text.groups}</button><button type="button" className={stage === "playoffs" ? "is-active" : ""} onClick={() => setStage("playoffs")}>{text.playoffs}</button><button type="button" className={stage === "basement" ? "is-active basement-tab" : "basement-tab"} onClick={() => setStage("basement")}>{basementCopy[language].tab}</button></nav>}
       {tournament?.format === "group_knockout" && stage === "groups" ? <PublicGroupStage groups={groups} members={groupMembers} matches={groupMatches} pairMap={pairMap} language={language} /> : tournament?.format === "group_knockout" && stage === "basement" ? <BasementKing groups={groups} members={groupMembers} matches={groupMatches} games={basementMatches} pairMap={pairMap} language={language} /> : <>
