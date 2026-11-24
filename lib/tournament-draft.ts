@@ -1,7 +1,7 @@
 import { balancePairs, blankPairs } from "./tournament-setup";
 import type { TournamentSetup } from "./tournament-setup";
 
-export type TournamentDraft = TournamentSetup & { slugEdited: boolean; list: string };
+export type TournamentDraft = TournamentSetup & { slugEdited: boolean; endDateEdited?: boolean; step?: number; list: string };
 const key = (userId: string) => `kyng-tournament-draft:v1:${userId}`;
 
 export function newTournamentDraft(): TournamentDraft {
@@ -21,6 +21,8 @@ export function readTournamentDraft(userId: string): TournamentDraft | null {
     if (version !== 1 || !draft || typeof draft !== "object") return null;
     if (!["name", "slug", "fallbackSlug", "location", "date", "endDate", "list"].every(field => typeof draft[field] === "string")
       || typeof draft.slugEdited !== "boolean"
+      || (draft.endDateEdited !== undefined && typeof draft.endDateEdited !== "boolean")
+      || (draft.step !== undefined && (!Number.isInteger(draft.step) || draft.step < 0 || draft.step > 3))
       || !["tennis", "padel"].includes(draft.sport) || !["draft", "published"].includes(draft.status)
       || !["knockout", "group_knockout"].includes(draft.format)
       || !Number.isInteger(draft.groups) || draft.groups < 1 || draft.groups > 26

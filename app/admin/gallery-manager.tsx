@@ -1,13 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { useAdminUI } from "./admin-ui";
 import { uploadGalleryPhoto } from "./gallery-upload";
 
 type Album = { cover_photo_id: string | null; published_at: string | null };
-type Photo = { id: string; sort_order: number; state: "pending" | "visible" | "hidden" };
+type Photo = { filename?: string; id: string; sort_order: number; state: "pending" | "visible" | "hidden" };
 type Job = { file: File; order: number; state: "waiting" | "uploading" | "done" | "failed"; error?: string };
-const pageSize = 36;
+const pageSize = 24;
+const photoMime = new Set(["image/jpeg", "image/png", "image/webp"]);
 
 function errorText(error: unknown) {
   return error && typeof error === "object" && "message" in error
@@ -15,11 +17,17 @@ function errorText(error: unknown) {
     : "Could not update the photo album.";
 }
 
-export default function GalleryManager({ tournamentId, active, onBusyChange }: {
+export default function GalleryManager({ tournamentId, tournamentSlug, active, onBusyChange }: {
   tournamentId: string;
+  tournamentSlug: string;
   active: boolean;
   onBusyChange: (busy: boolean) => void;
 }) {
+  const { t, confirm } = useAdminUI();
+  const [filter, setFilter] = useState<"all" | Photo["state"]>("all");
+  const [query, setQuery] = useState("");
+  const [dragging, setDragging] = useState(false);
+  const previewScroll = useRef<HTMLDivElement>(null);
   const [loaded, setLoaded] = useState(false);
   const [album, setAlbum] = useState<Album | null>(null);
   const [photos, setPhotos] = useState<Photo[]>([]);
@@ -30,6 +38,7 @@ export default function GalleryManager({ tournamentId, active, onBusyChange }: {
   const [previewFailed, setPreviewFailed] = useState(false);
   const [busy, setBusy] = useState(false);
   const upload = useRef<AbortController | null>(null);
+  const operation = useRef(false);
   useEffect(() => () => upload.current?.abort(), []);
   useEffect(() => {
     onBusyChange(busy);
@@ -50,8 +59,16 @@ export default function GalleryManager({ tournamentId, active, onBusyChange }: {
         if (batch.data.length < 500) break;
       }
     }
+    const filenames = new Map<string, string>();
+    for (let offset = 0; result.data; offset += 500) {
+      const names = await supabase.from("tournament_gallery_photo_filenames").select("photo_id,filename")
+        .eq("tournament_id", tournamentId).order("photo_id").range(offset, offset + 499);
+      if (names.error) break;
+      for (const entry of names.data) filenames.set(entry.photo_id, entry.filename);
+      if (names.data.length < 500) break;
+    }
     setAlbum(result.data);
-    setPhotos(rows);
+    setPhotos(rows.map(photo => ({ ...photo, filename: filenames.get(photo.id) })));
     setLoaded(true);
   }, [tournamentId]);
 
@@ -59,10 +76,18 @@ export default function GalleryManager({ tournamentId, active, onBusyChange }: {
     if (active && !loaded) void load().catch(reason => setError(errorText(reason)));
   }, [active, loaded, load]);
 
+  const search = query.trim().toLowerCase();
+  const matching = useMemo(() => photos.filter(photo =>
+    (filter === "all" || photo.state === filter) &&
+    (!search || photo.filename?.toLowerCase().includes(search) || String(photo.sort_order + 1).includes(search)),
+  ), [filter, photos, search]);
+  const lastPage = Math.max(0, Math.ceil(matching.length / pageSize) - 1);
+  const currentPage = Math.min(page, lastPage);
+  const displayed = useMemo(() => matching.slice(currentPage * pageSize, (currentPage + 1) * pageSize), [matching, currentPage]);
+
   useEffect(() => {
-    if (!active || !photos.length) return;
-    const photoIds = photos.slice(page * pageSize, (page + 1) * pageSize)
-      .filter(photo => photo.state !== "pending").map(photo => photo.id);
+    if (!active) return;
+    const photoIds = displayed.filter(photo => photo.state !== "pending").map(photo => photo.id);
     if (!photoIds.length) return;
     let ignore = false;
     void supabase.functions.invoke<{ urls: Record<string, string> }>("gallery-photo-urls", {
@@ -73,14 +98,16 @@ export default function GalleryManager({ tournamentId, active, onBusyChange }: {
       setPreviewFailed(Boolean(result.error));
     });
     return () => { ignore = true; };
-  }, [active, photos, page]);
+  }, [active, displayed]);
 
   async function save(action: () => Promise<void>) {
+    if (operation.current) return;
+    operation.current = true;
     setBusy(true);
     setError("");
     try { await action(); await load(); }
     catch (reason) { setError(errorText(reason)); }
-    finally { setBusy(false); }
+    finally { operation.current = false; setBusy(false); }
   }
 
   function patchJob(order: number, patch: Partial<Job>) {
@@ -88,6 +115,8 @@ export default function GalleryManager({ tournamentId, active, onBusyChange }: {
   }
 
   async function uploadJobs(batch: Job[]) {
+    if (operation.current) return;
+    operation.current = true;
     const controller = new AbortController();
     upload.current = controller;
     const pending = [...batch];
@@ -118,16 +147,27 @@ export default function GalleryManager({ tournamentId, active, onBusyChange }: {
       setError(errorText(reason));
     } finally {
       upload.current = null;
+      operation.current = false;
       setBusy(false);
     }
   }
 
   function selectFiles(files: FileList) {
-    const start = Math.max(-1, ...photos.map(photo => photo.sort_order), ...jobs.map(job => job.order)) + 1;
-    const batch: Job[] = Array.from(files, (file, index) => ({ file, order: start + index, state: "waiting" }));
+    if (operation.current || !loaded) return;
+    const start = Math.max(
+      photos.reduce((max, photo) => Math.max(max, photo.sort_order), -1),
+      jobs.reduce((max, job) => Math.max(max, job.order), -1),
+    ) + 1;
+    const batch: Job[] = Array.from(files, (file, index) => {
+      const supported = photoMime.has(file.type) || (!file.type && /\.(?:jpe?g|png|webp)$/i.test(file.name));
+      return { file, order: start + index, state: supported ? "waiting" : "failed",
+        error: supported ? undefined : "Choose JPG, PNG or WebP images." };
+    });
     if (!batch.length) return;
+    setError("");
     setJobs(current => [...current.filter(job => job.state === "failed"), ...batch]);
-    void uploadJobs(batch);
+    const accepted = batch.filter(job => job.state === "waiting");
+    if (accepted.length) void uploadJobs(accepted);
   }
 
   function updateAlbum(patch: Partial<Album>) {
@@ -148,68 +188,108 @@ export default function GalleryManager({ tournamentId, active, onBusyChange }: {
   }
 
   const failed = jobs.filter(job => job.state === "failed");
-  const settled = jobs.filter(job => job.state === "done" || job.state === "failed").length;
+  const retryable = failed.filter(job => job.error !== "Choose JPG, PNG or WebP images.");
+  const done = jobs.filter(job => job.state === "done").length;
+  const settled = done + failed.length;
   const ready = photos.filter(photo => photo.state === "visible").length;
+  const hidden = photos.filter(photo => photo.state === "hidden").length;
   const cover = photos.find(photo => photo.id === album?.cover_photo_id);
-  const lastPage = Math.max(0, Math.ceil(photos.length / pageSize) - 1);
-
-  const publishHint = album?.published_at ? null :
-    ready === 0 ? "Upload at least one photo to publish." :
+  const published = Boolean(album?.published_at);
+  const publishHint = published ? null : ready === 0 ? "Upload at least one photo to publish." :
     cover?.state !== "visible" ? "Choose a visible photo as the cover to publish." : null;
 
-  return <div className="admin-gallery">
-    <div className="admin-workspace-section-heading"><h2>Photo album</h2></div>
+  function goToPage(next: number) {
+    setPage(next);
+    if (previewScroll.current) previewScroll.current.scrollTop = 0;
+  }
+
+  async function changePublication() {
+    if (busy || publishHint) return;
+    const approved = await confirm({
+      title: published ? "Unpublish album?" : "Publish album?",
+      detail: published ? "The album will be removed from the public gallery. Your photos will be kept." : "The cover and visible photos will appear in the public gallery.",
+      action: published ? "Unpublish album" : "Publish album",
+    });
+    if (approved) await updateAlbum({ published_at: published ? null : new Date().toISOString() });
+  }
+
+  return <section className="admin-gallery">
+    <div className="admin-workspace-section-heading"><h2>{t("Photo album")}</h2></div>
     <div className="admin-gallery-body">
-      {error && <p role="alert">{error} {!loaded && <button type="button" onClick={() => { setError(""); void load().catch(reason => setError(errorText(reason))); }}>Retry</button>}</p>}
-      {!loaded && !error && <p role="status">Loading album…</p>}
+      {error && <p role="alert">{t(error)} {!loaded && <button type="button" className="admin-button" onClick={() => { setError(""); void load().catch(reason => setError(errorText(reason))); }}>{t("Retry")}</button>}</p>}
+      {!loaded && !error && <p role="status">{t("Loading album…")}</p>}
       {loaded && <>
-        <div className="admin-gallery-toolbar">
-          <label className="admin-gallery-upload">
-            <strong>Add photos</strong>
-            <span>JPG, PNG, WebP</span>
-            <input aria-label="Upload photos" type="file" multiple accept="image/jpeg,image/png,image/webp"
-              disabled={busy} onChange={event => { if (event.currentTarget.files) selectFiles(event.currentTarget.files); event.currentTarget.value = ""; }} />
-          </label>
-          <div className="admin-gallery-publish">
-            <p><strong>{album?.published_at ? "Published" : "Draft"}</strong> · {ready} visible photo{ready === 1 ? "" : "s"}</p>
-            <button type="button" className="admin-gallery-publish-action" disabled={busy || Boolean(publishHint)}
-              aria-describedby={publishHint ? "gallery-publish-hint" : undefined}
-              onClick={() => void updateAlbum({ published_at: album?.published_at ? null : new Date().toISOString() })}>
-              {album?.published_at ? "Unpublish album" : "Publish album"}
-            </button>
-            {publishHint && <p id="gallery-publish-hint">{publishHint}</p>}
-          </div>
+        <label className="admin-gallery-upload" data-dragging={dragging} data-disabled={busy}
+          onDragOver={event => {
+            if (!event.dataTransfer.types.includes("Files")) return;
+            event.preventDefault();
+            event.dataTransfer.dropEffect = busy ? "none" : "copy";
+            if (!busy) setDragging(true);
+          }}
+          onDragLeave={event => { if (!event.relatedTarget || !event.currentTarget.contains(event.relatedTarget as Node)) setDragging(false); }}
+          onDrop={event => { event.preventDefault(); setDragging(false); selectFiles(event.dataTransfer.files); }}>
+          <span className="admin-upload-icon" aria-hidden="true">↑</span>
+          <strong>{t("Drop photos here or choose files")}</strong>
+          <span>JPG, PNG, WebP</span>
+          <input className="admin-visually-hidden" aria-label={t("Upload photos")} type="file" multiple accept="image/jpeg,image/png,image/webp"
+            disabled={busy} onChange={event => { if (event.currentTarget.files) selectFiles(event.currentTarget.files); event.currentTarget.value = ""; }} />
+        </label>
+        {jobs.length > 0 && <section className="admin-gallery-progress">
+          <h3>{t("Upload queue")}</h3>
+          <div className="admin-upload-meter"><progress max={jobs.length} value={settled} aria-label={t("Processed")} />
+            <p role="status">{t("Processed")} · {settled} / {jobs.length}</p></div>
+          <dl className="admin-upload-counts">{([
+            ["Uploaded", done], ["Uploading", jobs.filter(job => job.state === "uploading").length],
+            ["Waiting", jobs.filter(job => job.state === "waiting").length], ["Failed", failed.length],
+          ] as const).map(([label, count]) => <div key={label} data-failed={label === "Failed" && count > 0}><dt>{t(label)}</dt><dd>{count}</dd></div>)}</dl>
+          {!!failed.length && <details><summary>{t("Failed")} · {failed.length}</summary><ul>{failed.map(job =>
+            <li key={job.order}>{job.file.name} · {t(job.error ?? "")}</li>)}</ul></details>}
+          {!!retryable.length && <div className="admin-action-bar"><button type="button" className="admin-button" disabled={busy} onClick={() => {
+            retryable.forEach(job => patchJob(job.order, { state: "waiting", error: undefined }));
+            void uploadJobs(retryable);
+          }}>{t("Retry failed files")} · {retryable.length}</button></div>}
+        </section>}
+        <div className="admin-album-status">
+          <p><strong>{t(published ? "Published" : "Draft")}</strong> · {photos.length} {t("photos")} · {ready} {t("Visible").toLowerCase()} · {hidden} {t("Hidden").toLowerCase()}</p>
+          {publishHint && <small id="gallery-publish-hint">{t(publishHint)}</small>}
         </div>
-        {jobs.length > 0 && <div className="admin-gallery-progress">
-          <progress max={jobs.length} value={settled} aria-label="Files processed" />
-          <p role="status">{settled} / {jobs.length} processed · {failed.length} failed</p>
-          {failed.length > 0 && <>
-            <button type="button" disabled={busy} onClick={() => {
-              failed.forEach(job => patchJob(job.order, { state: "waiting", error: undefined }));
-              void uploadJobs(failed);
-            }}>Retry failed files</button>
-            <details><summary>Failed files ({failed.length})</summary><ul>{failed.map(job =>
-              <li key={job.order}>{job.file.name} — {job.error}</li>)}</ul></details>
-          </>}
+        {!!photos.length && <div className="admin-form-grid">
+          <label className="admin-field"><span>{t("Find a photo")}</span><input type="search" placeholder={t("Filename or photo number")}
+            value={query} onChange={event => { setQuery(event.target.value); goToPage(0); }} /></label>
+          <label className="admin-field"><span>{t("Visibility filter")}</span><select value={filter} onChange={event => {
+            setFilter(event.target.value as typeof filter); goToPage(0);
+          }}><option value="all">{t("All photos")}</option><option value="visible">{t("Visible")}</option><option value="hidden">{t("Hidden")}</option><option value="pending">{t("Upload pending")}</option></select></label>
         </div>}
-        {previewFailed && <p role="status">Photo previews are temporarily unavailable.</p>}
-        {photos.length > 0 && <div className="admin-gallery-grid">{photos.slice(page * pageSize, (page + 1) * pageSize).map(photo => <article key={photo.id}>
-          {urls[photo.id] ? <img src={urls[photo.id]} alt="" loading="lazy" /> : <div className="admin-gallery-placeholder" aria-hidden="true" />}
-          {photo.id === album?.cover_photo_id && <span className="admin-gallery-cover">Cover</span>}
-          <p>Photo {photo.sort_order + 1} · {photo.state === "pending" ? "Upload pending" : photo.state === "hidden" ? "Hidden" : "Visible"}</p>
-          <div className="admin-gallery-photo-actions">
-            {photo.state === "visible" && photo.id !== album?.cover_photo_id && <button type="button" disabled={busy}
-              onClick={() => void updateAlbum({ cover_photo_id: photo.id })}>Set cover</button>}
-            {photo.state !== "pending" && !(photo.id === album?.cover_photo_id && album.published_at) &&
-              <button type="button" disabled={busy} onClick={() => void togglePhoto(photo)}>{photo.state === "hidden" ? "Show" : "Hide"}</button>}
-          </div>
-        </article>)}</div>}
-        {lastPage > 0 && <nav aria-label="Album pages" className="admin-gallery-pages">
-          <button type="button" disabled={page === 0} onClick={() => setPage(page - 1)}>Previous</button>
-          <span>{page + 1} / {lastPage + 1}</span>
-          <button type="button" disabled={page === lastPage} onClick={() => setPage(page + 1)}>Next</button>
+        {previewFailed && <p role="status">{t("Photo previews are temporarily unavailable.")}</p>}
+        {!!photos.length && !displayed.length && <p>{t("No matching photos.")}</p>}
+        {!!displayed.length && <div className="admin-gallery-scroll" ref={previewScroll}>
+          <div className="admin-gallery-grid">{displayed.map(photo => <article key={photo.id} data-state={photo.state}>
+            {urls[photo.id] ? <img src={urls[photo.id]} alt="" loading="lazy" /> : <div className="admin-gallery-placeholder" aria-hidden="true" />}
+            {photo.id === album?.cover_photo_id && <span className="admin-gallery-cover">{t("Cover")}</span>}
+            <p><strong>{t("Photo")} {photo.sort_order + 1}</strong> · {t(photo.state === "pending" ? "Upload pending" : photo.state === "hidden" ? "Hidden" : "Visible")}</p>
+            {photo.filename && <small title={photo.filename}>{photo.filename}</small>}
+            <div className="admin-gallery-photo-actions">
+              {photo.state === "visible" && photo.id !== album?.cover_photo_id && <button type="button" className="admin-button" disabled={busy}
+                onClick={() => void updateAlbum({ cover_photo_id: photo.id })}>{t("Set cover")}</button>}
+              {photo.state !== "pending" && !(photo.id === album?.cover_photo_id && published) &&
+                <button type="button" className="admin-button" disabled={busy} onClick={() => void togglePhoto(photo)}>{t(photo.state === "hidden" ? "Show" : "Hide")}</button>}
+            </div>
+          </article>)}</div>
+        </div>}
+        {matching.length > 0 && <nav aria-label={t("Album pages")} className="admin-gallery-pages">
+          <p>{currentPage * pageSize + 1}–{Math.min(matching.length, (currentPage + 1) * pageSize)} {t("of")} {matching.length} {t("photos")}</p>
+          <div><button type="button" className="admin-button" disabled={currentPage === 0} onClick={() => goToPage(currentPage - 1)}>{t("Previous")}</button>
+            <select aria-label={t("Page")} value={currentPage} onChange={event => goToPage(Number(event.target.value))}>
+              {Array.from({ length: lastPage + 1 }, (_, i) => <option key={i} value={i}>{t("Page")} {i + 1} {t("of")} {lastPage + 1}</option>)}
+            </select>
+            <button type="button" className="admin-button" disabled={currentPage === lastPage} onClick={() => goToPage(currentPage + 1)}>{t("Next")}</button></div>
         </nav>}
+        <div className="admin-action-bar">
+          {published && <a className="admin-button" href={`../gallery/?tournament=${encodeURIComponent(tournamentSlug)}`} target="_blank" rel="noreferrer">{t("Open album")}</a>}
+          <button type="button" className={published ? "admin-button" : "admin-button is-primary"} disabled={busy || Boolean(publishHint)}
+            aria-describedby={publishHint ? "gallery-publish-hint" : undefined} onClick={() => void changePublication()}>{t(published ? "Unpublish album" : "Publish album")}</button>
+        </div>
       </>}
     </div>
-  </div>;
+  </section>;
 }

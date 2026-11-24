@@ -108,12 +108,12 @@ test("ships live bracket and protected tournament controls", async () => {
   assert.match(creator, /create_tournament_setup/);
   assert.match(admin, /reset_match_result/);
   assert.doesNotMatch(admin, /ManualDraw/);
-  assert.match(creator, /Опубликовать на сайте/);
+  assert.match(creator, /Publish on website/);
   assert.match(admin, /Update live score/);
-  assert.match(admin, /setSelectedId\(null\); setShowCreate\(true\)/);
-  assert.match(admin, /showCreate && !selectedId && canCreateTournament/);
-  assert.match(admin, /if \(tournamentId\) setShowCreate\(false\)/);
-  assert.match(creator, /admin-create-actions/);
+  assert.match(admin, /onClick=\{\(\) => setShowCreate\(true\)\}/);
+  assert.match(admin, /showCreate && !selected && canCreateTournament/);
+  assert.match(admin, /const \[selectedId, setSelectedId\] = useState<string \| null>\(null\)/);
+  assert.match(creator, /admin-action-bar/);
   assert.match(admin, /ends_at/);
   assert.match(admin, /matchesByRound/);
   assert.match(admin, /admin-round-group/);
@@ -125,7 +125,7 @@ test("ships live bracket and protected tournament controls", async () => {
   assert.match(admin, /registration_status: registrationStatus/);
   assert.match(admin, /Open · accepting pairs/);
   assert.match(admin, /Waitlist only/);
-  assert.match(admin, /Review pair applications and keep each status up to date\./);
+  assert.match(admin, /Filter by status/);
   assert.match(admin, /Refresh applications/);
   assert.match(admin, /No applications match this filter\./);
   assert.doesNotMatch(admin, /tournament_registrations"\)\.delete/);
@@ -135,7 +135,7 @@ test("ships live bracket and protected tournament controls", async () => {
   assert.match(resetMigration, /delete from public\.tournament_registrations/);
   assert.match(resetMigration, /delete from public\.match_result_history/);
   assert.doesNotMatch(admin, /Create a new account|Forgot password\?/);
-  assert.match(admin, /Login or password is incorrect\./);
+  assert.match(admin, /Incorrect login or password\./);
   assert.doesNotMatch(admin, /Activity log/);
   assert.match(bracket, /postgres_changes/);
   assert.match(bracket, /match-connector/);
@@ -217,7 +217,7 @@ test("ships live bracket and protected tournament controls", async () => {
   assert.match(register, /submissionState === "success"/);
   assert.match(register, /registration-success/);
   assert.match(admin, /delete_tournament/);
-  assert.match(admin, /Type the exact tournament name/);
+  assert.match(admin, /exactName: tournament\.name/);
   assert.match(migration, /enable row level security/i);
   assert.match(migration, /is_tournament_owner/);
   assert.match(migration, /activity_log/);

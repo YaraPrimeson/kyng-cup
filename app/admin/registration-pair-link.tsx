@@ -1,4 +1,5 @@
 "use client";
+import { useAdminUI } from "./admin-ui";
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { supabase } from "@/lib/supabase";
@@ -78,6 +79,7 @@ export function RegistrationPairLinks({ tournamentId, pairs, refreshVersion, chi
 }
 
 export default function RegistrationPairLink({ registration }: { registration: { id: string; status: string } }) {
+  const { t } = useAdminUI();
   const context = useContext(Context)!;
   const [selected, setSelected] = useState("");
   const [operationError, setOperationError] = useState<string | null>(null);
@@ -90,17 +92,17 @@ export default function RegistrationPairLink({ registration }: { registration: {
   const available = (id: string) => context.pairs.some(item => item.id === id) && !context.links.some(item => item.pair_id === id);
   const pair = context.pairs.find(item => item.id === link?.pair_id);
   if (context.loading || context.loadError) return <div className="admin-registration-claim" data-registration-pair-link={registration.id}>
-    {context.loading ? <p role="status">Loading pair links…</p> : <><p role="alert">{context.loadError}</p><button type="button" disabled={context.busy} onClick={() => { setOperationError(null); context.retry(); }}>Retry pair links</button></>}
+    {context.loading ? <p role="status">{t("Loading pair links…")}</p> : <><p role="alert">{t(context.loadError ?? "")}</p><button type="button" disabled={context.busy} onClick={() => { setOperationError(null); context.retry(); }}>{t("Retry pair links")}</button></>}
   </div>;
   return <div className="admin-registration-claim" data-registration-pair-link={registration.id}>
-    <strong>Tournament pair link</strong>
-    {registration.status !== "confirmed" && <p>Only confirmed applications can be linked.</p>}
-    {link ? <><p>Linked tournament pair: {pair?.name ?? link.pair_id}{pair && <> · {pair.player_one} / {pair.player_two}</>}</p><p>Unlink this pair before choosing a different pair.</p><button type="button" disabled={context.busy} onClick={() => void change(null)}>Unlink pair</button></> : registration.status === "confirmed" ? <>
-      <label className="admin-field"><span>Tournament pair</span><select value={selected} disabled={context.busy} onChange={event => { setSelected(event.target.value); setOperationError(null); }}><option value="">Choose a tournament pair</option>{context.pairs.map(item => <option key={item.id} value={item.id} disabled={!available(item.id)}>{item.name} · {item.player_one} / {item.player_two}{!available(item.id) ? " · Already linked" : ""}</option>)}</select></label>
-      {!context.pairs.length && <p>No tournament pairs available.</p>}
-      <button type="button" disabled={context.busy || !available(selected)} onClick={() => { if (available(selected)) void change(selected); }}>Link pair</button>
+    <strong>{t("Tournament pair link")}</strong>
+    {registration.status !== "confirmed" && <p>{t("Only confirmed applications can be linked.")}</p>}
+    {link ? <><p>{t("Linked tournament pair:")} {pair?.name ?? link.pair_id}{pair && <> · {pair.player_one} / {pair.player_two}</>}</p><p>{t("Unlink this pair before choosing a different pair.")}</p><button type="button" disabled={context.busy} onClick={() => void change(null)}>{t("Unlink pair")}</button></> : registration.status === "confirmed" ? <>
+      <label className="admin-field"><span>{t("Tournament pair")}</span><select value={selected} disabled={context.busy} onChange={event => { setSelected(event.target.value); setOperationError(null); }}><option value="">{t("Choose a tournament pair")}</option>{context.pairs.map(item => <option key={item.id} value={item.id} disabled={!available(item.id)}>{item.name} · {item.player_one} / {item.player_two}{!available(item.id) ? ` · ${t("Already linked")}` : ""}</option>)}</select></label>
+      {!context.pairs.length && <p>{t("No tournament pairs available.")}</p>}
+      <button type="button" disabled={context.busy || !available(selected)} onClick={() => { if (available(selected)) void change(selected); }}>{t("Link pair")}</button>
     </> : null}
-    {context.busy && <p role="status">Saving pair link…</p>}
-    {operationError && <><p role="alert">{operationError}</p><button type="button" disabled={context.busy} onClick={() => { setOperationError(null); context.retry(); }}>Refresh pair links</button></>}
+    {context.busy && <p role="status">{t("Saving pair link…")}</p>}
+    {operationError && <><p role="alert">{t(operationError)}</p><button type="button" disabled={context.busy} onClick={() => { setOperationError(null); context.retry(); }}>{t("Refresh pair links")}</button></>}
   </div>;
 }

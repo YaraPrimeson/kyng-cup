@@ -10,6 +10,8 @@ const dom = new JSDOM('<div id="root"></div>', { url: 'https://kyngcup.test/admi
 globalThis.window = dom.window;
 globalThis.document = dom.window.document;
 globalThis.HTMLElement = dom.window.HTMLElement;
+dom.window.HTMLDialogElement.prototype.showModal ??= function () { this.setAttribute('open', ''); };
+dom.window.HTMLDialogElement.prototype.close ??= function () { this.removeAttribute('open'); };
 for (const key of ['Node', 'NodeFilter', 'Element', 'MutationObserver']) globalThis[key] = dom.window[key];
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 const { createElement, act } = await import('react');
@@ -122,6 +124,7 @@ async function unmount() {
 beforeEach(async () => {
   await unmount();
   window.sessionStorage.clear();
+  window.localStorage.clear();
   user = { id: 'organizer-one' };
   calls = []; createError = null; tournamentChange = undefined; pairLinks = []; pairLinkRpc = undefined;
   records = { tournaments: [{ ...existing }] };
@@ -140,6 +143,7 @@ test('organiser creates a single-use claim code for the registered contact witho
     submitted_by: null, partner_user_id: null,
   }];
   await mount();
+  await openRegistration('legacy-one', 'Player accounts');
   assert.ok(calls.some(call => call.name === 'list_tournament_registrations' && call.payload.p_tournament_id === existing.id), 'Admin list uses protected RPC');
   await click(button('Create player 1 code'));
   assert.ok(calls.some(call => call.name === 'issue_registration_claim_code' && call.payload.p_registration_id === 'legacy-one' && call.payload.p_player_role === 'primary'));
@@ -159,24 +163,27 @@ test('shared tournament picker works across all tabs and allows publishing cover
     { tournament_id: completed.id, id: 'three', sort_order: 1, state: 'visible' },
   ];
   await mount();
-  await enter(document.querySelector('.admin-current-tournament select'), existing.id);
-  await click(button('Photos'));
+  assert.equal(document.querySelector('.admin-workspace-tabs'), null, 'Choose a tournament before tabs are available');
+  await selectCup();
+  await click(button('Photo album'));
   const gallery = () => document.querySelector('.admin-gallery');
-  assert.equal(document.querySelector(".admin-current-status").textContent, "Draft");
-  assert.match(gallery().textContent, /1 visible photo/);
+  assert.equal(document.querySelector(".admin-selection .admin-status").textContent, "Draft");
+  assert.match(gallery().textContent, /1 visible/);
   assert.equal(button('Publish album').disabled, false);
   await click(button('Publish album'));
+  assert.equal(calls.some(call => call.name === 'update:tournament_galleries'), false);
+  await click(document.querySelector('dialog button[type=submit]'));
   assert.ok(calls.some(call => call.name === 'update:tournament_galleries' && call.payload.published_at));
-
   await click(button('Live matches'));
   assert.equal(document.querySelector('#admin-panel-photos').hidden, true);
-  assert.equal(document.querySelector('.admin-current-tournament select').value, existing.id);
-  await enter(document.querySelector('.admin-current-tournament select'), completed.id);
-  await click(button('Photos'));
+  assert.match(document.querySelector('.admin-selection').textContent, /Existing Cup/);
+  await click(button('Change tournament'));
+  await selectCup('Past Cup');
+  await click(button('Photo album'));
   assert.equal(document.querySelector("#admin-panel-photos").hidden, false);
-  assert.equal(document.querySelector('.admin-current-tournament select').value, completed.id);
-  assert.equal(document.querySelector(".admin-current-status").textContent, "Completed");
-  assert.match(gallery().textContent, /2 visible photos/);
+  assert.match(document.querySelector('.admin-selection').textContent, /Past Cup/);
+  assert.equal(document.querySelector(".admin-selection .admin-status").textContent, "Completed");
+  assert.match(gallery().textContent, /2 visible/);
   assert.equal(button('Publish album').disabled, false);
 });
 
@@ -189,19 +196,20 @@ test('partner without a contact email cannot receive a claim code', async () => 
     submitted_by: null, partner_user_id: null,
   }];
   await mount();
+  await openRegistration('guest-no-email', 'Player accounts');
   assert.doesNotMatch(document.body.textContent, /mailto:null|tel:null/);
   assert.ok(![...document.querySelectorAll('button')].some(node => node.textContent.includes('Create player 2 code')));
   assert.match(document.body.textContent, /no contact email/);
 });
 
-function button(text) {
-  text = text === 'Закрыть' ? 'Close' : text;
-  const element = [...document.querySelectorAll('button')].find(node => node.textContent.includes(text));
+function button(text, root = document) {
+  const nodes = [...root.querySelectorAll('button')].filter(node => !node.closest('[hidden]'));
+  const element = nodes.find(node => node.textContent.trim() === text)
+    ?? nodes.find(node => node.textContent.includes(text));
   assert.ok(element, `Button missing: ${text}`); return element;
 }
 function field(label) {
-  label = ({ 'Название': 'Name', 'Локация': 'Location', 'Вид спорта': 'Sport' })[label] ?? label;
-  const element = [...document.querySelectorAll('label')].find(node => node.querySelector('span')?.textContent === label)?.querySelector('input,textarea,select');
+  const element = [...document.querySelectorAll('label')].find(node => !node.closest('[hidden]') && node.querySelector('span')?.textContent === label)?.querySelector('input,textarea,select');
   assert.ok(element, `Field missing: ${label}`); return element;
 }
 async function click(element) { await act(async () => { element.click(); }); await settle(); }
@@ -211,36 +219,54 @@ async function enter(element, value) {
     element.dispatchEvent(new window.Event(element.tagName === 'SELECT' ? 'change' : 'input', { bubbles: true }));
   });
 }
+async function selectCup(name = existing.name) { await click(button(name, document.querySelector('.admin-picker-table'))); }
+async function openRegistration(id, view = 'Pair link') {
+  await selectCup();
+  await click(button('Registrations'));
+  const target = id ? document.querySelector(`[data-open-registration="${id}"]`) : document.querySelector('[data-open-registration]');
+  await click(target);
+  await click(button(view, document.querySelector('.admin-registration-card:not([hidden] *)')));
+}
 async function fillDraft() {
-  await click(button('+ New tournament'));
-  await enter(field('Название'), 'My unfinished Cup');
-  await enter(field('Дата'), '2027-06-12');
-  await enter(field('Локация'), 'Copied venue');
-  await enter(field('Вид спорта'), 'padel');
-  await enter(field('Количество пар'), '14');
-  await enter(field('Количество групп'), '3');
-  await enter(field('Дата завершения · необязательно'), '2027-06-14');
-  await enter(field('Адрес турнира'), 'custom-unfinished-cup');
-  await enter(field('Видимость'), 'published');
-  await enter(field('Список пар'), 'Alex / Dan\nEva / Mia');
-  await enter(document.querySelector('[aria-label="Пара 1: первый игрок"]'), 'Unsaved player');
-  await enter(document.querySelector('[aria-label="Группа пары 1"]'), 'B');
-  await enter(field('Выходят в плей-офф'), '1');
+  await click(button('New tournament'));
+  await enter(field('Tournament name'), 'My unfinished Cup');
+  await enter(field('Start date'), '2027-06-12');
+  assert.equal(field('End date').value, '2027-06-12', 'Single-day tournament defaults to the start date');
+  await enter(field('End date'), '2027-06-14');
+  await enter(field('Start date'), '2027-06-11');
+  assert.equal(field('End date').value, '2027-06-14', 'Manual end date survives edits to the start date');
+  await enter(field('Start date'), '2027-06-12');
+  await enter(field('Location'), 'Copied venue');
+  await enter(field('Sport'), 'padel');
+  await enter(field('Tournament address'), 'custom-unfinished-cup');
+  await click(button('Continue to pairs'));
+  await enter(field('Number of pairs'), '14');
+  await enter(field('Pair list'), 'Alex / Dan\nEva / Mia');
+  await enter(document.querySelector('[aria-label="Player one · 1"]'), 'Unsaved player');
+  await click(button('Continue to format'));
+  await enter(field('Number of groups'), '3');
+  await enter(document.querySelector('[aria-label="Group · Pair 1"]'), 'B');
+  await enter(field('Qualifiers'), '1');
+  await click(button('Review tournament'));
+  await enter(field('Visibility'), 'published');
+}
+async function backToDetails() {
+  for (let i = 0; i < 3; i++) await click(button('Back', document.querySelector('.quick-tournament')));
 }
 function assertDraft() {
-  assert.equal(field('Название').value, 'My unfinished Cup');
-  assert.equal(field('Дата').value, '2027-06-12');
-  assert.equal(field('Локация').value, 'Copied venue');
-  assert.equal(field('Вид спорта').value, 'padel');
-  assert.equal(field('Количество пар').value, '14');
-  assert.equal(field('Количество групп').value, '3');
-  assert.equal(field('Дата завершения · необязательно').value, '2027-06-14');
-  assert.equal(field('Адрес турнира').value, 'custom-unfinished-cup');
-  assert.equal(field('Видимость').value, 'published');
-  assert.equal(field('Список пар').value, 'Alex / Dan\nEva / Mia');
-  assert.equal(document.querySelector('[aria-label="Пара 1: первый игрок"]').value, 'Unsaved player');
-  assert.equal(document.querySelector('[aria-label="Группа пары 1"]').value, 'B');
-  assert.equal(field('Выходят в плей-офф').value, '1');
+  assert.equal(field('Visibility').value, 'published');
+  const review = document.querySelector('.admin-create-review');
+  for (const text of ['My unfinished Cup', 'Copied venue', '2027-06-12', '2027-06-14', '14', '3']) assert.ok(review.textContent.includes(text));
+  try {
+    const draft = JSON.parse(window.sessionStorage.getItem('kyng-tournament-draft:v1:organizer-one')).draft;
+    assert.equal(draft.slug, 'custom-unfinished-cup');
+    assert.equal(draft.list, 'Alex / Dan\nEva / Mia');
+    assert.equal(draft.pairs[0].player_one, 'Unsaved player');
+    assert.equal(draft.pairs[0].group, 'B');
+    assert.equal(draft.qualifiers.A, 1);
+  } catch (error) {
+    if (error.message !== 'Storage blocked') throw error;
+  }
 }
 
 test('switching tabs and repeated SIGNED_IN/TOKEN_REFRESHED preserve the same form and typed text', async () => {
@@ -262,30 +288,41 @@ test('switching tabs and repeated SIGNED_IN/TOKEN_REFRESHED preserve the same fo
 
 test('page reload restores the open creation form and every unsaved field', async () => {
   await mount(); await fillDraft(); await unmount(); await mount(); assertDraft();
-  await enter(field('Название'), 'Renamed Cup');
-  assert.equal(field('Адрес турнира').value, 'custom-unfinished-cup', 'A restored custom address must remain custom');
+  await backToDetails();
+  await enter(field('Tournament name'), 'Renamed Cup');
+  assert.equal(field('Tournament address').value, 'custom-unfinished-cup', 'A restored custom address must remain custom');
 });
 
 test('closing and reopening creation keeps the draft; another account cannot see it', async () => {
-  await mount(); await fillDraft(); await click(button('Закрыть'));
-  await click(button('+ New tournament')); assertDraft();
+  await mount(); await fillDraft(); await backToDetails(); await click(button('Close'));
+  await click(button('New tournament'));
+  assert.equal(field('Tournament name').value, 'My unfinished Cup');
   await act(async () => { user = { id: 'organizer-two' }; listener('SIGNED_IN', { user }); });
-  await settle(); await click(button('+ New tournament'));
-  assert.equal(field('Название').value, '');
-  assert.equal(field('Список пар').value, '');
+  await settle(); await click(button('New tournament'));
+  assert.equal(field('Tournament name').value, '');
+  await enter(field('Tournament name'), 'Clean');
+  await enter(field('Start date'), '2027-06-12');
+  await click(button('Continue to pairs'));
+  assert.equal(field('Pair list').value, '');
 });
 
 test('background tournament updates do not select an old tournament over a new draft', async () => {
   await mount();
+  await selectCup();
   const notify = tournamentChange;
   assert.ok(notify);
+  await click(button('Change tournament'));
   await fillDraft();
   await act(async () => { notify(); }); await settle(); assertDraft();
 });
 
 test('failed creation keeps the draft, successful creation clears it', async () => {
   await mount(); await fillDraft();
-  await enter(document.querySelector('[aria-label="Пара 1: второй игрок"]'), 'Dan');
+  await click(button('Back', document.querySelector('.quick-tournament')));
+  await click(button('Back', document.querySelector('.quick-tournament')));
+  await enter(document.querySelector('[aria-label="Player two · 1"]'), 'Dan');
+  await click(button('Continue to format'));
+  await click(button('Review tournament'));
   createError = { message: 'Temporary save error' };
   await act(async () => { document.querySelector('.quick-tournament').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true })); });
   await settle();
@@ -295,9 +332,13 @@ test('failed creation keeps the draft, successful creation clears it', async () 
   await act(async () => { document.querySelector('.quick-tournament').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true })); });
   await settle();
   assert.equal(calls.filter(call => call.name === 'create_tournament_setup').length, 2);
-  await click(button('+ New tournament'));
-  assert.equal(field('Название').value, '');
-  assert.equal(field('Список пар').value, '');
+  await click(button('Change tournament'));
+  await click(button('New tournament'));
+  assert.equal(field('Tournament name').value, '');
+  await enter(field('Tournament name'), 'Clean');
+  await enter(field('Start date'), '2027-06-12');
+  await click(button('Continue to pairs'));
+  assert.equal(field('Pair list').value, '');
 });
 
 test('sign-out still protects the admin page and signing back in restores the same account draft', async () => {
@@ -312,8 +353,8 @@ test('sign-out still protects the admin page and signing back in restores the sa
 test('corrupt or unsupported stored drafts fall back to a usable empty form', async () => {
   for (const raw of ['not json', 'null', '{"version":2,"draft":{}}', '{"version":1,"draft":{"pairs":null}}']) {
     window.sessionStorage.setItem('kyng-tournament-draft:v1:organizer-one', raw);
-    await mount(); await click(button('+ New tournament'));
-    assert.equal(field('Название').value, '');
+    await mount(); await click(button('New tournament'));
+    assert.equal(field('Tournament name').value, '');
     await unmount();
   }
 });
@@ -339,7 +380,7 @@ function linkPanel(id = 'registration-one') {
 }
 test('confirmed application requires explicit pair selection and linking, then unlink before replacement', async () => {
   pairFixtures(); records.tournament_registrations = [registrationFixture()];
-  await mount();
+  await mount(); await openRegistration();
   const panel = linkPanel();
   assert.ok(calls.some(call => call.name === 'get_registration_pair_links' && call.payload.p_tournament_id === existing.id));
   assert.equal(panel.querySelector('select').value, '', 'No name-based auto-selection');
@@ -359,7 +400,7 @@ test('only confirmed applications can link and occupied or foreign pairs cannot 
   pairFixtures(); records.pairs.push({ ...records.pairs[0], id: 'foreign', tournament_id: 'other-cup' });
   records.tournament_registrations = [registrationFixture(), registrationFixture('pending', 'reviewing')];
   pairLinks = [{ registration_id: 'hidden-application', pair_id: 'p1' }];
-  await mount();
+  await mount(); await openRegistration();
   const panel = linkPanel();
   assert.ok(!panel.querySelector('option[value="foreign"]'));
   assert.ok(panel.querySelector('option[value="p1"]').disabled, 'Pair linked to another application must be blocked');
@@ -372,7 +413,7 @@ test('only confirmed applications can link and occupied or foreign pairs cannot 
 test('Refresh applications reloads pair links and available choices without discarding unsaved notes', async () => {
   pairFixtures(); records.tournament_registrations = [registrationFixture(), registrationFixture('second')];
   pairLinks = [{ registration_id: 'registration-one', pair_id: 'p1' }];
-  await mount();
+  await mount(); await openRegistration();
   assert.match(linkPanel().textContent, /Linked tournament pair: Top pair/);
   assert.ok(linkPanel('second').querySelector('option[value="p1"]').disabled);
   assert.equal(linkPanel('second').querySelector('option[value="p2"]').disabled, false);
@@ -396,7 +437,7 @@ test('pair links fail closed while loading and after load errors, with an explic
   pairFixtures(); records.tournament_registrations = [registrationFixture()];
   let resolveLoad;
   pairLinkRpc = () => new Promise(resolve => { resolveLoad = resolve; });
-  await mount();
+  await mount(); await openRegistration();
   const panel = linkPanel();
   assert.match(panel.textContent, /Loading pair links/);
   assert.equal(panel.querySelector('select'), null);
@@ -414,7 +455,7 @@ for (const unlink of [false, true]) {
     test(`${unlink ? 'unlink' : 'link'} RPC ${thrown ? 'rejection' : 'error'} shows no false success and preserves the prior link`, async () => {
       pairFixtures(); records.tournament_registrations = [registrationFixture()];
       if (unlink) pairLinks = [{ registration_id: 'registration-one', pair_id: 'p2' }];
-      await mount();
+      await mount(); await openRegistration();
       const panel = linkPanel();
       if (!unlink) await enter(panel.querySelector('select'), 'p2');
       pairLinkRpc = (name) => {
@@ -432,7 +473,7 @@ for (const unlink of [false, true]) {
 
 test('pair linking blocks duplicate submissions until the server read-back completes', async () => {
   pairFixtures(); records.tournament_registrations = [registrationFixture(), registrationFixture('second')];
-  await mount(); const panel = linkPanel();
+  await mount(); await openRegistration(); const panel = linkPanel();
   await enter(panel.querySelector('select'), 'p2');
   let resolveWrite;
   pairLinkRpc = name => name === 'get_registration_pair_links' ? { data: pairLinks, error: null } : new Promise(resolve => { resolveWrite = resolve; });
@@ -449,7 +490,7 @@ test('pair linking blocks duplicate submissions until the server read-back compl
 
 test('Refresh applications preserves busy protection through pending write and deferred read-back', async () => {
   pairFixtures(); records.tournament_registrations = [registrationFixture(), registrationFixture('second')];
-  await mount();
+  await mount(); await openRegistration();
   await enter(linkPanel().querySelector('select'), 'p2');
   await enter(linkPanel('second').querySelector('select'), 'p3');
   let resolveWrite;
@@ -489,7 +530,7 @@ test('Refresh applications preserves busy protection through pending write and d
 for (const verification of ['error', 'mismatch']) {
   test(`pair link ${verification} on read-back never reports success and requires retry`, async () => {
     pairFixtures(); records.tournament_registrations = [registrationFixture()];
-    await mount(); const panel = linkPanel(); await enter(panel.querySelector('select'), 'p2');
+    await mount(); await openRegistration(); const panel = linkPanel(); await enter(panel.querySelector('select'), 'p2');
     pairLinkRpc = name => name === 'link_registration_pair' ? { data: null, error: null }
       : verification === 'error' ? { data: null, error: { message: 'Offline' } } : { data: [], error: null };
     await click(panel.querySelector('button'));
@@ -515,12 +556,15 @@ test('live match workspace can adjust games, finish a set, and submit the final 
     tournament_id: existing.id, court: 'Court 1', status: 'live', pair_one_sets: [6], pair_two_sets: [5],
   })];
   await mount();
+  await selectCup();
   await click(button('Live matches'));
+  await click(button('Update score'));
   const form = document.querySelector('.admin-day-editor .admin-match');
   await click(form.querySelector('[aria-label="Add a game for Top pair"]'));
   assert.equal(form.querySelector('[aria-label="Set scores"]').value, '7-5');
   await click(button('Finish set'));
   assert.equal(form.querySelector('[aria-label="Set scores"]').value, '7-5, 0-0');
+  await click(button('Enter final result'));
   await click(form.querySelector('input[type="radio"]'));
   await submit(form);
   const save = calls.find(call => call.name === 'record_match_result');
@@ -538,7 +582,8 @@ for (const kind of ['playoffs', 'groups']) {
       records.group_members = records.pairs.map((pair,i) => ({group_id:'group-a',pair_id:pair.id,position:i+1}));
       records.group_matches = [gameFixture('group-game',{tournament_id:'existing',group_id:'group-a'})];
     } else records.matches = [gameFixture('main-game')];
-    await mount();
+    await mount(); await selectCup(); await click(button(kind === 'groups' ? 'Groups' : 'Playoffs'));
+    if (kind === 'groups') await click(button('Standings'));
     const form = document.querySelector('.admin-match');
     await enter(form.querySelector('[aria-label="Set scores"]'),'1-0');
     await click(form.querySelector('[aria-label="Select Bottom pair as winner"] input'));
@@ -557,8 +602,8 @@ for (const kind of ['playoffs', 'groups']) {
 test('consolation games expose the same score saving controls as playoff games', async () => {
   pairFixtures(); records.tournaments[0].format='group_knockout';
   records.matches=[gameFixture('basement-game',{bracket_kind:'basement'})];
-  await mount();
-  const section=[...document.querySelectorAll('.admin-collapsible')].find(node=>node.querySelector('h2')?.textContent==='Король подвала');
+  await mount(); await selectCup(); await click(button('King of the Basement'));
+  const section=[...document.querySelectorAll('.admin-collapsible')].find(node=>node.querySelector('h2')?.textContent==='King of the Basement');
   assert.ok(section);
   const form=section.querySelector('.admin-match');
   await enter(form.querySelector('[aria-label="Set scores"]'),'0-1');
@@ -576,7 +621,7 @@ test('nine-pair draw shows one preliminary match; drag/drop swaps actual slots a
   records.tournament_groups=[{id:'group-a',code:'A',qualify_count:9}];
   records.group_members=records.pairs.map((pair,i)=>({group_id:'group-a',pair_id:pair.id,position:i+1}));
   records.group_matches=[gameFixture('finished-group',{group_id:'group-a',tournament_id:'existing',status:'completed',pair_one_sets:[1],pair_two_sets:[0],winner_id:'p1'})];
-  await mount();
+  await mount(); await selectCup(); await click(button('Groups')); await click(button('Playoff qualifiers'));
   const preview=document.querySelector('[aria-label="Playoff draw preview"]');
   assert.ok(preview);
   assert.equal(preview.querySelectorAll('.draw-preview-match').length,8);
@@ -592,12 +637,64 @@ test('nine-pair draw shows one preliminary match; drag/drop swaps actual slots a
   await act(async()=>{from.dispatchEvent(drag);});
   await act(async()=>{to.dispatchEvent(new window.Event('drop',{bubbles:true,cancelable:true}));});
   assert.equal(preview.querySelectorAll('[draggable="true"]')[0].textContent,targetText);
-  const confirm=button('Confirm 9/9');
-  window.confirm=()=>true;
-  await click(confirm);
+  await click(button('Confirm playoff draw'));
+  await click(document.querySelector('dialog button[type=submit]'));
   const saved=calls.find(call=>call.name==='confirm_group_qualifiers');
   assert.equal(saved.payload.p_pair_ids.length,9);
   assert.equal(new Set(saved.payload.p_pair_ids).size,9);
   assert.equal(saved.payload.p_pair_ids[7],toId);
   assert.equal(saved.payload.p_pair_ids[8],fromId);
+});
+
+test('500-photo album pages by 24 and filters across pages by filename and visibility', async () => {
+  records.tournament_galleries = [{ tournament_id: existing.id, cover_photo_id: 'photo-1', published_at: null }];
+  records.tournament_gallery_photos = Array.from({ length: 500 }, (_, i) => ({
+    tournament_id: existing.id, id: `photo-${i + 1}`, sort_order: i, state: i === 499 ? 'hidden' : 'visible',
+  }));
+  records.tournament_gallery_photo_filenames = [
+    { tournament_id: existing.id, photo_id: 'photo-500', filename: 'Vienna Final.webp' },
+  ];
+  await mount(); await selectCup(); await click(button('Photo album'));
+  assert.equal(document.querySelectorAll('.admin-gallery-grid article').length, 24);
+  await enter(document.querySelector('.admin-gallery-pages select'), '20');
+  assert.equal(document.querySelectorAll('.admin-gallery-grid article').length, 20);
+  assert.match(document.querySelector('.admin-gallery-pages').textContent, /481–500 of 500/);
+  await enter(field('Find a photo'), 'vienna final');
+  assert.equal(document.querySelectorAll('.admin-gallery-grid article').length, 1);
+  assert.match(document.querySelector('.admin-gallery-grid article').textContent, /Photo 500.*Vienna Final/);
+  await enter(field('Visibility filter'), 'visible');
+  assert.match(document.querySelector('.admin-gallery').textContent, /No matching photos/);
+  await enter(field('Visibility filter'), 'hidden');
+  assert.equal(document.querySelectorAll('.admin-gallery-grid article').length, 1);
+});
+
+test('Russian preference applies to the admin and survives reload without setting site language', async () => {
+  await mount(); await selectCup();
+  const siteLanguage = document.documentElement.lang;
+  await click(button('RU'));
+  assert.equal(document.querySelector('main').lang, 'ru');
+  assert.match(document.body.textContent, /Настройки турнира|Сменить турнир/);
+  assert.equal(document.documentElement.lang, siteLanguage);
+  await unmount(); await mount();
+  assert.equal(document.querySelector('main').lang, 'ru');
+  assert.match(document.body.textContent, /Турниры/);
+});
+
+test('deleting requires the exact tournament name and a final confirmation', async () => {
+  await mount(); await selectCup(); await click(button('More actions'));
+  await click(button('Delete tournament'));
+  let dialog = document.querySelector('dialog');
+  assert.equal(dialog.querySelector('button[type="submit"]').disabled, true);
+  await enter(dialog.querySelector('input'), 'Wrong Cup');
+  await submit(dialog.querySelector('form'));
+  assert.equal(document.querySelector('dialog'), dialog);
+  await enter(dialog.querySelector('input'), existing.name);
+  await click(dialog.querySelector('button[type="submit"]'));
+  assert.equal(calls.some(call => call.name === 'delete_tournament'), false);
+  dialog = document.querySelector('dialog');
+  assert.match(dialog.textContent, /Confirm permanent deletion/);
+  await click(dialog.querySelector('button[type="submit"]'));
+  assert.deepEqual(calls.find(call => call.name === 'delete_tournament')?.payload, {
+    p_tournament_id: existing.id, p_confirmation_name: existing.name,
+  });
 });

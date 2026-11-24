@@ -1,4 +1,5 @@
 "use client";
+import { useAdminUI } from "./admin-ui";
 import { isSportVisible } from "@/lib/sports";
 import { FormEvent, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
@@ -6,14 +7,17 @@ import { balancePairs, blankPairs, buildTournamentSetup, groupSummary, parsePair
 import { clearTournamentDraft, newTournamentDraft, readTournamentDraft, saveTournamentDraft } from "@/lib/tournament-draft";
 
 export default function CreateTournament({ userId, onCreated, onClose }: { userId: string; onCreated: (id: string) => void; onClose: () => void }) {
+  const { t } = useAdminUI();
   const [initial] = useState(() => readTournamentDraft(userId) ?? newTournamentDraft());
+  const [step, setStep] = useState(initial.step ?? 0);
   const [name, setName] = useState(initial.name);
   const [slug, setSlug] = useState(initial.slug);
   const [slugEdited, setSlugEdited] = useState(initial.slugEdited);
   const [fallbackSlug] = useState(initial.fallbackSlug);
   const [location, setLocation] = useState(initial.location);
   const [date, setDate] = useState(initial.date);
-  const [endDate, setEndDate] = useState(initial.endDate);
+  const [endDate, setEndDate] = useState(initial.endDate || initial.date);
+  const [endDateEdited, setEndDateEdited] = useState(initial.endDateEdited ?? Boolean(initial.endDate && initial.endDate !== initial.date));
   const [sport, setSport] = useState(initial.sport);
   const [status, setStatus] = useState(initial.status);
   const [format, setFormat] = useState(initial.format);
@@ -24,8 +28,8 @@ export default function CreateTournament({ userId, onCreated, onClose }: { userI
   const [message, setMessage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   useEffect(() => {
-    saveTournamentDraft(userId, { name, slug, slugEdited, fallbackSlug, location, date, endDate, sport, status, format, groups, pairs, qualifiers, list });
-  }, [userId, name, slug, slugEdited, fallbackSlug, location, date, endDate, sport, status, format, groups, pairs, qualifiers, list]);
+    saveTournamentDraft(userId, { name, slug, slugEdited, fallbackSlug, location, date, endDate, endDateEdited, sport, status, format, groups, pairs, qualifiers, list, step });
+  }, [userId, name, slug, slugEdited, fallbackSlug, location, date, endDate, endDateEdited, sport, status, format, groups, pairs, qualifiers, list, step]);
   const summaries = groupSummary(pairs, groups);
   const playoffCount = format === "knockout" ? pairs.length : summaries.reduce((total, group) => total + (qualifiers[group.code] ?? 2), 0);
   const invalidGroups = format === "group_knockout" && summaries.some((group) => group.size < 2 || (qualifiers[group.code] ?? 2) > group.size);
@@ -45,7 +49,13 @@ export default function CreateTournament({ userId, onCreated, onClose }: { userI
   async function create(event: FormEvent) {
     event.preventDefault();
     if (saving) return;
-    if (!isSportVisible(sport)) { setMessage("Выберите доступный вид спорта."); return; }
+    setMessage(null);
+    if (step === 0 && (!isSportVisible(sport) || endDate < date)) {
+      setMessage(!isSportVisible(sport) ? "Select an available sport." : "End date cannot be earlier than start date.");
+      return;
+    }
+    if (step < 3) { setStep(step + 1); return; }
+    if (!isSportVisible(sport)) { setMessage("Select an available sport."); return; }
     let payload;
     try { payload = buildTournamentSetup({ name, slug, fallbackSlug, location, date, endDate, sport, status, format, pairs, groups, qualifiers }); }
     catch (error) { setMessage((error as Error).message); return; }
@@ -55,32 +65,72 @@ export default function CreateTournament({ userId, onCreated, onClose }: { userI
       if (error) { setMessage(error.message); return; }
       clearTournamentDraft(userId);
       onCreated(data as string);
-    } catch { setMessage("Не удалось сохранить турнир. Проверьте соединение и попробуйте снова."); }
+    } catch { setMessage("Could not save the tournament. Try again."); }
     finally { setSaving(false); }
   }
+  const stepLabels = ["Details", "Pairs", "Format", "Review"];
+  const headings = ["New tournament", "Add pairs", "Tournament format", "Review tournament"];
+  const actions = ["Continue to pairs", "Continue to format", "Review tournament", "Create tournament"];
   return <form className="admin-create-card quick-tournament" onSubmit={create}>
-    <div className="admin-section-heading compact-heading"><div><span>+</span><h2>Новый парный турнир</h2></div><p>Данные → пары → группы. Имена можно заполнить позже.</p></div>
-    <fieldset disabled={saving}>
-      <section className="setup-step"><h3>1. Основное</h3><div className="admin-form-grid">
-        <label className="admin-field"><span>Название</span><input value={name} onChange={(event) => { setName(event.target.value); if (!slugEdited) setSlug(tournamentSlug(event.target.value)); }} placeholder="KYNG Padel Cup" required /></label>
-        <label className="admin-field"><span>Дата</span><input type="date" value={date} onChange={(event) => setDate(event.target.value)} required /></label>
-        <label className="admin-field"><span>Вид спорта</span><select value={isSportVisible(sport) ? sport : ""} onChange={(event) => setSport(event.target.value)}>{!isSportVisible(sport) && <option value="" disabled>Выберите вид спорта</option>}<option value="padel">Падел</option>{isSportVisible("tennis") && <option value="tennis">Теннис</option>}</select></label>
-        <label className="admin-field"><span>Локация</span><input value={location} onChange={(event) => setLocation(event.target.value)} /></label>
-      </div></section>
-      <section className="setup-step"><h3>2. Пары</h3><p>Вставьте список: одна пара на строку. Поддерживается вставка двух или трёх колонок из таблицы.</p>
-        <label className="admin-field"><span>Список пар</span><textarea value={list} onChange={(event) => setList(event.target.value)} rows={4} placeholder={"Алексей Иванов / Даниил Петров\nМария Коваль / Анна Новак\nИли: название пары | первый игрок | второй игрок"} /></label>
-        <div className="setup-actions"><button type="button" onClick={importList} disabled={!list.trim()}>Применить список</button><span>Список заменит текущие пары и распределит их по группам.</span></div>
-        <div className="setup-actions"><label className="admin-field"><span>Количество пар</span><input type="number" min={2} max={64} value={pairs.length} onChange={(event) => { const count = Math.max(2, Math.min(64, Number(event.target.value))); redistribute(Array.from({ length: count }, (_, index) => pairs[index] ?? blankPairs(1)[0]), groups); }} /></label><button type="button" disabled={pairs.length >= 64} onClick={() => redistribute([...pairs, ...blankPairs(1)], groups)}>+ Добавить пару</button></div>
-        <details className="setup-edit-pairs"><summary>Имена и названия · {pairs.length} пар</summary><div className="setup-pair-table">{pairs.map((pair, index) => <div key={index}><b>{index + 1}</b><input aria-label={`Пара ${index + 1}: название`} value={pair.name} placeholder="Название · необязательно" onChange={(event) => updatePair(index, "name", event.target.value)} /><input aria-label={`Пара ${index + 1}: первый игрок`} value={pair.player_one} placeholder="Первый игрок" onChange={(event) => updatePair(index, "player_one", event.target.value)} /><input aria-label={`Пара ${index + 1}: второй игрок`} value={pair.player_two} placeholder="Второй игрок" onChange={(event) => updatePair(index, "player_two", event.target.value)} /><button type="button" disabled={pairs.length <= 2} aria-label={`Удалить пару ${index + 1}`} onClick={() => redistribute(pairs.filter((_, row) => row !== index), groups)}>×</button></div>)}</div></details>
-      </section>
-      <section className="setup-step"><h3>3. Формат и группы</h3><div className="admin-form-grid"><label className="admin-field"><span>Формат</span><select value={format} onChange={(event) => setFormat(event.target.value)}><option value="group_knockout">Группы → плей-офф</option><option value="knockout">Только плей-офф</option></select></label>{format === "group_knockout" && <label className="admin-field"><span>Количество групп</span><input type="number" min={1} max={Math.min(26, Math.floor(pairs.length / 2))} value={groups} onChange={(event) => redistribute(pairs, Number(event.target.value))} /></label>}</div>
-        {format === "group_knockout" && <><div className="setup-actions"><button type="button" onClick={() => redistribute(pairs, groups)}>Распределить равномерно</button><span>Пары можно перенести вручную. В группе — минимум две пары.</span></div><div className="setup-group-grid">{summaries.map((group) => <article className={group.size < 2 ? "is-invalid" : ""} key={group.code}><header><h4>Группа {group.code}</h4><span>{group.size} пар · {group.matches} матчей</span></header><label className="admin-field"><span>Выходят в плей-офф</span><input type="number" min={0} max={group.size} value={qualifiers[group.code] ?? 2} onChange={(event) => setQualifiers((current) => ({ ...current, [group.code]: Math.max(0, Math.min(group.size, Number(event.target.value))) }))} /></label>{pairs.map((pair, index) => pair.group === group.code ? <div className="setup-group-pair" key={index}><span><strong>{pair.name || (pair.player_one && pair.player_two ? `${pair.player_one} / ${pair.player_two}` : `Пара ${String(index + 1).padStart(2, "0")}`)}</strong></span><select aria-label={`Группа пары ${index + 1}`} value={pair.group} onChange={(event) => updatePair(index, "group", event.target.value)}>{summaries.map((target) => <option value={target.code} key={target.code}>{target.code}</option>)}</select></div> : null)}</article>)}</div></>}
-      </section>
-      <details className="setup-step"><summary>Дополнительные настройки</summary><div className="admin-form-grid"><label className="admin-field"><span>Адрес турнира</span><input value={slug} placeholder={tournamentSlug(name) || fallbackSlug} onChange={(event) => { setSlugEdited(true); setSlug(event.target.value.toLowerCase()); }} /></label><label className="admin-field"><span>Дата завершения · необязательно</span><input type="date" value={endDate} min={date || undefined} onChange={(event) => setEndDate(event.target.value)} /></label><label className="admin-field"><span>Видимость</span><select value={status} onChange={(event) => setStatus(event.target.value)}><option value="draft">Черновик · только организаторам</option><option value="published">Опубликовать на сайте</option></select></label></div></details>
+    <div className="admin-workspace-section-heading"><h2>{t(headings[step])}</h2></div>
+    <ol className="admin-step-list">{stepLabels.map((label, i) => <li key={label} aria-current={step === i ? "step" : undefined}>{t(label)}</li>)}</ol>
+    <fieldset key={step} disabled={saving}>
+      {step === 0 && <>
+        <div className="admin-form-grid">
+          <label className="admin-field"><span>{t("Tournament name")}</span><input value={name} onChange={event => { setName(event.target.value); if (!slugEdited) setSlug(tournamentSlug(event.target.value)); }} placeholder="KYNG Padel Cup" required /></label>
+          <label className="admin-field"><span>{t("Location")}</span><input value={location} onChange={event => setLocation(event.target.value)} /></label>
+          <label className="admin-field"><span>{t("Start date")}</span><input type="date" value={date} onChange={event => {
+            setDate(event.target.value);
+            if (!endDateEdited) setEndDate(event.target.value);
+          }} required /></label>
+          <label className="admin-field"><span>{t("End date")}</span><input type="date" value={endDate} min={date || undefined} onChange={event => {
+            setEndDate(event.target.value || date);
+            setEndDateEdited(Boolean(event.target.value && event.target.value !== date));
+          }} /></label>
+          <label className="admin-field"><span>{t("Sport")}</span><select value={isSportVisible(sport) ? sport : ""} onChange={event => setSport(event.target.value)} required>
+            {!isSportVisible(sport) && <option value="" disabled>{t("Select an available sport.")}</option>}
+            {isSportVisible("padel") && <option value="padel">{t("Padel")}</option>}
+            {isSportVisible("tennis") && <option value="tennis">{t("Tennis")}</option>}
+          </select></label>
+        </div>
+        <details className="setup-step"><summary>{t("Additional settings")}</summary>
+          <label className="admin-field"><span>{t("Tournament address")}</span><input value={slug} placeholder={tournamentSlug(name) || fallbackSlug}
+            onChange={event => { setSlugEdited(true); setSlug(event.target.value.toLowerCase()); }} /></label>
+        </details>
+      </>}
+      {step === 1 && <section className="setup-step"><h3>{t("Pairs")}</h3><p>{t("One pair per line. You can paste two or three columns from a spreadsheet.")}</p>
+        <label className="admin-field"><span>{t("Pair list")}</span><textarea value={list} onChange={(event) => setList(event.target.value)} rows={4} placeholder={"Alex Novak / Daniel Meyer\nMaria Keller / Anna Stein"} /></label>
+        <div className="setup-actions"><button type="button" onClick={importList} disabled={!list.trim()}>{t("Apply list")}</button><span>{t("Applying the list replaces the current pairs.")}</span></div>
+        <div className="setup-actions"><label className="admin-field"><span>{t("Number of pairs")}</span><input type="number" min={2} max={64} value={pairs.length} onChange={(event) => { const count = Math.max(2, Math.min(64, Number(event.target.value))); redistribute(Array.from({ length: count }, (_, index) => pairs[index] ?? blankPairs(1)[0]), groups); }} /></label><button type="button" disabled={pairs.length >= 64} onClick={() => redistribute([...pairs, ...blankPairs(1)], groups)}>{t("Add pair")}</button></div>
+        <details className="setup-edit-pairs"><summary>{t("Player names")} · {pairs.length}</summary><div className="setup-pair-table">{pairs.map((pair, index) => <div key={index}><b>{index + 1}</b><input aria-label={`${t("Pair name")} ${index + 1}`} value={pair.name} placeholder={t("Pair name")} onChange={(event) => updatePair(index, "name", event.target.value)} /><input aria-label={`${t("Player one")} · ${index + 1}`} value={pair.player_one} placeholder={t("Player one")} onChange={(event) => updatePair(index, "player_one", event.target.value)} /><input aria-label={`${t("Player two")} · ${index + 1}`} value={pair.player_two} placeholder={t("Player two")} onChange={(event) => updatePair(index, "player_two", event.target.value)} /><button type="button" disabled={pairs.length <= 2} aria-label={`${t("Remove pair")} ${index + 1}`} onClick={() => redistribute(pairs.filter((_, row) => row !== index), groups)}>×</button></div>)}</div></details>
+      </section>}
+      {step === 2 && <section className="setup-step"><h3>{t("Tournament format")}</h3><div className="admin-form-grid"><label className="admin-field"><span>{t("Format")}</span><select value={format} onChange={(event) => setFormat(event.target.value)}><option value="group_knockout">{t("Groups → playoffs")}</option><option value="knockout">{t("Playoffs only")}</option></select></label>{format === "group_knockout" && <label className="admin-field"><span>{t("Number of groups")}</span><input type="number" min={1} max={Math.min(26, Math.floor(pairs.length / 2))} value={groups} onChange={(event) => redistribute(pairs, Number(event.target.value))} /></label>}</div>
+        {format === "group_knockout" && <><div className="setup-actions"><button type="button" onClick={() => redistribute(pairs, groups)}>{t("Balance groups")}</button><span>{t("Distribute pairs evenly across the selected groups.")}</span></div><div className="setup-group-grid">{summaries.map((group) => <article className={group.size < 2 ? "is-invalid" : ""} key={group.code}><header><h4>{t("Group")} {group.code}</h4><span>{group.size} {t("Pairs").toLowerCase()} · {group.matches} {t("Matches").toLowerCase()}</span></header><label className="admin-field"><span>{t("Qualifiers")}</span><input type="number" min={0} max={group.size} value={qualifiers[group.code] ?? 2} onChange={(event) => setQualifiers((current) => ({ ...current, [group.code]: Math.max(0, Math.min(group.size, Number(event.target.value))) }))} /></label>{pairs.map((pair, index) => pair.group === group.code ? <div className="setup-group-pair" key={index}><span><strong>{pair.name || (pair.player_one && pair.player_two ? `${pair.player_one} / ${pair.player_two}` : `${t("Pair")} ${String(index + 1).padStart(2, "0")}`)}</strong></span><select aria-label={`${t("Group")} · ${t("Pair")} ${index + 1}`} value={pair.group} onChange={(event) => updatePair(index, "group", event.target.value)}>{summaries.map((target) => <option value={target.code} key={target.code}>{target.code}</option>)}</select></div> : null)}</article>)}</div></>}
+      </section>}
+      {step === 3 && <section className="setup-step">
+        <dl className="admin-create-review">
+          <div><dt>{t("Tournament name")}</dt><dd>{name}</dd></div>
+          <div><dt>{t("Location")}</dt><dd>{location || "—"}</dd></div>
+          <div><dt>{t("Dates")}</dt><dd>{date}{endDate && endDate !== date && <> – {endDate}</>}</dd></div>
+          <div><dt>{t("Format")}</dt><dd>{t(format === "group_knockout" ? "Groups → playoffs" : "Playoffs only")}</dd></div>
+          <div><dt>{t("Number of pairs")}</dt><dd>{pairs.length}</dd></div>
+          <div><dt>{t("Qualifiers")}</dt><dd>{playoffCount}</dd></div>
+          {format === "group_knockout" && <div><dt>{t("Number of groups")}</dt><dd>{groups}</dd></div>}
+        </dl>
+        <label className="admin-field"><span>{t("Visibility")}</span><select value={status} onChange={event => setStatus(event.target.value)}>
+          <option value="draft">{t("Save as draft")}</option><option value="published">{t("Publish on website")}</option>
+        </select></label>
+      </section>}
     </fieldset>
-    <p className="setup-summary" role="status">{pairs.length} пар{format === "group_knockout" ? ` · группы ${summaries.map((group) => group.size).join(" + ")} · ${summaries.reduce((total, group) => total + group.matches, 0)} групповых матчей` : " · плей-офф"} · {playoffCount} пар в сетке. {status === "draft" ? "Сохранится черновиком." : "Будет опубликован."}</p>
-    {invalidGroups && <p role="alert" className="setup-error">Проверьте группы: минимум 2 пары, число выходящих не больше состава группы.</p>}
-    {message && <p role="alert" className="setup-error">{message}</p>}
-    <div className="admin-create-actions"><button className="admin-save-button" type="submit" disabled={saving || invalidGroups || playoffCount < 2}>{saving ? "Создаём…" : "Создать турнир"}</button><button className="admin-close-button" type="button" disabled={saving} onClick={onClose}>Закрыть</button></div>
+    {step >= 2 && invalidGroups && <p role="alert" className="setup-error">{t("Check groups: at least two pairs per group and no more qualifiers than pairs.")}</p>}
+    {message && <p role="alert" className="setup-error">{t(message)}</p>}
+    <div className="admin-action-bar">
+      <button className="admin-button is-primary" type="submit" disabled={saving || (step >= 2 && (invalidGroups || playoffCount < 2))}>{t(saving ? "Creating…" : actions[step])}</button>
+      <button className="admin-button" type="button" disabled={saving} onClick={() => {
+        setMessage(null);
+        if (step === 0) onClose();
+        else setStep(step - 1);
+      }}>{t(step === 0 ? "Close" : "Back")}</button>
+    </div>
   </form>;
 }

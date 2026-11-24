@@ -52,6 +52,15 @@ export async function uploadGalleryPhoto(tournamentId: string, file: File, sortO
     { onConflict: "id", ignoreDuplicates: true },
   );
   if (reservation.error) throw reservation.error;
+  const filename = Array.from(file.name).slice(0, 255).join("");
+  if (filename) {
+    const metadata = await supabase.from("tournament_gallery_photo_filenames").upsert(
+      { photo_id: id, tournament_id: tournamentId, filename },
+      { onConflict: "photo_id", ignoreDuplicates: true },
+    );
+    if (metadata.error) throw metadata.error;
+  }
+  signal.throwIfAborted();
   const ticket = await uploadAction<Ticket>(id, "prepare");
   if (!ticket) throw new Error("The upload service did not return a ticket.");
   if ("ready" in ticket) return;
