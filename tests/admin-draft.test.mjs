@@ -509,6 +509,25 @@ async function submit(form) {
   await act(async () => { form.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true })); });
   await settle();
 }
+test('live match workspace can adjust games, finish a set, and submit the final score', async () => {
+  pairFixtures();
+  records.matches = [gameFixture('main-game', {
+    tournament_id: existing.id, court: 'Court 1', status: 'live', pair_one_sets: [6], pair_two_sets: [5],
+  })];
+  await mount();
+  await click(button('Live matches'));
+  const form = document.querySelector('.admin-day-editor .admin-match');
+  await click(form.querySelector('[aria-label="Add a game for Top pair"]'));
+  assert.equal(form.querySelector('[aria-label="Set scores"]').value, '7-5');
+  await click(button('Finish set'));
+  assert.equal(form.querySelector('[aria-label="Set scores"]').value, '7-5, 0-0');
+  await click(form.querySelector('input[type="radio"]'));
+  await submit(form);
+  const save = calls.find(call => call.name === 'record_match_result');
+  assert.deepEqual(save?.payload.p_pair_one_sets, [7]);
+  assert.deepEqual(save?.payload.p_pair_two_sets, [5]);
+});
+
 for (const kind of ['playoffs', 'groups']) {
   test(`${kind}: a score/winner mismatch is red, names the score winner and never calls the save RPC`, async () => {
     pairFixtures();
