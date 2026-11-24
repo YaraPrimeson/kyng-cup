@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import "./admin-workspace.css";
 import "./gallery-manager.css";
 
 export const metadata: Metadata = {

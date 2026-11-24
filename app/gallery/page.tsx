@@ -10,10 +10,10 @@ import PhotoViewer from "./photo-viewer";
 import "./gallery.css";
 
 const copy = {
-  en: { title: "Gallery", latest: "Latest album", archive: "Past tournaments", open: "View album", back: "All albums", results: "Tournament results", empty: "There are no published albums yet.", missing: "This album is unavailable.", busy: "Loading photos…", error: "Could not load the gallery.", retry: "Retry", moreAlbums: "Show more albums", morePhotos: "Show more photos", all: "All sports", photos: "Photos" },
-  uk: { title: "Галерея", latest: "Останній альбом", archive: "Минулі турніри", open: "Переглянути альбом", back: "Усі альбоми", results: "Результати турніру", empty: "Опублікованих альбомів поки немає.", missing: "Цей альбом недоступний.", busy: "Завантажуємо фото…", error: "Не вдалося завантажити галерею.", retry: "Спробувати ще раз", moreAlbums: "Показати більше альбомів", morePhotos: "Показати більше фото", all: "Усі види спорту", photos: "Фото" },
-  de: { title: "Galerie", latest: "Neuestes Album", archive: "Vergangene Turniere", open: "Album ansehen", back: "Alle Alben", results: "Turnierergebnisse", empty: "Es gibt noch keine veröffentlichten Alben.", missing: "Dieses Album ist nicht verfügbar.", busy: "Fotos werden geladen…", error: "Die Galerie konnte nicht geladen werden.", retry: "Erneut versuchen", moreAlbums: "Mehr Alben anzeigen", morePhotos: "Mehr Fotos anzeigen", all: "Alle Sportarten", photos: "Fotos" },
-  ru: { title: "Галерея", latest: "Последний альбом", archive: "Прошедшие турниры", open: "Смотреть альбом", back: "Все альбомы", results: "Результаты турнира", empty: "Опубликованных альбомов пока нет.", missing: "Этот альбом недоступен.", busy: "Загружаем фото…", error: "Не удалось загрузить галерею.", retry: "Попробовать ещё раз", moreAlbums: "Показать больше альбомов", morePhotos: "Показать больше фото", all: "Все виды спорта", photos: "Фото" },
+  en: { title: "Gallery", latest: "Latest album", archive: "More albums", open: "View album", back: "All albums", results: "Tournament results", empty: "There are no published albums yet.", missing: "This album is unavailable.", busy: "Loading photos…", error: "Could not load the gallery.", retry: "Retry", moreAlbums: "Show more albums", morePhotos: "Show more photos", all: "All sports", photos: "Photos" },
+  uk: { title: "Галерея", latest: "Останній альбом", archive: "Інші альбоми", open: "Переглянути альбом", back: "Усі альбоми", results: "Результати турніру", empty: "Опублікованих альбомів поки немає.", missing: "Цей альбом недоступний.", busy: "Завантажуємо фото…", error: "Не вдалося завантажити галерею.", retry: "Спробувати ще раз", moreAlbums: "Показати більше альбомів", morePhotos: "Показати більше фото", all: "Усі види спорту", photos: "Фото" },
+  de: { title: "Galerie", latest: "Neuestes Album", archive: "Weitere Alben", open: "Album ansehen", back: "Alle Alben", results: "Turnierergebnisse", empty: "Es gibt noch keine veröffentlichten Alben.", missing: "Dieses Album ist nicht verfügbar.", busy: "Fotos werden geladen…", error: "Die Galerie konnte nicht geladen werden.", retry: "Erneut versuchen", moreAlbums: "Mehr Alben anzeigen", morePhotos: "Mehr Fotos anzeigen", all: "Alle Sportarten", photos: "Fotos" },
+  ru: { title: "Галерея", latest: "Последний альбом", archive: "Другие альбомы", open: "Смотреть альбом", back: "Все альбомы", results: "Результаты турнира", empty: "Опубликованных альбомов пока нет.", missing: "Этот альбом недоступен.", busy: "Загружаем фото…", error: "Не удалось загрузить галерею.", retry: "Попробовать ещё раз", moreAlbums: "Показать больше альбомов", morePhotos: "Показать больше фото", all: "Все виды спорта", photos: "Фото" },
 } as const;
 type Copy = typeof copy[Language];
 
@@ -46,12 +46,12 @@ function Archive({ text, language, sport, basePath }: { text: Copy; language: La
       try {
         const result = await getArchive(offset, sport);
         const hero = offset === 0 ? result.albums[0] : undefined;
-        const previewIds = result.albums.slice(hero ? 1 : 0).map(album => album.gallery.cover_photo_id);
+        const previewIds = result.albums.slice(hero ? 1 : 0).map(album => album.cover_photo_id);
         if (controller.signal.aborted) return;
         setAlbums(current => [...current, ...result.albums.filter(album => !current.some(previous => previous.id === album.id))]);
         setMore(result.more);
         const [wide, thumbs, counts] = await Promise.all([
-          getPublicPhotoUrls(hero ? [hero.gallery.cover_photo_id] : [], "web", controller.signal),
+          getPublicPhotoUrls(hero ? [hero.cover_photo_id] : [], "web", controller.signal),
           getPublicPhotoUrls(previewIds, "thumb", controller.signal),
           getArchivePhotoCounts(result.albums.map(album => album.id)),
         ]);
@@ -76,7 +76,7 @@ function Archive({ text, language, sport, basePath }: { text: Copy; language: La
   const [latest, ...earlier] = albums;
   return <>
     {latest && <a className="gallery-feature" href={galleryAlbumHref(latest.slug, basePath)}>
-      <GalleryImage id={latest.gallery.cover_photo_id} url={urls[latest.gallery.cover_photo_id]} variant="web" />
+      <GalleryImage id={latest.cover_photo_id} url={urls[latest.cover_photo_id]} variant="web" />
       <div className="gallery-feature-copy">
         <p className="eyebrow">{text.latest}</p>
         <h2>{latest.name}</h2>
@@ -87,7 +87,7 @@ function Archive({ text, language, sport, basePath }: { text: Copy; language: La
     {earlier.length > 0 && <section className="gallery-archive">
       <h2>{text.archive}</h2>
       <div className="gallery-albums">{earlier.map(album => <a className="gallery-card" key={album.id} href={galleryAlbumHref(album.slug, basePath)}>
-        <div className="gallery-card-image"><GalleryImage id={album.gallery.cover_photo_id} url={urls[album.gallery.cover_photo_id]} variant="thumb" /></div>
+        <div className="gallery-card-image"><GalleryImage id={album.cover_photo_id} url={urls[album.cover_photo_id]} variant="thumb" /></div>
         <h3>{album.name}</h3>
         <p>{label(album)}</p>
       </a>)}</div>
@@ -176,7 +176,7 @@ function Album({ slug, text, language, basePath }: { slug: string; text: Copy; l
     {album && <>
       <div className="gallery-album-heading">
         <div><h1>{album.name}</h1><p>{formatTournamentDate(album, language, true)}{album.location && ` · ${album.location}`} · {text.photos} {count}</p></div>
-        <a className="gallery-text-link" href={`${basePath}/bracket/?${new URLSearchParams({ tournament: album.slug, sport: album.sport })}`}>{text.results} <span aria-hidden="true">↗</span></a>
+        {album.has_public_bracket && <a className="gallery-text-link" href={`${basePath}/bracket/?${new URLSearchParams({ tournament: album.slug, sport: album.sport })}`}>{text.results} <span aria-hidden="true">↗</span></a>}
       </div>
       <div className="gallery-photo-grid">{photoIds.map((id, index) =>
         <button type="button" key={id} className="gallery-photo" data-shape={index % 8 === 0 ? "portrait" : index % 8 === 2 ? "wide" : undefined}

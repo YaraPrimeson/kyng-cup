@@ -29,17 +29,27 @@ test("gallery visibility, 300 photos, and cover integrity for padel and tennis",
       create role anon;
       create role authenticated;
       create role service_role bypassrls;
-      create table public.tournaments (id uuid primary key, sport text not null, status text not null);
+      create table public.tournaments (
+        id uuid primary key, sport text not null, status text not null,
+        slug text, name text, location text, starts_at timestamptz, ends_at timestamptz
+      );
+      alter table public.tournaments enable row level security;
+      create policy test_tournament_visibility on public.tournaments for select to anon, authenticated
+        using (status <> 'draft');
       grant select on public.tournaments to anon, authenticated;
       create function public.is_global_admin() returns boolean language sql stable
         as $$ select coalesce(current_setting('test.organizer', true) = 'yes', false) $$;
       revoke all on function public.is_global_admin() from public;
       grant execute on function public.is_global_admin() to authenticated;
-      insert into public.tournaments values
+      insert into public.tournaments (id, sport, status) values
         ('${padel}', 'padel', 'completed'), ('${tennis}', 'tennis', 'completed');
     `);
     await db.exec(await readFile(new URL(
       "../supabase/migrations/20261124100621_tournament_photo_gallery.sql", import.meta.url,
+    ), "utf8"));
+
+    await db.exec(await readFile(new URL(
+      "../supabase/migrations/20261124142546_publish_gallery_independently.sql", import.meta.url,
     ), "utf8"));
 
     await db.exec("set role authenticated");
@@ -64,6 +74,7 @@ test("gallery visibility, 300 photos, and cover integrity for padel and tennis",
 
     await db.exec("set role anon");
     assert.deepEqual(await counts(), { galleries: 0, photos: 0 });
+    assert.deepEqual((await db.query("select id from published_tournament_albums")).rows, []);
 
     await db.exec("set role authenticated");
     await assert.rejects(db.exec(`update tournament_gallery_photos set state = 'visible'`), { code: "42501" });
@@ -105,7 +116,16 @@ test("gallery visibility, 300 photos, and cover integrity for padel and tennis",
       update tournaments set status = 'draft' where id = '${tennis}';
       set role anon;
     `);
-    assert.deepEqual(await counts(), { galleries: 0, photos: 0 });
+    assert.deepEqual(await counts(), { galleries: 1, photos: 1 });
+    assert.deepEqual(await photoCounts(), [{ tournament_id: tennis, photo_count: 1 }]);
+    assert.deepEqual((await db.query("select id, has_public_bracket from published_tournament_albums")).rows,
+      [{ id: tennis, has_public_bracket: false }]);
+    assert.deepEqual((await db.query(`select id from tournaments where id = '${tennis}'`)).rows, []);
+    for (const status of ["published", "live", "completed"]) {
+      await db.exec(`reset role; update tournaments set status = '${status}' where id = '${tennis}'; set role anon;`);
+      assert.deepEqual((await db.query("select id, has_public_bracket from published_tournament_albums")).rows,
+        [{ id: tennis, has_public_bracket: true }]);
+    }
     await db.exec(`reset role; delete from tournaments where id = '${tennis}'`);
     assert.deepEqual(await counts(), { galleries: 1, photos: 300 });
   } finally {

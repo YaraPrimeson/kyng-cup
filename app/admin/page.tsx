@@ -16,6 +16,13 @@ import { supabase } from "@/lib/supabase";
 import { useLanguage } from "../i18n";
 import { calculateStandings, GroupMatch, GroupMember, TournamentGroup } from "../group-stage";
 
+const adminTabs = [
+  { id: "tournaments", label: "Tournaments" },
+  { id: "matches", label: "Live matches" },
+  { id: "photos", label: "Photos" },
+] as const;
+const tournamentStatusLabels = { draft: "Draft", published: "Published", live: "Live", completed: "Completed" };
+
 type TournamentStatus = "draft" | "published" | "live" | "completed";
 type MatchStatus = "scheduled" | "live" | "completed";
 type RegistrationStatus = "new" | "reviewing" | "confirmed" | "waitlist" | "rejected";
@@ -268,7 +275,42 @@ function TournamentDelete({ tournament, onDeleted }: { tournament: Tournament; o
   return <div className="admin-danger-card"><div><strong>Delete tournament</strong><p>Permanently removes the tournament, bracket, matches and registrations.</p></div><button type="button" onClick={() => void remove()} disabled={saving}>{saving ? "Deleting…" : "Delete tournament"}</button><Feedback message={message} /></div>;
 }
 
-function AdminMatch({ match, pairMap, bracketSize, onSaved }: { match: Match; pairMap: Map<string, Pair>; bracketSize: number; onSaved: () => void }) {
+function LiveSetControls({ score, onChange, names, disabled }: {
+  score: string; onChange: (score: string) => void; names: [string, string]; disabled: boolean;
+}) {
+  const parsed = parseScore(score);
+  const entries = parsed?.pairOne.map((value, index) => [value, parsed.pairTwo[index]]) ?? [[0, 0]];
+  const last = entries.length - 1;
+  const valid = !score.trim() || Boolean(parsed);
+  const games = entries[last];
+  const finished = entries.slice(0, last);
+  const apply = (next: number[][]) => onChange(next.map(pair => pair.join("-")).join(", "));
+  return <div className="admin-live-controls">
+    <div className="admin-live-scoreboard">
+      <div><span>Pair</span><span>Sets</span><span>Current games</span></div>
+      {names.map((name, side) => <div key={side}>
+        <strong>{name}</strong>
+        <span>{valid ? finished.filter(set => set[side] > set[1 - side]).length : "—"}</span>
+        <span className="admin-live-stepper">
+          <button type="button" aria-label={`Subtract a game from ${name}`} disabled={disabled || !valid || games[side] === 0} onClick={() =>
+            apply([...finished, games.map((count, index) => count - Number(index === side))])}>−</button>
+          <b>{valid ? games[side] : "—"}</b>
+          <button type="button" aria-label={`Add a game for ${name}`} disabled={disabled || !valid || games[side] === 99} onClick={() =>
+            apply([...finished, games.map((count, index) => count + Number(index === side))])}>+</button>
+        </span>
+      </div>)}
+    </div>
+    <button type="button" className="admin-outline-action" disabled={disabled || !valid || games[0] === games[1]}
+      onClick={() => apply([...entries, [0, 0]])}>Finish set</button>
+  </div>;
+}
+
+// A trailing 0-0 is the next unplayed set added by the live console.
+function finalMatchScore(score: string, liveWorkspace: boolean) {
+  return liveWorkspace ? score.trim().replace(/,\s*0\s*[-:]\s*0\s*,?$/, "") : score;
+}
+
+function AdminMatch({ match, pairMap, bracketSize, onSaved, liveWorkspace = false }: { match: Match; pairMap: Map<string, Pair>; bracketSize: number; onSaved: () => void; liveWorkspace?: boolean }) {
   const pairOne = match.pair_one_id ? pairMap.get(match.pair_one_id) : undefined;
   const pairTwo = match.pair_two_id ? pairMap.get(match.pair_two_id) : undefined;
   const [score, setScore] = useState(match.pair_one_sets.map((value, index) => `${value}-${match.pair_two_sets[index]}`).join(", "));
@@ -281,7 +323,8 @@ function AdminMatch({ match, pairMap, bracketSize, onSaved }: { match: Match; pa
   const [message, setMessage] = useState<string | null>(null);
   const [resultAttempted, setResultAttempted] = useState(false);
   const [resultServerError, setResultServerError] = useState<string | null>(null);
-  const validationError = (resultAttempted || Boolean(score.trim() && winner)) ? matchResultError(score, winner, pairOne, pairTwo) : null;
+  const resultScore = finalMatchScore(score, liveWorkspace);
+  const validationError = (resultAttempted || Boolean(score.trim() && winner)) ? matchResultError(resultScore, winner, pairOne, pairTwo) : null;
   const resultProblem = validationError ?? resultServerError;
   const title = roundLabel(bracketSize, match.round);
 
@@ -294,9 +337,9 @@ function AdminMatch({ match, pairMap, bracketSize, onSaved }: { match: Match; pa
 
   async function saveResult(event: FormEvent) {
     event.preventDefault();
-    const parsed = parseScore(score);
+    const parsed = parseScore(resultScore);
     setResultAttempted(true); setResultServerError(null);
-    if (matchResultError(score, winner, pairOne, pairTwo) || !parsed) return;
+    if (matchResultError(resultScore, winner, pairOne, pairTwo) || !parsed) return;
     if (match.winner_id && !window.confirm("Replace the saved result?")) return;
     setSaving(true); setMessage(null);
     const { error } = await supabase.rpc("record_match_result", { p_match_id: match.id, p_pair_one_sets: parsed.pairOne, p_pair_two_sets: parsed.pairTwo, p_winner_id: winner });
@@ -338,7 +381,9 @@ function AdminMatch({ match, pairMap, bracketSize, onSaved }: { match: Match; pa
       </div>
       <label aria-label={`Select ${pairOne?.name ?? "first pair"} as winner`} htmlFor={`winner-${match.id}-one`} className={!pairOne ? "is-disabled" : ""}><input id={`winner-${match.id}-one`} type="radio" name={`winner-${match.id}`} value={pairOne?.id ?? ""} checked={winner === pairOne?.id} aria-describedby={`score-error-${match.id}`} onChange={(event) => { setWinner(event.target.value); setResultServerError(null); }} disabled={!pairOne} /><span><strong>{pairOne?.name ?? "Waiting for winner"}</strong><small>{pairOne ? `${pairOne.player_one} · ${pairOne.player_two}` : "Previous round"}</small></span></label>
       <label aria-label={`Select ${pairTwo?.name ?? "second pair"} as winner`} htmlFor={`winner-${match.id}-two`} className={!pairTwo ? "is-disabled" : ""}><input id={`winner-${match.id}-two`} type="radio" name={`winner-${match.id}`} value={pairTwo?.id ?? ""} checked={winner === pairTwo?.id} aria-describedby={`score-error-${match.id}`} onChange={(event) => { setWinner(event.target.value); setResultServerError(null); }} disabled={!pairTwo} /><span><strong>{pairTwo?.name ?? "Waiting for winner"}</strong><small>{pairTwo ? `${pairTwo.player_one} · ${pairTwo.player_two}` : "Previous round"}</small></span></label>
-      <div className="admin-score-row"><input aria-label="Set scores" value={score} aria-invalid={Boolean(resultProblem)} aria-describedby={`score-error-${match.id}`} onChange={(event) => { setScore(event.target.value); setResultServerError(null); }} placeholder="3-2 or 6-4, 3-6" disabled={!pairOne || !pairTwo} /><div><button className="admin-live-score-button" type="button" onClick={() => void saveLiveScore()} disabled={saving || !pairOne || !pairTwo || match.status === "completed"}>{saving ? "Saving…" : "Update live score"}</button><button type="submit" disabled={saving || !pairOne || !pairTwo}>{saving ? "Saving…" : match.winner_id ? "Correct final result" : "Save final result"}</button></div></div>
+      {liveWorkspace && match.status !== "completed" && pairOne && pairTwo && <LiveSetControls score={score} names={[pairOne.name, pairTwo.name]} disabled={saving}
+        onChange={next => { setScore(next); setResultServerError(null); }} />}
+      <div className="admin-score-row"><input aria-label="Set scores" value={score} aria-invalid={Boolean(resultProblem)} aria-describedby={`score-error-${match.id}`} onChange={(event) => { setScore(event.target.value); setResultServerError(null); }} placeholder="3-2 or 6-4, 3-6" disabled={!pairOne || !pairTwo} /><div><button className="admin-live-score-button" type="button" onClick={() => void saveLiveScore()} disabled={saving || !pairOne || !pairTwo || match.status === "completed"}>{saving ? "Saving…" : "Update live score"}</button><button type="submit" disabled={saving || !pairOne || !pairTwo}>{saving ? "Saving…" : match.winner_id ? "Correct final result" : liveWorkspace ? "Finish match" : "Save final result"}</button></div></div>
     {resultProblem && <p className="result-error" role="alert" id={`score-error-${match.id}`}>{resultProblem}</p>}
       {match.winner_id && <button className="admin-reset-button" type="button" onClick={() => void resetResult()} disabled={saving}>Reset result</button>}
       <Feedback message={message} />
@@ -346,7 +391,7 @@ function AdminMatch({ match, pairMap, bracketSize, onSaved }: { match: Match; pa
   );
 }
 
-function AdminGroupMatch({ match, pairMap, groupCode, onSaved }: { match: GroupMatch; pairMap: Map<string, Pair>; groupCode: string; onSaved: () => void }) {
+function AdminGroupMatch({ match, pairMap, groupCode, onSaved, liveWorkspace = false }: { match: GroupMatch; pairMap: Map<string, Pair>; groupCode: string; onSaved: () => void; liveWorkspace?: boolean }) {
   const pairOne = pairMap.get(match.pair_one_id);
   const pairTwo = pairMap.get(match.pair_two_id);
   const [score, setScore] = useState(match.pair_one_sets.map((value, index) => `${value}-${match.pair_two_sets[index]}`).join(", "));
@@ -358,7 +403,8 @@ function AdminGroupMatch({ match, pairMap, groupCode, onSaved }: { match: GroupM
   const [message, setMessage] = useState<string | null>(null);
   const [resultAttempted, setResultAttempted] = useState(false);
   const [resultServerError, setResultServerError] = useState<string | null>(null);
-  const validationError = (resultAttempted || Boolean(score.trim() && winner)) ? matchResultError(score, winner, pairOne, pairTwo) : null;
+  const resultScore = finalMatchScore(score, liveWorkspace);
+  const validationError = (resultAttempted || Boolean(score.trim() && winner)) ? matchResultError(resultScore, winner, pairOne, pairTwo) : null;
   const resultProblem = validationError ?? resultServerError;
 
   async function saveDetails() {
@@ -367,13 +413,25 @@ function AdminGroupMatch({ match, pairMap, groupCode, onSaved }: { match: GroupM
     setSaving(false); if (error) setMessage(error.message); else { setMessage("Group match schedule saved."); onSaved(); }
   }
   async function saveResult(event: FormEvent) {
-    event.preventDefault(); const parsed = parseScore(score);
+    event.preventDefault(); const parsed = parseScore(resultScore);
     setResultAttempted(true); setResultServerError(null);
-    if (matchResultError(score, winner, pairOne, pairTwo) || !parsed) return;
+    if (matchResultError(resultScore, winner, pairOne, pairTwo) || !parsed) return;
     if (match.winner_id && !window.confirm("Replace the saved group result?")) return;
     setSaving(true); setMessage(null);
     const { error } = await supabase.rpc("record_group_match_result", { p_match_id: match.id, p_pair_one_sets: parsed.pairOne, p_pair_two_sets: parsed.pairTwo, p_winner_id: winner });
     setSaving(false); if (error) setResultServerError(error.message); else { setMessage("Result saved. The table was recalculated."); onSaved(); }
+  }
+  async function saveLiveScore() {
+    const parsed = parseScore(score);
+    if (!parsed) { setMessage("Use score format 3-2 or 6-4, 3-6."); return; }
+    if (match.status === "completed") return;
+    setSaving(true); setMessage(null);
+    const { error } = await supabase.from("group_matches").update({
+      pair_one_sets: parsed.pairOne, pair_two_sets: parsed.pairTwo,
+      status: "live", updated_at: new Date().toISOString(),
+    }).eq("id", match.id).select("id").single();
+    setSaving(false);
+    if (error) setMessage(error.message); else { setStatus("live"); setMessage("Live score updated."); onSaved(); }
   }
   async function resetResult() {
     if (!window.confirm("Reset this group result?")) return;
@@ -384,7 +442,9 @@ function AdminGroupMatch({ match, pairMap, groupCode, onSaved }: { match: GroupM
     <div className="admin-match-title"><span>Group {groupCode} · Match {match.position}</span><strong>{match.status}</strong></div>
     <div className="admin-match-details"><label className="admin-field"><span>Date &amp; time</span><input type="datetime-local" value={scheduledAt} onChange={(event) => setScheduledAt(event.target.value)} /></label><label className="admin-field"><span>Court</span><input value={court} onChange={(event) => setCourt(event.target.value)} /></label><label className="admin-field"><span>Status</span><select value={status} onChange={(event) => setStatus(event.target.value as "scheduled" | "live")} disabled={match.status === "completed"}><option value="scheduled">Scheduled</option><option value="live">Live now</option></select></label><button type="button" onClick={() => void saveDetails()} disabled={saving}>Save schedule</button></div>
     {[pairOne, pairTwo].map((pair, index) => <label htmlFor={`group-winner-${match.id}-${index}`} aria-label={`Select ${pair?.name ?? `pair ${index + 1}`} as winner`} key={pair?.id} className={!pair ? "is-disabled" : ""}><input id={`group-winner-${match.id}-${index}`} type="radio" name={`group-winner-${match.id}`} value={pair?.id ?? ""} checked={winner === pair?.id} aria-describedby={`score-error-${match.id}`} onChange={(event) => { setWinner(event.target.value); setResultServerError(null); }} /><span><strong>{pair?.name}</strong><small>{pair?.player_one} · {pair?.player_two}</small></span></label>)}
-    <div className="admin-score-row"><input aria-label="Set scores" value={score} aria-invalid={Boolean(resultProblem)} aria-describedby={`score-error-${match.id}`} onChange={(event) => { setScore(event.target.value); setResultServerError(null); }} placeholder="6-4, 3-6, 10-8" /><div><button type="submit" disabled={saving}>{saving ? "Saving…" : match.winner_id ? "Correct result" : "Save result"}</button></div></div>
+    {liveWorkspace && match.status !== "completed" && pairOne && pairTwo && <LiveSetControls score={score} names={[pairOne.name, pairTwo.name]} disabled={saving}
+        onChange={next => { setScore(next); setResultServerError(null); }} />}
+      <div className="admin-score-row"><input aria-label="Set scores" value={score} aria-invalid={Boolean(resultProblem)} aria-describedby={`score-error-${match.id}`} onChange={(event) => { setScore(event.target.value); setResultServerError(null); }} placeholder="6-4, 3-6, 10-8" /><div>{liveWorkspace && <button className="admin-live-score-button" type="button" disabled={saving || match.status === "completed"} onClick={() => void saveLiveScore()}>Update live score</button>}<button type="submit" disabled={saving}>{saving ? "Saving…" : match.winner_id ? "Correct result" : liveWorkspace ? "Finish match" : "Save result"}</button></div></div>
     {resultProblem && <p className="result-error" role="alert" id={`score-error-${match.id}`}>{resultProblem}</p>}
     {match.winner_id && <button className="admin-reset-button" type="button" onClick={() => void resetResult()} disabled={saving}>Reset result</button>}<Feedback message={message} />
   </form>;
@@ -425,27 +485,35 @@ function TournamentDay({ tournament, matches, groupMatches, groups, pairMap, onS
     }
   }
   const conflicts = new Set([...slots.values()].filter(ids => ids.length > 1).flat());
-  const current = rows.find(row => row.key === editing);
+  const visibleRows = rows.filter(({ match }) => !court || match.court?.trim() === court);
+  const current = visibleRows.find(row => row.key === editing)
+    ?? visibleRows.find(row => row.match.status === "live") ?? visibleRows[0];
   return <section className="admin-day">
-    <h2>Tournament day</h2>
+    <div className="admin-workspace-section-heading">
+      <h2>Live matches</h2>
+      <label className="admin-field"><span>Court</span><select value={court} onChange={event => setCourt(event.target.value)}>
+        <option value="">All courts</option>
+        {[...courts].sort((a, b) => a.localeCompare(b, undefined, { numeric: true })).map(name => <option key={name}>{name}</option>)}
+      </select></label>
+    </div>
     {conflicts.size > 0 && <p role="status">Schedule conflict: {conflicts.size} matches share a court or pair at the same start time.</p>}
-    <label className="admin-field"><span>Court</span><select value={court} onChange={event => setCourt(event.target.value)}>
-      <option value="">All courts</option>
-      {[...courts].sort((a, b) => a.localeCompare(b, undefined, { numeric: true })).map(name => <option key={name}>{name}</option>)}
-    </select></label>
-    {!rows.length && <p>No matches with both pairs assigned.</p>}
-    {current && <div className="admin-day-editor">
-      <button type="button" onClick={() => setEditing("")}>Close match editor</button>
-      {"group" in current && current.group && <AdminGroupMatch key={current.group.id + current.group.updated_at} match={current.group} pairMap={pairMap} groupCode={groups.find(group => group.id === current.group?.group_id)?.code ?? "?"} onSaved={onSaved} />}
-      {"knockout" in current && current.knockout && <AdminMatch key={current.knockout.id + current.knockout.updated_at} match={current.knockout} pairMap={pairMap} bracketSize={tournament.bracket_size} onSaved={onSaved} />}
+    {!visibleRows.length ? <p>{rows.length ? "No matches on this court." : "No matches with both pairs assigned."}</p> : <div className="admin-day-workspace">
+      <ul className="admin-day-list" aria-label="Matches">{visibleRows.map(({ key, match, stage }) => <li key={key}>
+        <button type="button" aria-pressed={current?.key === key} onClick={() => setEditing(key)}>
+          <span className="admin-day-card-label"><span>{match.court || "Court not set"}</span>
+            <span data-status={match.status}>{match.status === "completed" ? "Finished" : match.status === "live" ? "Live" : "Upcoming"}</span></span>
+          <strong>{match.pair_one_id && pairMap.get(match.pair_one_id)?.name}</strong>
+          <strong>{match.pair_two_id && pairMap.get(match.pair_two_id)?.name}</strong>
+          <small>{stage}{match.scheduled_at && <> · <time dateTime={match.scheduled_at}>{dates.format(new Date(match.scheduled_at))}</time></>}
+            {conflicts.has(key) && " · Schedule conflict"}</small>
+        </button>
+      </li>)}</ul>
+      {current && <div className="admin-day-editor">
+        <h3>{current.match.court || current.stage} · Score</h3>
+        {"group" in current && current.group && <AdminGroupMatch key={current.group.id + current.group.updated_at} match={current.group} pairMap={pairMap} groupCode={groups.find(group => group.id === current.group?.group_id)?.code ?? "?"} onSaved={onSaved} liveWorkspace />}
+        {"knockout" in current && current.knockout && <AdminMatch key={current.knockout.id + current.knockout.updated_at} match={current.knockout} pairMap={pairMap} bracketSize={tournament.bracket_size} onSaved={onSaved} liveWorkspace />}
+      </div>}
     </div>}
-    <ul className="admin-day-list">{rows.filter(row => !court || row.match.court?.trim() === court).map(({ key, match, stage }) => <li key={key}>
-      <div><strong>{match.pair_one_id && pairMap.get(match.pair_one_id)?.name} · {match.pair_two_id && pairMap.get(match.pair_two_id)?.name}</strong>
-        <small>{stage} · {match.status}{conflicts.has(key) && " · Schedule conflict"}</small></div>
-      <div>{match.scheduled_at ? <time dateTime={match.scheduled_at}>{dates.format(new Date(match.scheduled_at))}</time> : "Time not set"}
-        <small>{match.court || "Court not set"}</small></div>
-      <button type="button" aria-pressed={editing === key} onClick={() => setEditing(key)}>Open match</button>
-    </li>)}</ul>
   </section>;
 }
 
@@ -648,7 +716,7 @@ export default function AdminPage() {
   const [checking, setChecking] = useState(true);
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   // undefined is the initial selection; null is an explicit choice to leave it empty.
-  const [dayView, setDayView] = useState(false);
+  const [tab, setTab] = useState<(typeof adminTabs)[number]["id"]>("tournaments");
   const [selectedId, setSelectedId] = useState<string | null | undefined>(undefined);
   const loadRequest = useRef(0);
   const [pairs, setPairs] = useState<Pair[]>([]);
@@ -667,7 +735,7 @@ export default function AdminPage() {
   const [authFailures, setAuthFailures] = useState(0);
   const [lockedUntil, setLockedUntil] = useState(0);
   const [showCreate, setShowCreate] = useState(false);
-  const [galleryOpen, setGalleryOpen] = useState(false);
+  const [galleryBusy, setGalleryBusy] = useState(false);
 
   function selectTournament(tournamentId: string | null) {
     setSelectedId(tournamentId);
@@ -777,52 +845,70 @@ export default function AdminPage() {
         <section className="admin-auth"><div><p className="eyebrow">Protected area</p><h1>{adminTitle[0]}<br />{adminTitle[1]}<span className="accent-dot">.</span></h1><p>Use KyngAdmin and the organiser password. Every organiser can manage all tournaments.</p></div><form onSubmit={submitAuth}><label><span>Login</span><input type="text" value={login} onChange={(event) => setLogin(event.target.value)} autoComplete="username" autoCapitalize="none" spellCheck={false} required /></label><label><span>Password</span><input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" minLength={8} required /></label><button type="submit" disabled={authSaving}>{authSaving ? "Signing in…" : "Sign in"} <span aria-hidden="true">↗</span></button><Feedback message={authMessage} /></form></section>
       ) : (
         <section className="admin-dashboard">
-          <div className="admin-dashboard-heading"><div><p className="eyebrow">Tournament control centre</p><h1>Match control<span className="accent-dot">.</span></h1></div>{selected && <a href={`../bracket/?tournament=${selected.slug}`} target="_blank" rel="noreferrer">Open public bracket ↗</a>}</div>
-          <div className="admin-toolbar"><label className="admin-field"><span>Current tournament</span><select value={selectedId ?? ""} onChange={(event) => selectTournament(event.target.value || null)}><option value="">No tournament selected</option>{tournaments.map((tournament) => <option value={tournament.id} key={tournament.id}>{tournament.name} · {tournament.sport} · {tournament.status}</option>)}</select></label>{canCreateTournament && <button type="button" onClick={() => { setSelectedId(null); setShowCreate(true); }}>+ New tournament</button>}</div>
-          {showCreate && !selectedId && canCreateTournament && <CreateTournament key={user.id} userId={user.id} onClose={() => setShowCreate(false)} onCreated={(id) => { setShowCreate(false); void loadTournaments(user, id); }} />}
+          <header className="admin-workspace-header">
+            <h1>Tournament admin<span className="accent-dot">.</span></h1>
+            <div className="admin-current-tournament">
+              <label className="admin-field">
+                <span>Current tournament</span>
+                <select disabled={galleryBusy} value={selectedId ?? ""} onChange={event => selectTournament(event.target.value || null)}>
+                  <option value="">No tournament selected</option>
+                  {tournaments.map(tournament => <option value={tournament.id} key={tournament.id}>
+                    {tournament.name} · {tournament.sport}{tournament.starts_at ? ` · ${toLocalDate(tournament.starts_at)}` : ""}
+                  </option>)}
+                </select>
+              </label>
+              {selected && <p className="admin-current-status" data-status={selected.status}>{tournamentStatusLabels[selected.status]}</p>}
+            </div>
+          </header>
+          <nav className="admin-workspace-tabs" aria-label="Admin sections">
+            {adminTabs.map(({ id, label }) => <button key={id} type="button" aria-pressed={tab === id}
+              aria-controls={`admin-panel-${id}`} onClick={() => setTab(id)}>{label}</button>)}
+          </nav>
           {accessError && <div role="alert" className="admin-muted-note">{accessError} <button type="button" onClick={() => void loadTournaments(user)}>Retry</button></div>}
-          {!accessError && organizerAccess && !tournaments.length && <div className="admin-muted-note">No tournaments yet. Create the first tournament to get started.</div>}
-          {selected && <div className="admin-toolbar">
-            <button type="button" aria-pressed={!dayView} onClick={() => setDayView(false)}>Tournament management</button>
-            <button type="button" aria-pressed={dayView} onClick={() => setDayView(true)}>Tournament day</button>
-          </div>}
-          {selected && dayView && <TournamentDay key={selected.id} tournament={selected} matches={matches} groupMatches={groupMatches} groups={groups} pairMap={pairMap} onSaved={() => { void loadTournamentData(); void loadTournaments(user, selected.id); }} />}
-          {selected && !dayView && <>
-            <div className="admin-section-heading admin-first-section"><div><span>01</span><h2>Tournament</h2></div><p>Publish, start live coverage or archive the completed tournament.</p></div>
-            <TournamentSettings key={selected.updated_at} tournament={selected} onSaved={() => void loadTournaments(user)} />
+          <section id="admin-panel-matches" hidden={tab !== "matches"}>
+            {tab === "matches" && (selected
+              ? <TournamentDay key={selected.id} tournament={selected} matches={matches} groupMatches={groupMatches} groups={groups} pairMap={pairMap} onSaved={() => { void loadTournamentData(); void loadTournaments(user, selected.id); }} />
+              : <p className="admin-muted-note">Select a tournament to manage its matches.</p>)}
+          </section>
+          <section id="admin-panel-photos" hidden={tab !== "photos"}>
+            {selected
+              ? <GalleryManager key={selected.id} tournamentId={selected.id} active={tab === "photos"} onBusyChange={setGalleryBusy} />
+              : <p className="admin-muted-note">Select a tournament to manage its photos.</p>}
+          </section>
+          <section id="admin-panel-tournaments" hidden={tab !== "tournaments"}>
+          {tab === "tournaments" && <>
+            <div className="admin-workspace-section-heading">
+              <h2>Tournament settings</h2>
+              {canCreateTournament && <button className="admin-outline-action" type="button" disabled={galleryBusy}
+                onClick={() => { setSelectedId(null); setShowCreate(true); }}>+ New tournament</button>}
+            </div>
+            {showCreate && !selectedId && canCreateTournament && <CreateTournament key={user.id} userId={user.id} onClose={() => setShowCreate(false)} onCreated={(id) => { setShowCreate(false); void loadTournaments(user, id); }} />}
+            {!accessError && organizerAccess && !tournaments.length && !showCreate && <div className="admin-muted-note">No tournaments yet. Create the first tournament to get started.</div>}
+          {selected && <>
+            {selected.status !== "draft" && <a className="admin-bracket-link" href={`../bracket/?tournament=${selected.slug}`} target="_blank" rel="noreferrer">Open public bracket ↗</a>}
+            <TournamentSettings key={`${selected.id}-${selected.updated_at}`} tournament={selected} onSaved={() => void loadTournaments(user)} />
             <TournamentReset tournament={selected} onReset={() => { void loadTournaments(user, selected.id); void loadTournamentData(); }} />
             <TournamentDelete tournament={selected} onDeleted={() => { setSelectedId(null); void loadTournaments(user); }} />
-            <GalleryManager
-              key={selected.id}
-              tournamentId={selected.id}
-              tournamentStatus={selected.status}
-              open={galleryOpen}
-              onOpenChange={setGalleryOpen}
-              onTournamentChange={selectTournament}
-              tournamentOptions={tournaments.map(tournament => (
-                <option key={tournament.id} value={tournament.id}>
-                  {tournament.name} · {tournament.sport}{tournament.starts_at ? ` · ${toLocalDate(tournament.starts_at)}` : ""}
-                </option>
-              ))}
-            />
             <details className="admin-collapsible admin-matches-heading" open>
-              <summary><div><span>02</span><h2>Registrations</h2></div><p>Review pair applications and keep each status up to date.</p></summary>
+              <summary><div><h2>Registrations</h2></div><p>Review pair applications and keep each status up to date.</p></summary>
               <div className="admin-collapsible-content"><RegistrationManager key={selected.id} tournamentId={selected.id} pairs={pairs} registrations={registrations} error={registrationError} onRefresh={() => void loadTournamentData()} /></div>
             </details>
             <details className="admin-collapsible admin-matches-heading">
-              <summary><div><span>03</span><h2>Participants</h2></div><p>Edit the pair and player names used in the tournament.</p></summary>
+              <summary><div><h2>Participants</h2></div><p>Edit the pair and player names used in the tournament.</p></summary>
               <div className="admin-collapsible-content"><div className="admin-pair-grid">{pairs.map((pair) => <PairEditor key={`${pair.id}-${pair.updated_at}`} pair={pair} onSaved={() => void loadTournamentData()} />)}</div></div>
             </details>
             <details className="admin-collapsible admin-matches-heading" open>
-              <summary><div><span>04</span><h2>Group stage</h2></div><p>Manage flexible groups and manually choose the playoff qualifiers.</p></summary>
+              <summary><div><h2>Group stage</h2></div><p>Manage flexible groups and manually choose the playoff qualifiers.</p></summary>
               <div className="admin-collapsible-content"><GroupStageManager key={`${selected.id}-${pairs.length}-${groupMembers.map((member) => `${member.pair_id}:${member.group_id}:${member.position}`).join("|")}`} tournament={selected} pairs={pairs} groups={groups} members={groupMembers} matches={groupMatches} playoffMatches={matches.filter(match => match.bracket_kind !== "basement")} pairMap={pairMap} onSaved={() => { void loadTournamentData(); void loadTournaments(user, selected.id); }} /></div>
             </details>
             <details className="admin-collapsible admin-matches-heading" open>
-              <summary><div><span>05</span><h2>Playoffs &amp; courts</h2></div><p>Schedule knockout matches, switch LIVE on and enter results.</p></summary>
+              <summary><div><h2>Playoffs &amp; courts</h2></div><p>Schedule knockout matches, switch LIVE on and enter results.</p></summary>
               <div className="admin-collapsible-content admin-round-groups">{selected.format === "knockout" && <KnockoutOnlyDraw key={`${selected.id}-${pairs.length}`} tournament={selected} pairs={pairs} matches={matches.filter(match => match.bracket_kind !== "basement")} pairMap={pairMap} onSaved={() => { void loadTournamentData(); void loadTournaments(user, selected.id); }} />}<AdminBracketOverview matches={matches.filter(match => match.bracket_kind !== "basement")} pairMap={pairMap} size={selected.bracket_size} />{matchesByRound.map(({ round, matches: roundMatches }) => <details className="admin-round-group" open key={round}><summary><h3>{roundLabel(selected.bracket_size, round)}</h3><span>{roundMatches.length}</span></summary><div className="admin-match-grid">{roundMatches.map((match) => <AdminMatch key={`${match.id}-${match.updated_at}`} match={match} pairMap={pairMap} bracketSize={selected.bracket_size} onSaved={() => void loadTournamentData()} />)}</div></details>)}</div>
             </details>
             {selected.format === "group_knockout" && <BasementManager tournament={selected} matches={matches.filter(match => match.bracket_kind === "basement")} pairMap={pairMap} onSaved={() => void loadTournamentData()} />}
           </>}
+          </>}
+          </section>
         </section>
       )}
     </main>

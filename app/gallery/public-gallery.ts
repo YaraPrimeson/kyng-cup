@@ -4,7 +4,7 @@ import { type Sport, visibleSports } from "@/lib/sports";
 
 // Public pages use the anon role even when an organizer is signed in.
 const publicDatabase = createClient(SUPABASE_URL, SUPABASE_PUBLIC_KEY, { accessToken: async () => null });
-const albumFields = "id,slug,name,sport,location,starts_at,ends_at,gallery:tournament_galleries!inner(cover_photo_id)";
+const albumFields = "id,slug,name,sport,location,starts_at,ends_at,has_public_bracket,cover_photo_id";
 export const archivePageSize = 10;
 export const photoPageSize = 36;
 
@@ -16,11 +16,12 @@ export type PublicAlbum = {
   location: string | null;
   starts_at: string | null;
   ends_at: string | null;
-  gallery: { cover_photo_id: string };
+  has_public_bracket: boolean;
+  cover_photo_id: string;
 };
 
 function publicAlbums(sport?: Sport) {
-  return publicDatabase.from("tournaments").select(albumFields).eq("status", "completed")
+  return publicDatabase.from("published_tournament_albums").select(albumFields)
     .in("sport", sport ? [sport] : visibleSports);
 }
 

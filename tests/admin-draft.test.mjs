@@ -146,7 +146,7 @@ test('organiser creates a single-use claim code for the registered contact witho
   assert.match(document.body.textContent, /a{64}/);
 });
 
-test('album tournament picker switches photo sets and explains publication eligibility', async () => {
+test('shared tournament picker works across all tabs and allows publishing covered albums in every status', async () => {
   const completed = { ...existing, id: 'past', name: 'Past Cup', status: 'completed' };
   records.tournaments.push(completed);
   records.tournament_galleries = [
@@ -159,18 +159,23 @@ test('album tournament picker switches photo sets and explains publication eligi
     { tournament_id: completed.id, id: 'three', sort_order: 1, state: 'visible' },
   ];
   await mount();
-  await enter(document.querySelector('.admin-toolbar select'), existing.id);
-  await click(document.querySelector('.admin-gallery > summary'));
+  await enter(document.querySelector('.admin-current-tournament select'), existing.id);
+  await click(button('Photos'));
   const gallery = () => document.querySelector('.admin-gallery');
-  assert.match(gallery().textContent, /Tournament status · Draft/);
+  assert.equal(document.querySelector(".admin-current-status").textContent, "Draft");
   assert.match(gallery().textContent, /1 visible photo/);
-  assert.equal(button('Publish album').disabled, true);
-  assert.ok(document.querySelector(gallery().querySelector('#gallery-publish-hint a').hash));
+  assert.equal(button('Publish album').disabled, false);
+  await click(button('Publish album'));
+  assert.ok(calls.some(call => call.name === 'update:tournament_galleries' && call.payload.published_at));
 
-  await enter(gallery().querySelector('select'), completed.id);
-  assert.equal(gallery().open, true);
-  assert.equal(document.querySelector('.admin-toolbar select').value, completed.id);
-  assert.match(gallery().textContent, /Tournament status · Completed/);
+  await click(button('Live matches'));
+  assert.equal(document.querySelector('#admin-panel-photos').hidden, true);
+  assert.equal(document.querySelector('.admin-current-tournament select').value, existing.id);
+  await enter(document.querySelector('.admin-current-tournament select'), completed.id);
+  await click(button('Photos'));
+  assert.equal(document.querySelector("#admin-panel-photos").hidden, false);
+  assert.equal(document.querySelector('.admin-current-tournament select').value, completed.id);
+  assert.equal(document.querySelector(".admin-current-status").textContent, "Completed");
   assert.match(gallery().textContent, /2 visible photos/);
   assert.equal(button('Publish album').disabled, false);
 });

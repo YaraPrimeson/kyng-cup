@@ -1,0 +1,36 @@
+.admin-dashboard { max-width: 1450px; margin-inline: auto; padding-top: clamp(28px, 5vw, 64px); }
+.admin-workspace-header { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 28px; align-items: start; margin-bottom: 34px; }
+.admin-workspace-header h1 { margin: 0; font-size: clamp(2.6rem, 5.5vw, 5.35rem); line-height: 1; }
+.admin-current-status { margin: 8px 0 0; font-size: 14px; }
+.admin-current-status::before, .admin-day-card-label [data-status="live"]::before { content: ""; display: inline-block; width: .55em; height: .55em; border-radius: 50%; margin-right: .5em; background: var(--forest); vertical-align: .1em; }
+.admin-current-status[data-status="draft"]::before { background: #77746c; }
+.admin-current-status[data-status="live"]::before, .admin-day-card-label [data-status="live"]::before { background: #c07a13; }
+.admin-workspace-tabs { display: flex; flex-wrap: wrap; gap: 4px 18px; border-bottom: 1px solid var(--line); margin-bottom: 28px; }
+.admin-workspace-tabs button { border: 0; border-bottom: 3px solid transparent; background: transparent; color: var(--ink); padding: 12px 14px; cursor: pointer; font: inherit; }
+.admin-workspace-tabs button[aria-pressed="true"] { border-bottom-color: var(--forest); color: var(--forest-dark); font-weight: 700; }
+.admin-workspace-section-heading { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px 20px; align-items: end; margin-bottom: 18px; }
+.admin-workspace-section-heading h2 { margin: 0; font: 600 clamp(1.8rem, 3.7vw, 3.5rem)/1.08 var(--font-lora), Georgia, serif; letter-spacing: -.035em; }
+.admin-outline-action { border: 1px solid var(--forest); border-radius: 7px; padding: 9px 14px; color: var(--forest-dark); background: transparent; cursor: pointer; font-weight: 600; }
+.admin-outline-action:disabled { opacity: .5; cursor: default; }
+.admin-bracket-link { display: inline-block; margin-bottom: 16px; }
+.admin-day-workspace { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); gap: 16px; align-items: start; }
+.admin-day-list { align-content: start; }
+.admin-day-list li { display: block; padding: 0; border: 0; }
+.admin-day-list li > button { display: grid; gap: 5px; width: 100%; text-align: left; padding: 14px; border: 1px solid var(--line); border-radius: 10px; background: transparent; color: var(--ink); }
+.admin-day-list li > button[aria-pressed="true"] { border-color: var(--forest); box-shadow: inset 0 0 0 1px var(--forest); }
+.admin-day-card-label { display: flex; justify-content: space-between; gap: 8px; font-size: 14px; }
+.admin-day-editor h3 { margin: 0; font: 600 clamp(1.3rem, 2.2vw, 2rem)/1.15 var(--font-lora), Georgia, serif; }
+.admin-day-editor .admin-match { min-width: 0; }
+.admin-live-controls { display: grid; justify-items: start; gap: 10px; }
+.admin-live-scoreboard { width: 100%; }
+.admin-live-scoreboard > div { display: grid; grid-template-columns: minmax(0, 1fr) 3rem minmax(7rem, auto); align-items: center; gap: 6px; padding: 9px 0; border-top: 1px solid var(--line); font-size: 13px; }
+.admin-live-scoreboard > div > :nth-child(2), .admin-live-scoreboard > div > :nth-child(3) { text-align: center; }
+.admin-live-stepper { display: flex; justify-content: center; align-items: center; gap: 9px; }
+.admin-live-stepper button { border: 1px solid var(--line); border-radius: 6px; background: transparent; color: var(--ink); min-width: 32px; }
+.admin-live-stepper button:disabled { opacity: .5; cursor: default; }
+
+@media (max-width: 760px) {
+  .admin-workspace-header, .admin-day-workspace { grid-template-columns: 1fr; }
+  .admin-workspace-tabs { gap: 0 4px; }
+  .admin-workspace-tabs button { padding-inline: 9px; }
+}
