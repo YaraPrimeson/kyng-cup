@@ -1,0 +1,16 @@
+.admin-gallery { margin-top: 24px; }
+.admin-gallery-body { display: grid; gap: 14px; }
+.admin-gallery-body p { margin: 0; font-size: 14px; }
+.admin-gallery-toolbar, .admin-gallery-photo-actions, .admin-gallery-pages { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.admin-gallery-toolbar { justify-content: space-between; }
+.admin-gallery-toolbar label { display: grid; gap: 6px; min-width: 0; font-size: 14px; }
+.admin-gallery-toolbar input { width: 100%; font-size: 13px; }
+.admin-gallery-body button { border: 1px solid var(--forest); border-radius: 999px; background: transparent; color: var(--forest-dark); padding: 7px 12px; cursor: pointer; }
+.admin-gallery-body button:disabled { opacity: .5; cursor: default; }
+.admin-gallery-progress { display: grid; justify-items: start; gap: 6px; }
+.admin-gallery-progress progress { width: min(100%, 320px); accent-color: var(--forest); }
+.admin-gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(136px, 1fr)); gap: 12px; }
+.admin-gallery-grid article { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.admin-gallery-grid img, .admin-gallery-placeholder { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; display: block; background: #e5e0d5; }
+.admin-gallery-grid p, .admin-gallery-photo-actions { padding: 6px 8px; }
+.admin-gallery-photo-actions button { font-size: 12px; }

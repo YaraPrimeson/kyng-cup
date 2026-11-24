@@ -1,6 +1,8 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import KnockoutBoard from "../knockout-board";
+import { galleryAlbumHref, hasPublicAlbum } from "../gallery/public-gallery";
 import TournamentPicker from "./tournament-picker";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { visibleSportItems } from "@/lib/sports";
@@ -118,6 +120,8 @@ function BasementKing({ groups, members, matches, games, pairMap, language }: { 
 }
 
 export default function BracketPage() {
+  const pathname = usePathname();
+  const basePath = pathname.startsWith("/kyng-cup/") ? "/kyng-cup" : "";
   const { language } = useLanguage();
   const text = bracketCopy[language];
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
@@ -129,6 +133,7 @@ export default function BracketPage() {
   const [groupMatches, setGroupMatches] = useState<GroupMatch[]>([]);
   const [stage, setStage] = useState<"groups" | "playoffs" | "basement">("groups");
   const [activeRound, setActiveRound] = useState(1);
+  const [albumTournamentId, setAlbumTournamentId] = useState<string | null>(null);
   const displayedTournament = useRef<string | null>(null);
   const requestNumber = useRef(0);
   const [loading, setLoading] = useState(true);
@@ -179,6 +184,19 @@ export default function BracketPage() {
     return () => { void supabase.removeChannel(channel); };
   }, [loadBracket, tournament?.id, tournament?.slug]);
 
+  const completedTournamentId = tournament?.status === "completed" ? tournament.id : null;
+  useEffect(() => {
+    if (!completedTournamentId) return;
+    const id = completedTournamentId;
+    let cancelled = false;
+    void hasPublicAlbum(id).then(available => {
+      if (!cancelled) setAlbumTournamentId(available ? id : null);
+    }, () => {
+      if (!cancelled) setAlbumTournamentId(null);
+    });
+    return () => { cancelled = true; };
+  }, [completedTournamentId]);
+
   const pairMap = useMemo(() => new Map(pairs.map((pair) => [pair.id, pair])), [pairs]);
   const playoffMatches = useMemo(() => matches.filter(match => match.bracket_kind !== "basement"), [matches]);
   const basementMatches = useMemo(() => matches.filter(match => match.bracket_kind === "basement"), [matches]);
@@ -200,7 +218,7 @@ export default function BracketPage() {
   const hasAnotherTournament = [...active, ...archive].some((item) => item.slug !== tournament?.slug);
 
   return <main className="bracket-page">
-    <section className="bracket-intro"><div><p className="eyebrow">Live tournament experience</p><h1>{text.headingA}<br />{text.headingB}<span className="accent-dot">.</span></h1></div><div className="bracket-summary"><span className={`live-indicator${tournament?.status === "live" ? " is-live" : ""}`}><i /> {tournament?.status === "live" ? "Live updates" : "Tournament schedule"}</span><strong>{tournament?.name ?? "KYNG CUP"}</strong><span>{tournament?.location ?? text.locationTba} · {tournament?.participant_count ?? tournament?.bracket_size ?? 16} {text.pairs}</span>{hasAnotherTournament && <TournamentPicker active={active} archive={archive} currentSlug={tournament?.slug} language={language} onSelect={selectTournament} />}</div></section>
+    <section className="bracket-intro"><div><p className="eyebrow">Live tournament experience</p><h1>{text.headingA}<br />{text.headingB}<span className="accent-dot">.</span></h1></div><div className="bracket-summary"><span className={`live-indicator${tournament?.status === "live" ? " is-live" : ""}`}><i /> {tournament?.status === "live" ? "Live updates" : "Tournament schedule"}</span><strong>{tournament?.name ?? "KYNG CUP"}</strong><span>{tournament?.location ?? text.locationTba} · {tournament?.participant_count ?? tournament?.bracket_size ?? 16} {text.pairs}</span>{tournament?.status === "completed" && albumTournamentId === tournament.id && <a className="bracket-link" href={galleryAlbumHref(tournament.slug, basePath)}>{({ en: "View tournament photos", uk: "Фото турніру", de: "Turnierfotos ansehen", ru: "Фото турнира" })[language]} ↗</a>}{hasAnotherTournament && <TournamentPicker active={active} archive={archive} currentSlug={tournament?.slug} language={language} onSelect={selectTournament} />}</div></section>
     {champion && <section className="champion-banner"><span>Champion</span><div><strong>{champion.name}</strong><small>{champion.player_one} · {champion.player_two}</small></div><b>KYNG CUP</b></section>}
     {loading ? <div className="bracket-state" role="status" aria-live="polite">Loading the draw…</div> : error ? <div className="bracket-state is-error" role="alert">{error}</div> : <>
       {tournament?.format === "group_knockout" && <nav className="stage-tabs" aria-label="Tournament stages"><button type="button" className={stage === "groups" ? "is-active" : ""} onClick={() => setStage("groups")}>{text.groups}</button><button type="button" className={stage === "playoffs" ? "is-active" : ""} onClick={() => setStage("playoffs")}>{text.playoffs}</button><button type="button" className={stage === "basement" ? "is-active basement-tab" : "basement-tab"} onClick={() => setStage("basement")}>{basementCopy[language].tab}</button></nav>}

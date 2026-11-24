@@ -2,6 +2,7 @@
 
 import { isSportVisible, visibleSportItems } from "@/lib/sports";
 import CreateTournament from "./create-tournament";
+import GalleryManager from "./gallery-manager";
 import RegistrationPairLink, { RegistrationPairLinks } from "./registration-pair-link";
 import KnockoutDraw from "./knockout-draw";
 import KnockoutBoard from "../knockout-board";
@@ -785,6 +786,7 @@ export default function AdminPage() {
             <TournamentSettings key={selected.updated_at} tournament={selected} onSaved={() => void loadTournaments(user)} />
             <TournamentReset tournament={selected} onReset={() => { void loadTournaments(user, selected.id); void loadTournamentData(); }} />
             <TournamentDelete tournament={selected} onDeleted={() => { setSelectedId(null); void loadTournaments(user); }} />
+            <GalleryManager key={selected.id} tournamentId={selected.id} completed={selected.status === "completed"} />
             <details className="admin-collapsible admin-matches-heading" open>
               <summary><div><span>02</span><h2>Registrations</h2></div><p>Review pair applications and keep each status up to date.</p></summary>
               <div className="admin-collapsible-content"><RegistrationManager key={selected.id} tournamentId={selected.id} pairs={pairs} registrations={registrations} error={registrationError} onRefresh={() => void loadTournamentData()} /></div>

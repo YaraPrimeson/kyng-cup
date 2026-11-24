@@ -4,3 +4,11 @@ verify_jwt = false
 # The handler verifies the password before issuing an Auth session.
 [functions.organizer-login]
 verify_jwt = false
+
+# Public requests use the anon role. Organizer sessions are checked by PostgREST.
+[functions.gallery-photo-urls]
+verify_jwt = false
+
+# The handler validates the caller through the organizer RPC before signing writes.
+[functions.gallery-photo-upload]
+verify_jwt = false

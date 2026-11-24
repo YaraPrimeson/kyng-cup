@@ -24,7 +24,7 @@ export default function SiteHeader() {
   return (
     <header className="global-header">
       <a className="brand" href={`${basePath}/`} aria-label="KYNG CUP home"><Wordmark /></a>
-      <nav aria-label="Main navigation">{links.map(([href, label]) => <a href={`${basePath}${href}`} aria-current={path === href.replace(/\/+$/, "") ? "page" : undefined} key={href}>{label}</a>)}<a href={`${basePath}/profile/`}>{({ en: "My KYNG", uk: "Мій KYNG", de: "Mein KYNG", ru: "Мой KYNG" })[language]}</a></nav>
+      <nav aria-label="Main navigation">{links.map(([href, label]) => <a href={`${basePath}${href}`} aria-current={path === href.replace(/\/+$/, "") ? "page" : undefined} key={href}>{label}</a>)}<a href={`${basePath}/gallery/`} aria-current={path === "/gallery" ? "page" : undefined}>{({ en: "Gallery", uk: "Галерея", de: "Galerie", ru: "Галерея" })[language]}</a><a href={`${basePath}/profile/`}>{({ en: "My KYNG", uk: "Мій KYNG", de: "Mein KYNG", ru: "Мой KYNG" })[language]}</a></nav>
       <LanguageSelect />
     </header>
   );

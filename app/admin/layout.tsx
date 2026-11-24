@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import "./gallery-manager.css";
 
 export const metadata: Metadata = {
   title: "Tournament Admin — KYNG CUP",
