@@ -49,7 +49,7 @@ test("gallery visibility, 300 photos, and cover integrity for padel and tennis",
     ), "utf8"));
 
     await db.exec(await readFile(new URL(
-      "../supabase/migrations/20261124142546_publish_gallery_independently.sql", import.meta.url,
+      "../supabase/migrations/20261124143626_publish_gallery_independently.sql", import.meta.url,
     ), "utf8"));
 
     await db.exec("set role authenticated");
