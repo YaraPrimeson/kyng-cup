@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { uploadGalleryPhoto } from "./gallery-upload";
 
@@ -8,6 +8,7 @@ type Album = { cover_photo_id: string | null; published_at: string | null };
 type Photo = { id: string; sort_order: number; state: "pending" | "visible" | "hidden" };
 type Job = { file: File; order: number; state: "waiting" | "uploading" | "done" | "failed"; error?: string };
 const pageSize = 36;
+const tournamentStatuses = { draft: "Draft", published: "Published", live: "Live now", completed: "Completed" };
 
 function errorText(error: unknown) {
   return error && typeof error === "object" && "message" in error
@@ -15,8 +16,17 @@ function errorText(error: unknown) {
     : "Could not update the photo album.";
 }
 
-export default function GalleryManager({ tournamentId, completed }: { tournamentId: string; completed: boolean }) {
-  const [open, setOpen] = useState(false);
+export default function GalleryManager({
+  tournamentId, tournamentStatus, tournamentOptions, onTournamentChange, open, onOpenChange,
+}: {
+  tournamentId: string;
+  tournamentStatus: keyof typeof tournamentStatuses;
+  tournamentOptions: ReactNode;
+  onTournamentChange: (id: string) => void;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const completed = tournamentStatus === "completed";
   const [loaded, setLoaded] = useState(false);
   const [album, setAlbum] = useState<Album | null>(null);
   const [photos, setPhotos] = useState<Photo[]>([]);
@@ -146,9 +156,23 @@ export default function GalleryManager({ tournamentId, completed }: { tournament
   const cover = photos.find(photo => photo.id === album?.cover_photo_id);
   const lastPage = Math.max(0, Math.ceil(photos.length / pageSize) - 1);
 
-  return <details className="admin-collapsible admin-gallery" onToggle={event => setOpen(event.currentTarget.open)}>
+  const publishHint = album?.published_at ? null : !completed ? (
+    <>To publish, set <a href="#tournament-status">Visibility / status</a> to <strong>Completed · archive</strong> and save the tournament.</>
+  ) : ready === 0 ? "Upload at least one photo to publish." :
+    cover?.state !== "visible" ? "Choose a visible photo as the cover to publish." : null;
+
+  return <details className="admin-collapsible admin-gallery" open={open} onToggle={event => onOpenChange(event.currentTarget.open)}>
     <summary><div><h2>Photo album</h2></div><p>Upload tournament photos, choose a cover and publish.</p></summary>
     <div className="admin-collapsible-content admin-gallery-body">
+      <div className="admin-gallery-tournament">
+        <label className="admin-field">
+          <span>Album tournament</span>
+          <select value={tournamentId} onChange={event => onTournamentChange(event.currentTarget.value)} disabled={busy}>
+            {tournamentOptions}
+          </select>
+        </label>
+        <p>Tournament status · <strong>{tournamentStatuses[tournamentStatus]}</strong></p>
+      </div>
       {error && <p role="alert">{error} {!loaded && <button type="button" onClick={() => { setError(""); void load().catch(reason => setError(errorText(reason))); }}>Retry</button>}</p>}
       {!loaded && !error && <p role="status">Loading album…</p>}
       {loaded && <>
@@ -156,13 +180,13 @@ export default function GalleryManager({ tournamentId, completed }: { tournament
           <label>Upload photos <input aria-label="Upload photos" type="file" multiple accept="image/jpeg,image/png,image/webp"
             disabled={busy} onChange={event => { if (event.currentTarget.files) selectFiles(event.currentTarget.files); event.currentTarget.value = ""; }} /></label>
           <p>{album?.published_at ? "Published" : "Draft"} · {ready} visible photo{ready === 1 ? "" : "s"}</p>
-          <button type="button" disabled={busy || (!album?.published_at && (!completed || cover?.state !== "visible"))}
+          <button type="button" disabled={busy || Boolean(publishHint)}
+            aria-describedby={publishHint ? "gallery-publish-hint" : undefined}
             onClick={() => void updateAlbum({ published_at: album?.published_at ? null : new Date().toISOString() })}>
             {album?.published_at ? "Unpublish album" : "Publish album"}
           </button>
         </div>
-        {!album?.published_at && !completed && <p>Complete the tournament before publishing its album.</p>}
-        {!album?.published_at && completed && ready > 0 && cover?.state !== "visible" && <p>Choose a visible photo as the cover to publish.</p>}
+        {publishHint && <p id="gallery-publish-hint">{publishHint}</p>}
         {jobs.length > 0 && <div className="admin-gallery-progress">
           <progress max={jobs.length} value={settled} aria-label="Files processed" />
           <p role="status">{settled} / {jobs.length} processed · {failed.length} failed</p>

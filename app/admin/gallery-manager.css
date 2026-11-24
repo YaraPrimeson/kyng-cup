@@ -1,6 +1,10 @@
 .admin-gallery { margin-top: 24px; }
 .admin-gallery-body { display: grid; gap: 14px; }
 .admin-gallery-body p { margin: 0; font-size: 14px; }
+.admin-gallery-tournament { display: flex; align-items: end; flex-wrap: wrap; gap: 10px 16px; }
+.admin-gallery-tournament label { flex: 0 1 360px; min-width: 0; }
+#tournament-status { scroll-margin-top: 100px; }
+.admin-gallery-tournament p { padding-block: 10px; }
 .admin-gallery-toolbar, .admin-gallery-photo-actions, .admin-gallery-pages { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .admin-gallery-toolbar { justify-content: space-between; }
 .admin-gallery-toolbar label { display: grid; gap: 6px; min-width: 0; font-size: 14px; }

@@ -59,10 +59,20 @@ const supabase = {
           ? { data: 'a'.repeat(64), error: null }
           : { data: createError ? null : existing.id, error: createError };
   },
+  functions: { invoke: async () => ({ data: { urls: {} }, error: null }) },
   from(table) {
     const result = { data: records[table] ?? [], error: null };
+    let tournamentId;
     const query = {
-      select() { return query; }, eq() { return query; }, in() { return query; },
+      select() { return query; },
+      eq(column, value) { if (column === 'tournament_id') tournamentId = value; return query; },
+      in() { return query; },
+      async maybeSingle() {
+        return { data: result.data.find(row => row.tournament_id === tournamentId) ?? null, error: null };
+      },
+      async range(from, to) {
+        return { data: result.data.filter(row => row.tournament_id === tournamentId).slice(from, to + 1), error: null };
+      },
       order() { return query; }, then(resolve, reject) { return Promise.resolve(result).then(resolve, reject); },
       update(value) { calls.push({ name: `update:${table}`, payload: value }); return query; },
       single: async () => ({ data: { id: 'match-one' }, error: null }),
@@ -134,6 +144,35 @@ test('organiser creates a single-use claim code for the registered contact witho
   await click(button('Create player 1 code'));
   assert.ok(calls.some(call => call.name === 'issue_registration_claim_code' && call.payload.p_registration_id === 'legacy-one' && call.payload.p_player_role === 'primary'));
   assert.match(document.body.textContent, /a{64}/);
+});
+
+test('album tournament picker switches photo sets and explains publication eligibility', async () => {
+  const completed = { ...existing, id: 'past', name: 'Past Cup', status: 'completed' };
+  records.tournaments.push(completed);
+  records.tournament_galleries = [
+    { tournament_id: existing.id, cover_photo_id: 'one', published_at: null },
+    { tournament_id: completed.id, cover_photo_id: 'two', published_at: null },
+  ];
+  records.tournament_gallery_photos = [
+    { tournament_id: existing.id, id: 'one', sort_order: 0, state: 'visible' },
+    { tournament_id: completed.id, id: 'two', sort_order: 0, state: 'visible' },
+    { tournament_id: completed.id, id: 'three', sort_order: 1, state: 'visible' },
+  ];
+  await mount();
+  await enter(document.querySelector('.admin-toolbar select'), existing.id);
+  await click(document.querySelector('.admin-gallery > summary'));
+  const gallery = () => document.querySelector('.admin-gallery');
+  assert.match(gallery().textContent, /Tournament status · Draft/);
+  assert.match(gallery().textContent, /1 visible photo/);
+  assert.equal(button('Publish album').disabled, true);
+  assert.ok(document.querySelector(gallery().querySelector('#gallery-publish-hint a').hash));
+
+  await enter(gallery().querySelector('select'), completed.id);
+  assert.equal(gallery().open, true);
+  assert.equal(document.querySelector('.admin-toolbar select').value, completed.id);
+  assert.match(gallery().textContent, /Tournament status · Completed/);
+  assert.match(gallery().textContent, /2 visible photos/);
+  assert.equal(button('Publish album').disabled, false);
 });
 
 test('partner without a contact email cannot receive a claim code', async () => {
