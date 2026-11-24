@@ -946,7 +946,7 @@ function AdminWorkspace() {
   const heading = (label: string) => <div className="admin-workspace-section-heading"><h2>{t(label)}</h2></div>;
   const detailsReady = selected && loadedTournamentId === selected.id;
 
-  return <main className="admin-page" lang={locale} aria-busy={checking}>
+  return <main className="admin-page" lang={locale} translate="no" aria-busy={checking}>
     {checking ? null : !user ? <section className="admin-sign-in">
       <AdminLocale />
       <form onSubmit={submitAuth}>

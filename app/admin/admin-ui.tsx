@@ -34,8 +34,13 @@ export function AdminUI({ children }: { children: ReactNode }) {
   const answer = useRef<((accepted: boolean) => void) | null>(null);
 
   useEffect(() => {
-    try { if (window.localStorage.getItem(localeKey) === "ru") setLocale("ru"); } catch { /* Storage may be disabled. */ }
-    return () => answer.current?.(false);
+    const timer = window.setTimeout(() => {
+      try { if (window.localStorage.getItem(localeKey) === "ru") setLocale("ru"); } catch { /* Storage may be disabled. */ }
+    }, 0);
+    return () => {
+      window.clearTimeout(timer);
+      answer.current?.(false);
+    };
   }, []);
 
   useEffect(() => {
@@ -67,7 +72,7 @@ export function AdminUI({ children }: { children: ReactNode }) {
   const t = (text: string) => locale === "ru" ? adminCopy[text] ?? text : text;
   return <AdminContext.Provider value={{ locale, setLocale: chooseLocale, t, confirm }}>
     {children}
-    {request && <dialog ref={dialog} className="admin-dialog" lang={locale} aria-labelledby="admin-dialog-title"
+    {request && <dialog ref={dialog} className="admin-dialog" lang={locale} translate="no" aria-labelledby="admin-dialog-title"
       aria-describedby={request.detail ? "admin-dialog-detail" : undefined}
       onCancel={event => { event.preventDefault(); finish(false); }}>
       <form onSubmit={event => { event.preventDefault(); if (!request.exactName || value === request.exactName) finish(true); }}>

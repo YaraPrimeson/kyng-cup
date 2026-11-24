@@ -170,7 +170,7 @@ function AlbumPhotos({ album, text, language, basePath }: {
     if (nextPage === page) return;
     if (fromBottom) {
       controls.current?.scrollIntoView?.({ block: "start" });
-      controls.current?.querySelector("nav select")?.focus({ preventScroll: true });
+      controls.current?.querySelector<HTMLSelectElement>("nav select")?.focus({ preventScroll: true });
     }
     setState("loading");
     setPage(nextPage);

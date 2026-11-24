@@ -11,11 +11,11 @@ Object.defineProperty(globalThis,'navigator',{configurable:true,value:dom.window
 dom.window.HTMLElement.prototype.scrollIntoView=function(){};
 const {createElement,act}=await import('react');
 const {createRoot}=await import('react-dom/client');
-let root,Register,LanguageProvider,temp,submissions,insertError;
-const event={id:'qa-event',slug:'qa-event',name:'QA Event',sport:'padel',status:'published',registration_status:'open',starts_at:'2027-01-01',ends_at:'2027-01-01'};
+let root,Register,LanguageProvider,temp,submissions,insertError,tournaments;
+const event={id:'sample-event',slug:'sample-event',name:'Sample Event',sport:'padel',status:'published',registration_status:'open',starts_at:'2099-01-01',ends_at:'2099-01-01'};
 before(async()=>{
   globalThis.__registrationClient={rpc(...args){return globalThis.__repeatPayload(...args);},from(table){
-    if(table==='tournaments'){const chain={select(){return chain;},in(){return chain;},order(){return Promise.resolve({data:[event],error:null});}};return chain;}
+    if(table==='tournaments'){const chain={select(){return chain;},in(){return chain;},order(){return Promise.resolve({data:tournaments,error:null});}};return chain;}
     assert.equal(table,'tournament_registrations');return {insert(payload){submissions.push(payload);return Promise.resolve({error:insertError});}};
   }};
   const repo=fileURLToPath(new URL('../',import.meta.url));await mkdir(`${repo}tmp`,{recursive:true});temp=await mkdtemp(`${repo}tmp/registration-ui-`);
@@ -25,7 +25,7 @@ before(async()=>{
   }}]});
   await writeFile(`${temp}/component.mjs`,output.outputFiles[0].contents);({Register,LanguageProvider}=await import(pathToFileURL(`${temp}/component.mjs`).href));
 });
-beforeEach(async()=>{if(root)await act(async()=>root.unmount());window.localStorage.clear();window.history.replaceState({},"","/register/");globalThis.__registrationAccount=null;submissions=[];insertError=null;root=createRoot(document.getElementById('root'));});
+beforeEach(async()=>{if(root)await act(async()=>root.unmount());window.localStorage.clear();window.history.replaceState({},"","/register/");globalThis.__registrationAccount=null;submissions=[];insertError=null;tournaments=[event];root=createRoot(document.getElementById('root'));});
 after(async()=>{if(root)await act(async()=>root.unmount());dom.window.close();await rm(temp,{recursive:true,force:true});delete globalThis.__registrationClient;});
 async function render(language='en'){
   window.localStorage.setItem('kyng-language',language);
@@ -102,4 +102,32 @@ test('repeat registration fills only empty fields and requires a fresh confirmat
   assert.equal(values.get('comment'),'');
   assert.equal(values.get('rules_privacy_accepted'),null);
   assert.equal(submissions.length,0);
+});
+
+test('public registration excludes past and QA events and requires selection after an unavailable link', async () => {
+  tournaments = [
+    { ...event, id: 'past', slug: 'past', starts_at: '2020-01-01', ends_at: '2020-01-01' },
+    { ...event, id: 'test', slug: 'kyngcup-qa-registration' },
+    event,
+  ];
+  window.history.replaceState({}, '', '/register/?tournament=past');
+  await render();
+  const picker = document.querySelector('.registration-tournament-select select');
+  const submitButton = document.querySelector('button[type="submit"]');
+  assert.deepEqual([...picker.options].map(option => option.value), ['', event.slug]);
+  assert.match(document.querySelector('[role="alert"]').textContent, /Registration for this tournament is no longer available/);
+  assert.ok(submitButton.matches(':disabled'));
+  assert.equal(submissions.length, 0);
+
+  await act(async () => {
+    picker.value = event.slug;
+    picker.dispatchEvent(new window.Event('change', { bubbles: true }));
+  });
+  assert.equal(picker.value, event.slug);
+  assert.equal(submitButton.matches(':disabled'), false);
+  assert.equal(document.querySelector('[role="alert"]'), null);
+  fill();
+  await submit();
+  assert.equal(submissions.length, 1);
+  assert.match(document.querySelector('.registration-success').textContent, /Sample Event/);
 });
