@@ -150,12 +150,13 @@ test("a game, set and match are confirmed separately before qualification", asyn
   ]);
   assert.ok(buttons().some(button => button.text === "Завершить матч"));
   await tap("kd:g:review:3");
-  assert.match(bot.replies.at(-1).text, /первой взявшая 3 гейма/);
+  assert.match(bot.replies.at(-1).text, /Выберите итоговый счёт по сетам/);
+  assert.equal(buttons()[0].callback_data, "kd:g:finishwithset:3");
   await tap("kd:g:plus1:3");
   assert.match(bot.replies.at(-1).text, /3:1/);
   assert.match(bot.replies.at(-1).text, /Сеты: 0:0/);
-  assert.ok(!buttons().some(button => button.callback_data?.includes(":plus")));
-  assert.ok(buttons().some(button => button.text === "Подтвердить сет 1 · 3:1"));
+  assert.ok(buttons().some(button => button.callback_data?.includes(":plus")));
+  assert.ok(buttons().some(button => button.text === "Завершить сет"));
   await tap("kd:g:setreview:4");
   assert.equal(buttons()[0].callback_data, "kd:g:set:4");
   await tap("kd:g:set:4");
@@ -166,7 +167,7 @@ test("a game, set and match are confirmed separately before qualification", asyn
   assert.ok(buttons().some(button => button.text === "Посмотреть состав финала"));
 });
 
-test("the deciding super tie-break uses points and a completed set can be selected for correction", async () => {
+test("any completed set can be selected for correction", async () => {
   const board = { revision: 9, final_match: { status: "live", one: "Pair one", two: "Pair two",
     sets: [[6, 4], [3, 6]], sets_one: 1, sets_two: 1, active: { number: 3, kind: "super", one: 8, two: 8 } } };
   const bot = webhook(() => board);
@@ -174,14 +175,13 @@ test("the deciding super tie-break uses points and a completed set can be select
     message: { chat: { id: 123, type: "private" }, message_id: 5 }, data } });
   await tap("kd:f:open:9");
   assert.match(bot.replies.at(-1).text, /Сеты: 1:1/);
-  assert.match(bot.replies.at(-1).text, /Супер-тай-брейк — 8:8 по очкам/);
-  assert.ok(bot.replies.at(-1).reply_markup.inline_keyboard.flat().some(button => button.text === "+1 очко · Pair one"));
+  assert.match(bot.replies.at(-1).text, /Сет 3 · геймы 8:8/);
   await tap("kd:f:edit:9");
   assert.equal(bot.replies.at(-1).reply_markup.inline_keyboard[0][0].callback_data, "kd:f:input1:9");
 });
 
-test("a standard final set at 3:0 explains its format and cannot be confirmed until 6:0", async () => {
-  const active = { number: 1, kind: "standard", one: 3, two: 0 };
+test("a set may finish at 7:5, and an equal score can be resolved manually", async () => {
+  const active = { number: 1, one: 7, two: 5 };
   const board = { revision: 12, final_match: { status: "live", one: "Север", two: "Юг",
     sets: [], sets_one: 0, sets_two: 0, active } };
   const bot = webhook(() => board);
@@ -191,12 +191,39 @@ test("a standard final set at 3:0 explains its format and cannot be confirmed un
   await tap("kd:f:open:12");
   assert.equal(buttons()[0].callback_data, "kd:f:plus1:12");
   assert.equal(buttons()[1].callback_data, "kd:f:plus2:12");
-  assert.ok(!buttons().some(button => button.callback_data === "kd:f:setreview:12"));
+  assert.ok(buttons().some(button => button.callback_data === "kd:f:setreview:12"));
   await tap("kd:f:setreview:12");
-  assert.match(bot.replies.at(-1).text, /При 3:0 сет 1 ещё идёт. Для победы нужно минимум 6 геймов/);
-  active.one = 6;
-  await tap("kd:f:open:12");
-  assert.equal(buttons()[0].text, "Подтвердить сет 1 · 6:0");
+  assert.match(bot.replies.at(-1).text, /7:5[\s\S]*Выиграли: Север/);
+  assert.equal(buttons()[0].callback_data, "kd:f:set:12");
+  active.two = 7;
+  await tap("kd:f:setreview:12");
+  assert.match(bot.replies.at(-1).text, /Счёт геймов равный/);
+});
+
+test("cup supports both set buttons and manual aggregate set entry", async () => {
+  const match = { status: "live", one: "Север", two: "Юг", revision: 3, court: "Корт 1",
+    sets: [[1, 0, true]], sets_one: 1, sets_two: 0, active: { number: 2, one: 0, two: 0 } };
+  const calls = [];
+  const bot = webhook(undefined, body => {
+    calls.push(body);
+    return { revision: 3, matches: { a: match } };
+  });
+  const chat = { id: 123, type: "private" };
+  const from = { id: 123 };
+  const tap = data => bot.update({ callback_query: { id: "tap", from, message: { chat, message_id: 1 }, data } });
+  await tap("kc:a:open:3");
+  assert.match(bot.replies.at(-1).text, /Север · без счёта по геймам/);
+  for (const action of ["setplus1", "setplus2", "setminus1", "setminus2"]) {
+    assert.ok(bot.replies.at(-1).reply_markup.inline_keyboard.flat().some(button => button.callback_data === "kc:a:" + action + ":3"));
+    await tap("kc:a:" + action + ":3");
+    assert.equal(calls.at(-1).p_action, action);
+  }
+  await tap("kc:a:input999:3");
+  const prompt = bot.replies.at(-1);
+  await bot.update({ message: { from, chat, text: "2:1", reply_to_message: { from: { id: 900 }, text: prompt.text } } });
+  const save = bot.replies.at(-1).reply_markup.inline_keyboard[0][0].callback_data;
+  await tap(save);
+  assert.deepEqual(calls.at(-1), { p_user_id: 123, p_action: "setsscore", p_stage: "a", p_revision: 3, p_one: 2, p_two: 1 });
 });
 
 test("eight-pair dashboard edits each court with its own revision and previews both draws", async () => {

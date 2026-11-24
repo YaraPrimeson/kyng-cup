@@ -9,9 +9,9 @@ type DemoMatch = {
   two: string;
   sets_one: number;
   sets_two: number;
-  sets: [number, number][];
-  active: { number: number; one: number; two: number; kind: "short" | "standard" | "super" } | null;
-  format: "short" | "best_of_three";
+  sets: [number, number, boolean?][];
+  active: { number: number; one: number; two: number; kind: "short" | "standard" | "super" | "manual" } | null;
+  format: "short" | "best_of_three" | "manual";
   court?: string;
   winner: string | null;
 };
@@ -35,10 +35,11 @@ function MatchCard({ title, match }: { title: string; match: DemoMatch | null })
       <p style={{ fontWeight: 700 }}>{labels[match.status]} · {match.court ?? "Корт 1"}</p>
       <p>{match.one} — {match.two}</p>
       <p><strong>Сеты · {match.sets_one}:{match.sets_two}</strong></p>
-      {match.sets.map(([one, two], index) => <p key={index}>
-        {index === 2 ? "Супер-тай-брейк" : `Сет ${index + 1}`} · {one}:{two} · завершён
+      {match.sets.map(([one, two, awarded], index) => <p key={index}>
+        {index === 2 && match.format !== "manual" ? "Супер-тай-брейк" : `Сет ${index + 1}`} ·{" "}
+        {awarded ? `${one > two ? match.one : match.two} · без счёта по геймам` : `${one}:${two} · завершён`}
       </p>)}
-      {match.active && <p>
+      {match.active && (match.format !== "manual" || match.active.one !== 0 || match.active.two !== 0 || !match.sets.length) && <p>
         {match.active.kind === "super" ? "Супер-тай-брейк" : `Сет ${match.active.number}`} ·{" "}
         <strong>{match.active.one}:{match.active.two}</strong>{" "}
         {match.active.kind === "super" ? "по очкам" : "по геймам"}
@@ -46,7 +47,8 @@ function MatchCard({ title, match }: { title: string; match: DemoMatch | null })
       {match.status === "live" && !match.active && <p>Ожидает подтверждения итога.</p>}
       {match.status === "scheduled" && <p>{match.format === "short"
         ? "Один сет до 3 выигранных геймов."
-        : "До 2 выигранных сетов. При 1:1 — супер-тай-брейк до 10 очков с разницей в 2."}</p>}
+        : match.format === "manual" ? "Счётом и завершением управляет администратор."
+          : "До 2 выигранных сетов. При 1:1 — супер-тай-брейк до 10 очков с разницей в 2."}</p>}
       {match.winner && <p>Победитель · <strong>{match.winner}</strong></p>}
     </> : <p>Ожидает участников.</p>}
   </section>;
