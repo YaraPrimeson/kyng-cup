@@ -25,6 +25,27 @@
 .gallery-album-heading { display: flex; justify-content: space-between; align-items: end; gap: 16px 30px; flex-wrap: wrap; margin: 23px 0 26px; }
 .gallery-album-heading h1 { font-size: clamp(40px, 7vw, 90px); margin-bottom: 10px; overflow-wrap: anywhere; }
 .gallery-album-heading p { line-height: 1.5; }
+.gallery-photo-controls, .gallery-pagination { display: flex; align-items: center; gap: 8px; }
+.gallery-photo-controls { justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 12px; scroll-margin-top: 100px; }
+.gallery-photo-controls label, .gallery-pagination label { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; }
+.gallery-photo-controls select, .gallery-pagination select, .gallery-pagination button {
+  min-height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--paper);
+  color: var(--forest-dark);
+  font: inherit;
+  cursor: pointer;
+}
+.gallery-photo-controls select, .gallery-pagination select { padding: 0 9px; }
+.gallery-pagination button { width: 44px; padding: 0; font-size: 24px; line-height: 1; }
+.gallery-pagination button:disabled { opacity: .45; cursor: default; }
+.gallery-pagination button:focus-visible, .gallery-photo-controls select:focus-visible, .gallery-pagination select:focus-visible {
+  outline: 2px solid var(--forest-dark);
+  outline-offset: 2px;
+}
+.gallery-pagination > span { font-size: 14px; white-space: nowrap; }
+.gallery-photo-footer { display: flex; justify-content: center; margin-top: 22px; }
 .gallery-photo-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-auto-rows: clamp(100px, 16vw, 230px); gap: 8px; grid-auto-flow: dense; }
 .gallery-photo[data-shape="portrait"] { grid-row: span 2; }
 .gallery-photo[data-shape="wide"] { grid-column: span 2; }

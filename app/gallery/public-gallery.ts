@@ -6,7 +6,7 @@ import { type Sport, visibleSports } from "@/lib/sports";
 const publicDatabase = createClient(SUPABASE_URL, SUPABASE_PUBLIC_KEY, { accessToken: async () => null });
 const albumFields = "id,slug,name,sport,location,starts_at,ends_at,has_public_bracket,cover_photo_id";
 export const archivePageSize = 10;
-export const photoPageSize = 36;
+const photoUrlBatchSize = 50;
 
 export type PublicAlbum = {
   id: string;
@@ -56,22 +56,36 @@ export function galleryAlbumHref(slug: string, basePath: string) {
   return `${basePath}/gallery/?${new URLSearchParams({ tournament: slug })}`;
 }
 
-export async function getAlbumPhotos(tournamentId: string, offset: number) {
+export async function getAlbumPhotos(tournamentId: string, offset: number, limit: number, signal: AbortSignal) {
   const result = await publicDatabase.from("tournament_gallery_photos").select("id", { count: "exact" })
     .eq("tournament_id", tournamentId).eq("state", "visible").order("sort_order").order("id")
-    .range(offset, offset + photoPageSize - 1);
+    .range(offset, offset + limit - 1).abortSignal(signal);
+  if (result.error?.code === "PGRST103" && offset > 0) {
+    // A page can disappear if photos were removed since the last request.
+    const total = await publicDatabase.from("tournament_gallery_photos").select("id", { count: "exact", head: true })
+      .eq("tournament_id", tournamentId).eq("state", "visible").abortSignal(signal);
+    if (total.error) throw total.error;
+    return { ids: [], count: total.count ?? 0 };
+  }
   if (result.error) throw result.error;
   return { ids: result.data.map(photo => photo.id as string), count: result.count ?? 0 };
 }
 
 export async function getPublicPhotoUrls(photoIds: string[], variant: "thumb" | "web", signal?: AbortSignal) {
-  if (!photoIds.length) return {} as Record<string, string>;
-  const response = await fetch(`${SUPABASE_URL}/functions/v1/gallery-photo-urls`, {
-    method: "POST",
-    headers: { apikey: SUPABASE_PUBLIC_KEY, "Content-Type": "application/json" },
-    body: JSON.stringify({ photoIds, variant }),
-    signal,
-  });
-  if (!response.ok) throw new Error("Could not load gallery images.");
-  return ((await response.json()) as { urls: Record<string, string> }).urls;
+  const batches: string[][] = [];
+  for (let start = 0; start < photoIds.length; start += photoUrlBatchSize) {
+    batches.push(photoIds.slice(start, start + photoUrlBatchSize));
+  }
+
+  const results = await Promise.all(batches.map(async batch => {
+    const response = await fetch(`${SUPABASE_URL}/functions/v1/gallery-photo-urls`, {
+      method: "POST",
+      headers: { apikey: SUPABASE_PUBLIC_KEY, "Content-Type": "application/json" },
+      body: JSON.stringify({ photoIds: batch, variant }),
+      signal,
+    });
+    if (!response.ok) throw new Error("Could not load gallery images.");
+    return ((await response.json()) as { urls: Record<string, string> }).urls;
+  }));
+  return Object.assign({} as Record<string, string>, ...results);
 }

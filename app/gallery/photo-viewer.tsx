@@ -5,10 +5,10 @@ import type { Language } from "../i18n";
 import { getPublicPhotoUrls } from "./public-gallery";
 
 const copy = {
-  en: { close: "Close photo", back: "Previous photo", next: "Next photo", download: "Download photo", downloading: "Downloading…", loading: "Loading photo…", error: "This photo could not be loaded.", downloadError: "Could not download this photo. Try again.", nextError: "Could not load the next photo. Try again.", retry: "Retry" },
-  uk: { close: "Закрити фото", back: "Попереднє фото", next: "Наступне фото", download: "Завантажити фото", downloading: "Завантажуємо…", loading: "Завантажуємо фото…", error: "Не вдалося відкрити це фото.", downloadError: "Не вдалося завантажити фото. Спробуй ще раз.", nextError: "Не вдалося відкрити наступне фото. Спробуй ще раз.", retry: "Спробувати ще раз" },
-  de: { close: "Foto schließen", back: "Vorheriges Foto", next: "Nächstes Foto", download: "Foto herunterladen", downloading: "Download läuft…", loading: "Foto wird geladen…", error: "Dieses Foto konnte nicht geladen werden.", downloadError: "Das Foto konnte nicht heruntergeladen werden. Versuche es erneut.", nextError: "Das nächste Foto konnte nicht geladen werden. Versuche es erneut.", retry: "Erneut versuchen" },
-  ru: { close: "Закрыть фото", back: "Предыдущее фото", next: "Следующее фото", download: "Скачать фото", downloading: "Скачиваем…", loading: "Загружаем фото…", error: "Не удалось открыть это фото.", downloadError: "Не удалось скачать фото. Попробуй ещё раз.", nextError: "Не удалось открыть следующее фото. Попробуй ещё раз.", retry: "Попробовать ещё раз" },
+  en: { close: "Close photo", back: "Previous photo", next: "Next photo", download: "Download photo", downloading: "Downloading…", loading: "Loading photo…", error: "This photo could not be loaded.", downloadError: "Could not download this photo. Try again.", moveError: "Could not open this photo. Try again.", retry: "Retry" },
+  uk: { close: "Закрити фото", back: "Попереднє фото", next: "Наступне фото", download: "Завантажити фото", downloading: "Завантажуємо…", loading: "Завантажуємо фото…", error: "Не вдалося відкрити це фото.", downloadError: "Не вдалося завантажити фото. Спробуй ще раз.", moveError: "Не вдалося перейти до фото. Спробуй ще раз.", retry: "Спробувати ще раз" },
+  de: { close: "Foto schließen", back: "Vorheriges Foto", next: "Nächstes Foto", download: "Foto herunterladen", downloading: "Download läuft…", loading: "Foto wird geladen…", error: "Dieses Foto konnte nicht geladen werden.", downloadError: "Das Foto konnte nicht heruntergeladen werden. Versuche es erneut.", moveError: "Das Foto konnte nicht geöffnet werden. Versuche es erneut.", retry: "Erneut versuchen" },
+  ru: { close: "Закрыть фото", back: "Предыдущее фото", next: "Следующее фото", download: "Скачать фото", downloading: "Скачиваем…", loading: "Загружаем фото…", error: "Не удалось открыть это фото.", downloadError: "Не удалось скачать фото. Попробуй ещё раз.", moveError: "Не удалось перейти к фото. Попробуй ещё раз.", retry: "Попробовать ещё раз" },
 } as const;
 
 type Props = {
@@ -20,8 +20,8 @@ type Props = {
   language: Language;
   opener: HTMLButtonElement | null;
   hasNext: boolean;
-  nextLoading: boolean;
-  nextFailed: boolean;
+  moveLoading: boolean;
+  moveFailed: boolean;
   onClose: () => void;
   onMove: (step: -1 | 1) => void;
 };
@@ -63,7 +63,7 @@ function FullPhoto({ id, label, text }: { id: string; label: string; text: typeo
   </>;
 }
 
-export default function PhotoViewer({ photoId, label, position, total, slug, language, opener, hasNext, nextLoading, nextFailed, onClose, onMove }: Props) {
+export default function PhotoViewer({ photoId, label, position, total, slug, language, opener, hasNext, moveLoading, moveFailed, onClose, onMove }: Props) {
   const text = copy[language];
   const dialogRef = useRef<HTMLDialogElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
@@ -89,7 +89,7 @@ export default function PhotoViewer({ photoId, label, position, total, slug, lan
   }, [opener]);
 
   function move(step: -1 | 1) {
-    if (step === -1 ? position > 1 : hasNext && !nextLoading) onMove(step);
+    if (!moveLoading && (step === -1 ? position > 1 : hasNext)) onMove(step);
   }
 
   function startSwipe(event: PointerEvent<HTMLDivElement>) {
@@ -157,16 +157,16 @@ export default function PhotoViewer({ photoId, label, position, total, slug, lan
     </header>
     <div className="gallery-viewer-main">
       <button type="button" className="gallery-viewer-button gallery-viewer-icon gallery-viewer-previous"
-        aria-label={text.back} disabled={position <= 1} onClick={() => move(-1)}>‹</button>
+        aria-label={text.back} disabled={position <= 1 || moveLoading} onClick={() => move(-1)}>‹</button>
       <div className="gallery-viewer-stage" onPointerDown={startSwipe} onPointerUp={endSwipe}
         onPointerCancel={() => { gesture.current = null; }}>
         <FullPhoto key={photoId} id={photoId} label={label} text={text} />
       </div>
       <button type="button" className="gallery-viewer-button gallery-viewer-icon gallery-viewer-next"
-        aria-label={text.next} disabled={!hasNext || nextLoading} onClick={() => move(1)}>›</button>
+        aria-label={text.next} disabled={!hasNext || moveLoading} onClick={() => move(1)}>›</button>
     </div>
-    {(downloadError || nextFailed || nextLoading) && <p className="gallery-viewer-feedback" role={nextLoading ? "status" : "alert"}>
-      {downloadError ? text.downloadError : nextFailed ? text.nextError : text.loading}
+    {(downloadError || moveFailed || moveLoading) && <p className="gallery-viewer-feedback" role={moveLoading ? "status" : "alert"}>
+      {downloadError ? text.downloadError : moveFailed ? text.moveError : text.loading}
     </p>}
   </dialog>;
 }

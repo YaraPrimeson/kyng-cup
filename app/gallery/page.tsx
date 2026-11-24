@@ -6,15 +6,15 @@ import { siteBasePath } from "@/lib/player-account";
 import { type Sport, visibleSports } from "@/lib/sports";
 import { formatTournamentDate } from "../public-tournaments";
 import { type Language, useLanguage } from "../i18n";
-import { archivePageSize, photoPageSize, galleryAlbumHref, getAlbum, getAlbumPhotos, getArchive, getArchivePhotoCounts, getPublicPhotoUrls, type PublicAlbum } from "./public-gallery";
+import { archivePageSize, galleryAlbumHref, getAlbum, getAlbumPhotos, getArchive, getArchivePhotoCounts, getPublicPhotoUrls, type PublicAlbum } from "./public-gallery";
 import PhotoViewer from "./photo-viewer";
 import "./gallery.css";
 
 const copy = {
-  en: { title: "Gallery", latest: "Latest album", archive: "More albums", open: "View album", back: "All albums", results: "Tournament results", empty: "There are no published albums yet.", missing: "This album is unavailable.", busy: "Loading photos…", error: "Could not load the gallery.", retry: "Retry", moreAlbums: "Show more albums", morePhotos: "Show more photos", all: "All sports", photos: "Photos" },
-  uk: { title: "Галерея", latest: "Останній альбом", archive: "Інші альбоми", open: "Переглянути альбом", back: "Усі альбоми", results: "Результати турніру", empty: "Опублікованих альбомів поки немає.", missing: "Цей альбом недоступний.", busy: "Завантажуємо фото…", error: "Не вдалося завантажити галерею.", retry: "Спробувати ще раз", moreAlbums: "Показати більше альбомів", morePhotos: "Показати більше фото", all: "Усі види спорту", photos: "Фото" },
-  de: { title: "Galerie", latest: "Neuestes Album", archive: "Weitere Alben", open: "Album ansehen", back: "Alle Alben", results: "Turnierergebnisse", empty: "Es gibt noch keine veröffentlichten Alben.", missing: "Dieses Album ist nicht verfügbar.", busy: "Fotos werden geladen…", error: "Die Galerie konnte nicht geladen werden.", retry: "Erneut versuchen", moreAlbums: "Mehr Alben anzeigen", morePhotos: "Mehr Fotos anzeigen", all: "Alle Sportarten", photos: "Fotos" },
-  ru: { title: "Галерея", latest: "Последний альбом", archive: "Другие альбомы", open: "Смотреть альбом", back: "Все альбомы", results: "Результаты турнира", empty: "Опубликованных альбомов пока нет.", missing: "Этот альбом недоступен.", busy: "Загружаем фото…", error: "Не удалось загрузить галерею.", retry: "Попробовать ещё раз", moreAlbums: "Показать больше альбомов", morePhotos: "Показать больше фото", all: "Все виды спорта", photos: "Фото" },
+  en: { title: "Gallery", latest: "Latest album", archive: "More albums", open: "View album", back: "All albums", results: "Tournament results", empty: "There are no published albums yet.", missing: "This album is unavailable.", busy: "Loading photos…", error: "Could not load the gallery.", retry: "Retry", moreAlbums: "Show more albums", perPage: "Photos per page", page: "Page", previousPage: "Previous page", nextPage: "Next page", noPhotos: "There are no photos in this album yet.", all: "All sports", photos: "Photos" },
+  uk: { title: "Галерея", latest: "Останній альбом", archive: "Інші альбоми", open: "Переглянути альбом", back: "Усі альбоми", results: "Результати турніру", empty: "Опублікованих альбомів поки немає.", missing: "Цей альбом недоступний.", busy: "Завантажуємо фото…", error: "Не вдалося завантажити галерею.", retry: "Спробувати ще раз", moreAlbums: "Показати більше альбомів", perPage: "Фото на сторінці", page: "Сторінка", previousPage: "Попередня сторінка", nextPage: "Наступна сторінка", noPhotos: "У цьому альбомі поки немає фото.", all: "Усі види спорту", photos: "Фото" },
+  de: { title: "Galerie", latest: "Neuestes Album", archive: "Weitere Alben", open: "Album ansehen", back: "Alle Alben", results: "Turnierergebnisse", empty: "Es gibt noch keine veröffentlichten Alben.", missing: "Dieses Album ist nicht verfügbar.", busy: "Fotos werden geladen…", error: "Die Galerie konnte nicht geladen werden.", retry: "Erneut versuchen", moreAlbums: "Mehr Alben anzeigen", perPage: "Fotos pro Seite", page: "Seite", previousPage: "Vorherige Seite", nextPage: "Nächste Seite", noPhotos: "In diesem Album gibt es noch keine Fotos.", all: "Alle Sportarten", photos: "Fotos" },
+  ru: { title: "Галерея", latest: "Последний альбом", archive: "Другие альбомы", open: "Смотреть альбом", back: "Все альбомы", results: "Результаты турнира", empty: "Опубликованных альбомов пока нет.", missing: "Этот альбом недоступен.", busy: "Загружаем фото…", error: "Не удалось загрузить галерею.", retry: "Попробовать ещё раз", moreAlbums: "Показать больше альбомов", perPage: "Фото на странице", page: "Страница", previousPage: "Предыдущая страница", nextPage: "Следующая страница", noPhotos: "В этом альбоме пока нет фото.", all: "Все виды спорта", photos: "Фото" },
 } as const;
 type Copy = typeof copy[Language];
 
@@ -105,101 +105,182 @@ function LoadStatus({ state, text, retry }: { state: "loading" | "ready" | "erro
   return null;
 }
 
-function Album({ slug, text, language, basePath }: { slug: string; text: Copy; language: Language; basePath: string }) {
-  const [album, setAlbum] = useState<PublicAlbum | null>(null);
+const photoPageSizes = [20, 50, 100];
+type PhotoPage = { offset: number; ids: string[] };
+type ViewerPhoto = { page: PhotoPage; index: number; total: number; opener: HTMLButtonElement };
+type LoadState = "loading" | "ready" | "error";
+
+function AlbumPagination({ text, page, pages, onPageChange }: {
+  text: Copy; page: number; pages: number; onPageChange: (page: number) => void;
+}) {
+  return <nav className="gallery-pagination" aria-label={text.page}>
+    <button type="button" aria-label={text.previousPage} disabled={page <= 1} onClick={() => onPageChange(page - 1)}>‹</button>
+    <label>{text.page}
+      <select value={page} onChange={event => onPageChange(Number(event.target.value))}>
+        {Array.from({ length: pages }, (_, index) => <option key={index + 1} value={index + 1}>{index + 1}</option>)}
+      </select>
+    </label>
+    <span aria-hidden="true">/ {pages}</span>
+    <button type="button" aria-label={text.nextPage} disabled={page >= pages} onClick={() => onPageChange(page + 1)}>›</button>
+  </nav>;
+}
+
+function AlbumPhotos({ album, text, language, basePath }: {
+  album: PublicAlbum; text: Copy; language: Language; basePath: string;
+}) {
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(photoPageSizes[0]);
   const [photoIds, setPhotoIds] = useState<string[]>([]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [opener, setOpener] = useState<HTMLButtonElement | null>(null);
-  const waitingForNext = useRef<Set<string> | null>(null);
-  const [count, setCount] = useState(0);
   const [urls, setUrls] = useState<Record<string, string>>({});
-  const [offset, setOffset] = useState(0);
+  const [count, setCount] = useState(0);
   const [attempt, setAttempt] = useState(0);
-  const [state, setState] = useState<"loading" | "ready" | "error">("loading");
+  const [state, setState] = useState<LoadState>("loading");
+  const [viewer, setViewer] = useState<ViewerPhoto | null>(null);
+  const [viewerMoveState, setViewerMoveState] = useState<LoadState>("ready");
+  const viewerRequest = useRef<AbortController | null>(null);
+  const controls = useRef<HTMLDivElement>(null);
+  const offset = (page - 1) * pageSize;
+  const pages = Math.max(1, Math.ceil(count / pageSize));
 
   useEffect(() => {
     const controller = new AbortController();
     void (async () => {
       try {
-        const current = await getAlbum(slug);
+        const result = await getAlbumPhotos(album.id, offset, pageSize, controller.signal);
         if (controller.signal.aborted) return;
-        if (!current) {
-          waitingForNext.current = null;
-          setSelectedId(null);
-          setAlbum(null);
-          setPhotoIds([]);
-          setUrls({});
-          setState("ready");
-          return;
-        }
-        const result = await getAlbumPhotos(current.id, offset);
-        if (controller.signal.aborted) return;
-        setAlbum(current);
-        setPhotoIds(previous => [...new Set([...previous, ...result.ids])]);
         setCount(result.count);
-        const known = waitingForNext.current;
-        if (known) {
-          waitingForNext.current = null;
-          const next = result.ids.find(id => !known.has(id));
-          if (next) setSelectedId(next);
+        const lastPage = Math.max(1, Math.ceil(result.count / pageSize));
+        if (page > lastPage) {
+          setPage(lastPage);
+          return;
         }
         const signed = await getPublicPhotoUrls(result.ids, "thumb", controller.signal);
         if (controller.signal.aborted) return;
-        setUrls(previous => ({ ...previous, ...signed }));
+        setPhotoIds(result.ids);
+        setUrls(signed);
         setState("ready");
       } catch { if (!controller.signal.aborted) setState("error"); }
     })();
     return () => controller.abort();
-  }, [slug, offset, attempt]);
+  }, [album.id, offset, page, pageSize, attempt]);
 
-  const selectedIndex = selectedId ? photoIds.indexOf(selectedId) : -1;
-  const hasMorePhotos = photoIds.length < count;
+  useEffect(() => () => viewerRequest.current?.abort(), []);
 
-  function loadMore() {
+  function changePage(nextPage: number, fromBottom = false) {
+    if (nextPage === page) return;
+    if (fromBottom) {
+      controls.current?.scrollIntoView?.({ block: "start" });
+      controls.current?.querySelector("nav select")?.focus({ preventScroll: true });
+    }
     setState("loading");
-    if (state === "error") setAttempt(attempt + 1);
-    else setOffset(offset + photoPageSize);
+    setPage(nextPage);
   }
 
-  function movePhoto(step: -1 | 1) {
-    const next = photoIds[selectedIndex + step];
-    if (next) {
-      waitingForNext.current = null;
-      setSelectedId(next);
-    } else if (step === 1 && hasMorePhotos) {
-      waitingForNext.current = new Set(photoIds);
-      if (state !== "loading") loadMore();
+  function closeViewer() {
+    viewerRequest.current?.abort();
+    viewerRequest.current = null;
+    setViewerMoveState("ready");
+    setViewer(null);
+  }
+
+  async function movePhoto(step: -1 | 1) {
+    if (!viewer || viewerRequest.current) return;
+    const index = viewer.index + step;
+    if (index < 0 || index >= viewer.total) return;
+    const localIndex = index - viewer.page.offset;
+    if (viewer.page.ids[localIndex]) {
+      setViewer({ ...viewer, index });
+      setViewerMoveState("ready");
+      return;
+    }
+    if (photoIds[index - offset]) {
+      setViewer({ ...viewer, index, page: { offset, ids: photoIds } });
+      setViewerMoveState("ready");
+      return;
+    }
+
+    const controller = new AbortController();
+    viewerRequest.current = controller;
+    setViewerMoveState("loading");
+    try {
+      const start = Math.floor(index / pageSize) * pageSize;
+      const result = await getAlbumPhotos(album.id, start, pageSize, controller.signal);
+      if (controller.signal.aborted) return;
+      if (result.ids[index - start]) {
+        setViewer({ ...viewer, index, total: result.count, page: { offset: start, ids: result.ids } });
+      } else {
+        setViewer({ ...viewer, total: Math.max(viewer.index + 1, result.count) });
+      }
+      setViewerMoveState("ready");
+    } catch {
+      if (!controller.signal.aborted) setViewerMoveState("error");
+    } finally {
+      if (viewerRequest.current === controller) viewerRequest.current = null;
     }
   }
 
+  const viewerPosition = viewer ? viewer.index + 1 : 0;
   return <>
-    <a className="gallery-text-link" href={`${basePath}/gallery/`}><span aria-hidden="true">← </span>{text.back}</a>
-    {album && <>
-      <div className="gallery-album-heading">
-        <div><h1>{album.name}</h1><p>{formatTournamentDate(album, language, true)}{album.location && ` · ${album.location}`} · {text.photos} {count}</p></div>
-        {album.has_public_bracket && <a className="gallery-text-link" href={`${basePath}/bracket/?${new URLSearchParams({ tournament: album.slug, sport: album.sport })}`}>{text.results} <span aria-hidden="true">↗</span></a>}
-      </div>
+    <div className="gallery-album-heading">
+      <div><h1>{album.name}</h1><p>{formatTournamentDate(album, language, true)}{album.location && ` · ${album.location}`} · {text.photos} {count}</p></div>
+      {album.has_public_bracket && <a className="gallery-text-link" href={`${basePath}/bracket/?${new URLSearchParams({ tournament: album.slug, sport: album.sport })}`}>{text.results} <span aria-hidden="true">↗</span></a>}
+    </div>
+    <div className="gallery-photo-controls" ref={controls}>
+      <label>{text.perPage}
+        <select value={pageSize} onChange={event => {
+          setState("loading");
+          setPageSize(Number(event.target.value));
+          setPage(1);
+        }}>
+          {photoPageSizes.map(size => <option key={size} value={size}>{size}</option>)}
+        </select>
+      </label>
+      {pages > 1 && <AlbumPagination text={text} page={page} pages={pages} onPageChange={changePage} />}
+    </div>
+    {state === "ready" && photoIds.length > 0 && <>
       <div className="gallery-photo-grid">{photoIds.map((id, index) =>
         <button type="button" key={id} className="gallery-photo" data-shape={index % 8 === 0 ? "portrait" : index % 8 === 2 ? "wide" : undefined}
-          aria-label={`${album.name} · ${text.photos} ${index + 1}`} aria-haspopup="dialog" onClick={event => {
-            setOpener(event.currentTarget);
-            setSelectedId(id);
+          aria-label={`${album.name} · ${text.photos} ${offset + index + 1}`} aria-haspopup="dialog" onClick={event => {
+            setViewer({ page: { offset, ids: photoIds }, index: offset + index, total: count, opener: event.currentTarget });
           }}>
           <GalleryImage id={id} url={urls[id]} variant="thumb" />
         </button>
       )}</div>
-      {state === "ready" && hasMorePhotos && <button type="button" className="gallery-more" onClick={loadMore}>{text.morePhotos}</button>}
-      {selectedId && selectedIndex >= 0 && <PhotoViewer photoId={selectedId}
-        label={`${album.name} · ${text.photos} ${selectedIndex + 1}`} position={selectedIndex + 1} total={count}
-        slug={album.slug} language={language} opener={opener}
-        hasNext={selectedIndex < photoIds.length - 1 || hasMorePhotos}
-        nextLoading={state === "loading" && selectedIndex === photoIds.length - 1 && hasMorePhotos}
-        nextFailed={state === "error" && selectedIndex === photoIds.length - 1 && hasMorePhotos}
-        onClose={() => { waitingForNext.current = null; setSelectedId(null); }}
-        onMove={movePhoto} />}
+      {pages > 1 && <div className="gallery-photo-footer">
+        <AlbumPagination text={text} page={page} pages={pages} onPageChange={nextPage => changePage(nextPage, true)} />
+      </div>}
     </>}
+    {state === "ready" && photoIds.length === 0 && <p className="gallery-status">{text.noPhotos}</p>}
+    <LoadStatus state={state} text={text} retry={() => { setState("loading"); setAttempt(value => value + 1); }} />
+    {viewer && <PhotoViewer photoId={viewer.page.ids[viewer.index - viewer.page.offset]}
+      label={`${album.name} · ${text.photos} ${viewerPosition}`} position={viewerPosition} total={viewer.total}
+      slug={album.slug} language={language} opener={viewer.opener}
+      hasNext={viewerPosition < viewer.total}
+      moveLoading={viewerMoveState === "loading"} moveFailed={viewerMoveState === "error"}
+      onClose={closeViewer} onMove={step => void movePhoto(step)} />}
+  </>;
+}
+
+function Album({ slug, text, language, basePath }: { slug: string; text: Copy; language: Language; basePath: string }) {
+  const [album, setAlbum] = useState<PublicAlbum | null>(null);
+  const [attempt, setAttempt] = useState(0);
+  const [state, setState] = useState<LoadState>("loading");
+
+  useEffect(() => {
+    let active = true;
+    void getAlbum(slug).then(current => {
+      if (!active) return;
+      setAlbum(current);
+      setState("ready");
+    }, () => { if (active) setState("error"); });
+    return () => { active = false; };
+  }, [slug, attempt]);
+
+  return <>
+    <a className="gallery-text-link" href={`${basePath}/gallery/`}><span aria-hidden="true">← </span>{text.back}</a>
+    {album && <AlbumPhotos album={album} text={text} language={language} basePath={basePath} />}
     {state === "ready" && !album && <p className="gallery-status">{text.missing}</p>}
-    <LoadStatus state={state} text={text} retry={() => { setState("loading"); setAttempt(attempt + 1); }} />
+    <LoadStatus state={state} text={text} retry={() => { setState("loading"); setAttempt(value => value + 1); }} />
   </>;
 }
 

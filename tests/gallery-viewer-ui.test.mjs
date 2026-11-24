@@ -6,7 +6,7 @@ import { build } from "esbuild";
 import { JSDOM } from "jsdom";
 import { act, createElement } from "react";
 
-test("photo viewer crosses page boundaries, supports touch, downloads, and restores focus", async () => {
+test("large albums paginate, and the viewer crosses page boundaries, supports touch, downloads, and restores focus", async () => {
   const dom = new JSDOM('<div id="root"></div>', { url: "https://example.test/gallery/?tournament=vienna" });
   const { window } = dom;
   const { document } = window;
@@ -14,25 +14,26 @@ test("photo viewer crosses page boundaries, supports touch, downloads, and resto
   window.HTMLDialogElement.prototype.showModal = function () { this.setAttribute("open", ""); };
   window.HTMLDialogElement.prototype.close = function () { this.removeAttribute("open"); };
 
-  const ids = Array.from({ length: 38 }, (_, index) => String(index + 1).padStart(8, "0"));
+  const ids = Array.from({ length: 502 }, (_, index) => String(index + 1).padStart(8, "0"));
   const pages = [];
   const urlRequests = [];
   let downloaded;
   window.HTMLAnchorElement.prototype.click = function () {
     downloaded = { href: this.href, name: this.download };
   };
+  const originalFetch = globalThis.fetch;
   globalThis.fetch = async url => {
-    assert.equal(url, "https://photos.example.test/web/00000037");
+    assert.equal(url, "https://photos.example.test/web/00000021");
     return new Response(new Blob(["photo"], { type: "image/webp" }));
   };
 
   const { createRoot } = await import("react-dom/client");
   globalThis.galleryFixture = {
     async getAlbum() { return { id: "album", slug: "vienna", name: "Vienna", sport: "padel" }; },
-    async getAlbumPhotos(id, offset) {
+    async getAlbumPhotos(id, offset, limit) {
       assert.equal(id, "album");
-      pages.push(offset);
-      return { ids: ids.slice(offset, offset + 36), count: ids.length };
+      pages.push([offset, limit]);
+      return { ids: ids.slice(offset, offset + limit), count: ids.length };
     },
     async getPublicPhotoUrls(photoIds, variant) {
       urlRequests.push([variant, ...photoIds]);
@@ -45,7 +46,7 @@ test("photo viewer crosses page boundaries, supports touch, downloads, and resto
     "../public-tournaments": 'export const formatTournamentDate = () => "20 November 2026";',
     "../i18n": 'export const useLanguage = () => ({ language: "en" });',
     "./public-gallery": `export const { getAlbum, getAlbumPhotos, getPublicPhotoUrls } = globalThis.galleryFixture;
-      export const archivePageSize = 10, photoPageSize = 36;
+      export const archivePageSize = 10;
       export const galleryAlbumHref = () => "/gallery/";
       export const getArchive = () => { throw new Error("Unexpected archive request"); };
       export const getArchivePhotoCounts = () => {};`,
@@ -75,18 +76,21 @@ test("photo viewer crosses page boundaries, supports touch, downloads, and resto
   try {
     await act(async () => root.render(createElement(compiled.exports.default)));
     await act(async () => new Promise(resolve => setTimeout(resolve, 10)));
-    assert.deepEqual(pages, [0]);
+    assert.deepEqual(pages, [[0, 20]]);
+    assert.equal(document.querySelectorAll(".gallery-photo").length, 20);
+    assert.deepEqual(urlRequests[0], ["thumb", ...ids.slice(0, 20)]);
     assert.equal(urlRequests.some(([variant]) => variant === "web"), false);
-    const opener = selector("Vienna · Photos 36");
+    const opener = selector("Vienna · Photos 20");
     await click(opener);
-    assert.equal(current(), "36 / 38");
+    assert.equal(current(), "20 / 502");
     assert.equal(document.activeElement, selector("Close photo"));
     assert.equal(document.body.style.overflow, "hidden");
 
     await click(selector("Next photo"));
-    assert.deepEqual(pages, [0, 36]);
-    assert.equal(current(), "37 / 38");
-    assert.match(document.querySelector(".gallery-viewer-image").src, /\/web\/00000037$/);
+    assert.deepEqual(pages, [[0, 20], [20, 20]]);
+    assert.equal(urlRequests.filter(([variant]) => variant === "thumb").length, 1);
+    assert.equal(current(), "21 / 502");
+    assert.match(document.querySelector(".gallery-viewer-image").src, /\/web\/00000021$/);
 
     const downloadButton = Array.from(document.querySelectorAll("dialog button"))
       .find(button => button.textContent === "Download photo");
@@ -96,8 +100,8 @@ test("photo viewer crosses page boundaries, supports touch, downloads, and resto
     }
     assert.ok(downloaded, document.querySelector(".gallery-viewer-feedback")?.textContent);
     assert.match(downloaded.href, /^blob:/);
-    assert.equal(downloaded.name, "kyng-cup-vienna-00000037.webp");
-    assert.equal(urlRequests.filter(([variant, id]) => variant === "web" && id === "00000037").length, 2);
+    assert.equal(downloaded.name, "kyng-cup-vienna-00000021.webp");
+    assert.equal(urlRequests.filter(([variant, id]) => variant === "web" && id === "00000021").length, 2);
 
     const dialog = document.querySelector("dialog");
     const stage = document.querySelector(".gallery-viewer-stage");
@@ -110,16 +114,107 @@ test("photo viewer crosses page boundaries, supports touch, downloads, and resto
       stage.dispatchEvent(touchEvent("pointerdown", 140, 50));
       stage.dispatchEvent(touchEvent("pointerup", 40, 53));
     });
-    assert.equal(current(), "38 / 38");
-    assert.equal(selector("Next photo").disabled, true);
+    assert.equal(current(), "22 / 502");
     await act(async () => dialog.dispatchEvent(new window.KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true })));
-    assert.equal(current(), "37 / 38");
+    assert.equal(current(), "21 / 502");
+    await click(selector("Previous photo"));
+    assert.equal(current(), "20 / 502");
+    assert.deepEqual(pages, [[0, 20], [20, 20]]);
     await act(async () => dialog.dispatchEvent(new window.Event("cancel", { cancelable: true })));
     assert.equal(document.querySelector("dialog"), null);
     assert.equal(document.activeElement, opener);
     assert.equal(document.body.style.overflow, "");
+
+    const setSelect = (element, value) => act(async () => {
+      element.value = String(value);
+      element.dispatchEvent(new window.Event("change", { bubbles: true }));
+    });
+    const perPage = document.querySelector(".gallery-photo-controls > label select");
+    const page = document.querySelector(".gallery-pagination select");
+    assert.deepEqual(Array.from(perPage.options, option => option.value), ["20", "50", "100"]);
+    assert.equal(page.options.length, 26);
+    assert.equal(selector("Previous page").disabled, true);
+
+    await click(selector("Next page"));
+    assert.deepEqual(pages.at(-1), [20, 20]);
+    assert.equal(document.querySelectorAll(".gallery-photo").length, 20);
+    assert.equal(selector("Vienna · Photos 20"), null);
+    assert.ok(selector("Vienna · Photos 21"));
+
+    await setSelect(perPage, 50);
+    assert.deepEqual(pages.at(-1), [0, 50]);
+    assert.equal(page.value, "1");
+    assert.equal(document.querySelectorAll(".gallery-photo").length, 50);
+
+    await setSelect(perPage, 100);
+    assert.deepEqual(pages.at(-1), [0, 100]);
+    assert.equal(page.options.length, 6);
+    assert.equal(document.querySelectorAll(".gallery-photo").length, 100);
+    assert.deepEqual(urlRequests.at(-1), ["thumb", ...ids.slice(0, 100)]);
+
+    await setSelect(page, 6);
+    assert.deepEqual(pages.at(-1), [500, 100]);
+    assert.equal(document.querySelectorAll(".gallery-photo").length, 2);
+    assert.ok(selector("Vienna · Photos 501"));
+    assert.equal(selector("Next page").disabled, true);
+
+    await click(selector("Vienna · Photos 501"));
+    await click(selector("Previous photo"));
+    assert.deepEqual(pages.at(-1), [400, 100]);
+    assert.equal(current(), "500 / 502");
+    await click(selector("Next photo"));
+    await click(selector("Next photo"));
+    assert.equal(current(), "502 / 502");
+    assert.equal(selector("Next photo").disabled, true);
   } finally {
     await act(async () => root.unmount());
     dom.window.close();
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("album API requests the selected range and signs 100 thumbnails in two batches", async () => {
+  const ids = Array.from({ length: 100 }, (_, index) => String(401 + index));
+  const requests = [];
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (input, options) => {
+    const url = new URL(input);
+    requests.push({ url, options });
+    if (url.pathname === "/rest/v1/tournament_gallery_photos") {
+      return Response.json(ids.map(id => ({ id })), { headers: { "Content-Range": "400-499/502" } });
+    }
+    assert.equal(url.pathname, "/functions/v1/gallery-photo-urls");
+    const { photoIds, variant } = JSON.parse(options.body);
+    assert.equal(variant, "thumb");
+    assert.equal(photoIds.length, 50);
+    return Response.json({ urls: Object.fromEntries(photoIds.map(id => [id, `https://photos.example.test/${id}`])) });
+  };
+
+  try {
+    const result = await build({
+      entryPoints: ["app/gallery/public-gallery.ts"],
+      absWorkingDir: fileURLToPath(new URL("..", import.meta.url)),
+      platform: "node", format: "cjs", bundle: true, write: false,
+      external: ["@supabase/supabase-js"],
+    });
+    const compiled = { exports: {} };
+    new Function("require", "module", result.outputFiles[0].text)(createRequire(import.meta.url), compiled);
+    const { getAlbumPhotos, getPublicPhotoUrls } = compiled.exports;
+
+    const { signal } = new AbortController();
+    assert.deepEqual(await getAlbumPhotos("album", 400, 100, signal), { ids, count: 502 });
+    const [query] = requests;
+    assert.equal(query.url.searchParams.get("offset"), "400");
+    assert.equal(query.url.searchParams.get("limit"), "100");
+    assert.equal(query.url.searchParams.get("order"), "sort_order.asc,id.asc");
+    assert.equal(query.url.searchParams.get("state"), "eq.visible");
+    assert.match(new Headers(query.options.headers).get("prefer"), /count=exact/);
+
+    const urls = await getPublicPhotoUrls(ids, "thumb", signal);
+    assert.deepEqual(Object.keys(urls), ids);
+    assert.deepEqual(requests.slice(1).flatMap(({ options }) => JSON.parse(options.body).photoIds), ids);
+    assert.ok(requests.every(({ options }) => options.signal === signal));
+  } finally {
+    globalThis.fetch = originalFetch;
   }
 });
