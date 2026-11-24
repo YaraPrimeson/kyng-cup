@@ -893,6 +893,11 @@ html[lang="ru"] .admin-round-group:not([open]) > summary::after { content: "По
 
 .global-header nav a[aria-current="page"]::after { right: 0; }
 
+@media (max-width: 480px) {
+  .global-header nav { column-gap: 12px; }
+  .global-header nav a { font-size: 12px; letter-spacing: .06em; }
+}
+
 /* Keep organiser sign-in usable in the narrow preview and on tablets. */
 .admin-auth { grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr); }
 .admin-auth > div, .admin-auth form { min-width: 0; }

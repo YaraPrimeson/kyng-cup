@@ -42,6 +42,19 @@ test("hidden tennis redirects while the padel page stays available", async () =>
   assert.doesNotMatch(padel, /href="\/tennis\/?"/i);
 });
 
+test("top navigation keeps the current public page visible and marked", async () => {
+  for (const [pathname, href] of [["/", "/"], ["/padel", "/padel/"], ["/gallery", "/gallery/"]]) {
+    const response = await render(pathname);
+    assert.equal(response.status, 200);
+    const html = await response.text();
+    const menu = html.match(/<nav aria-label="Main navigation">([\s\S]*?)<\/nav>/)?.[1];
+    assert.ok(menu, "Main navigation is present");
+    const active = Array.from(menu.matchAll(/<a href="([^"]+)" aria-current="page">/g), match => match[1]);
+    assert.deepEqual(active, [href]);
+    assert.equal(menu.includes('href="/tennis/"'), false);
+  }
+});
+
 test("server-renders the four-language pair registration form", async () => {
   const response = await render("/register");
   assert.equal(response.status, 200);
