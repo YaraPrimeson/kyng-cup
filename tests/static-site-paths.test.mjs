@@ -41,3 +41,18 @@ test("GitHub Pages retains the repository prefix and its path boundary", async (
   assert.equal(siteBasePath("/kyng-cupboard/profile/"), "");
   assert.equal(authCallbackUrl("https://yaraprimeson.github.io", "/kyng-cup/profile/", "google"), "https://yaraprimeson.github.io/kyng-cup/auth/callback/?intent=google");
 });
+
+test("gallery and bracket links use the correct prefix after the Hostinger rewrite", async () => {
+  const { siteBasePath } = await deployedPaths(true);
+  for (const page of ["gallery", "bracket"]) {
+    const source = await readFile(new URL(`../app/${page}/page.tsx`, import.meta.url), "utf8");
+    const declaration = source.match(/^  const basePath = .+;$/m)?.[0];
+    assert.ok(declaration, `${page} uses the deployed site base path`);
+    const getBasePath = Function("pathname", "siteBasePath", `${declaration.replaceAll("/kyng-cup/", "/")} return basePath;`);
+    assert.equal(`${getBasePath(`/${page}/`, siteBasePath)}/gallery/?tournament=vienna`,
+      "/gallery/?tournament=vienna");
+    const pagesBasePath = Function("pathname", "siteBasePath", `${declaration} return basePath;`);
+    assert.equal(`${pagesBasePath(`/kyng-cup/${page}/`, siteBasePath)}/gallery/?tournament=vienna`,
+      "/kyng-cup/gallery/?tournament=vienna");
+  }
+});

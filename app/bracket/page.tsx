@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import { siteBasePath } from "@/lib/player-account";
 import KnockoutBoard from "../knockout-board";
 import { galleryAlbumHref, hasPublicAlbum } from "../gallery/public-gallery";
 import TournamentPicker from "./tournament-picker";
@@ -121,7 +122,7 @@ function BasementKing({ groups, members, matches, games, pairMap, language }: { 
 
 export default function BracketPage() {
   const pathname = usePathname();
-  const basePath = pathname.startsWith("/kyng-cup/") ? "/kyng-cup" : "";
+  const basePath = siteBasePath(pathname);
   const { language } = useLanguage();
   const text = bracketCopy[language];
   const [tournaments, setTournaments] = useState<Tournament[]>([]);

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
+import { siteBasePath } from "@/lib/player-account";
 import { type Sport, visibleSports } from "@/lib/sports";
 import { formatTournamentDate } from "../public-tournaments";
 import { type Language, useLanguage } from "../i18n";
@@ -204,7 +205,7 @@ function Album({ slug, text, language, basePath }: { slug: string; text: Copy; l
 
 export default function GalleryPage() {
   const pathname = usePathname();
-  const basePath = pathname.startsWith("/kyng-cup/") ? "/kyng-cup" : "";
+  const basePath = siteBasePath(pathname);
   const { language } = useLanguage();
   const text = copy[language];
   const [slug, setSlug] = useState<string | null>(null);
