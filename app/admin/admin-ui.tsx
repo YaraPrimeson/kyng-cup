@@ -72,7 +72,7 @@ export function AdminUI({ children }: { children: ReactNode }) {
   const t = (text: string) => locale === "ru" ? adminCopy[text] ?? text : text;
   return <AdminContext.Provider value={{ locale, setLocale: chooseLocale, t, confirm }}>
     {children}
-    {request && <dialog ref={dialog} className="admin-dialog" lang={locale} aria-labelledby="admin-dialog-title"
+    {request && <dialog ref={dialog} className="admin-dialog" lang={locale} translate="no" aria-labelledby="admin-dialog-title"
       aria-describedby={request.detail ? "admin-dialog-detail" : undefined}
       onCancel={event => { event.preventDefault(); finish(false); }}>
       <form onSubmit={event => { event.preventDefault(); if (!request.exactName || value === request.exactName) finish(true); }}>

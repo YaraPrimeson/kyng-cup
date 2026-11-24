@@ -134,6 +134,20 @@ after(async () => {
   await rm(tempDir, { recursive: true, force: true });
 });
 
+test('admin sign-in follows its own locale instead of the public site language', async () => {
+  user = null;
+  window.localStorage.setItem('kyng-language', 'de');
+  await mount();
+  const form = document.querySelector('.admin-sign-in form');
+  assert.equal(document.documentElement.lang, 'de');
+  assert.match(form.textContent, /PasswordSign in/);
+  await click(button('RU'));
+  assert.match(form.textContent, /ПарольВойти/);
+  await unmount();
+  await mount();
+  assert.match(document.querySelector('.admin-sign-in form').textContent, /ПарольВойти/);
+});
+
 test('organiser creates a single-use claim code for the registered contact without changing the application', async () => {
   records.tournament_registrations = [{
     id: 'legacy-one', tournament_id: existing.id, status: 'confirmed', pair_name: 'QA Pair',
