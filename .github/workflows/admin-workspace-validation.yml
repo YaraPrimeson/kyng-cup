@@ -1,7 +1,7 @@
 name: Validate admin workspace
 on:
-  push:
-    branches: [codex/admin-workspace-validation]
+  pull_request:
+    branches: [codex/admin-workspace]
 permissions:
   contents: read
 jobs:
