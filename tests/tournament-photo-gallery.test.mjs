@@ -52,6 +52,10 @@ test("gallery visibility, 300 photos, and cover integrity for padel and tennis",
       "../supabase/migrations/20261124143626_publish_gallery_independently.sql", import.meta.url,
     ), "utf8"));
 
+    await db.exec(await readFile(new URL(
+      "../supabase/migrations/20261124143855_isolate_published_album_projection.sql", import.meta.url,
+    ), "utf8"));
+
     await db.exec("set role authenticated");
     await assert.rejects(db.exec(`insert into tournament_galleries(tournament_id) values ('${padel}')`),
       { code: "42501" });
