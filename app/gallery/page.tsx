@@ -1,7 +1,7 @@
 "use client";
 
 import Skeleton from "@mui/material/Skeleton";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { siteBasePath } from "@/lib/player-account";
 import { type Sport, visibleSports } from "@/lib/sports";
@@ -205,7 +205,10 @@ function AlbumPhotos({ album, text, language, basePath }: {
   const [state, setState] = useState<LoadState>("loading");
   const [viewer, setViewer] = useState<ViewerPhoto | null>(null);
   const [viewerMoveState, setViewerMoveState] = useState<LoadState>("ready");
-  const viewerRequest = useRef<AbortController | null>(null);
+  const [viewerPages, setViewerPages] = useState<Record<number, PhotoPage>>({});
+  const viewerSession = useRef<AbortController | null>(null);
+  const pendingViewerPages = useRef(new Map<number, ReturnType<typeof getAlbumPhotos>>());
+  const viewerMoving = useRef(false);
   const controls = useRef<HTMLDivElement>(null);
   const offset = (page - 1) * pageSize;
   const pages = Math.max(1, Math.ceil((count ?? 0) / pageSize));
@@ -233,7 +236,47 @@ function AlbumPhotos({ album, text, language, basePath }: {
     return () => controller.abort();
   }, [album.id, offset, page, pageSize, attempt]);
 
-  useEffect(() => () => viewerRequest.current?.abort(), []);
+  useEffect(() => () => viewerSession.current?.abort(), []);
+
+  const loadViewerPage = useCallback((start: number, signal: AbortSignal) => {
+    const existing = pendingViewerPages.current.get(start);
+    if (existing) return existing;
+    const request = getAlbumPhotos(album.id, start, pageSize, signal).then(result => {
+      if (!signal.aborted && result.ids.length) {
+        setViewerPages(previous => ({ ...previous, [start]: { offset: start, ids: result.ids } }));
+      }
+      return result;
+    }).finally(() => {
+      if (pendingViewerPages.current.get(start) === request) pendingViewerPages.current.delete(start);
+    });
+    pendingViewerPages.current.set(start, request);
+    return request;
+  }, [album.id, pageSize]);
+
+  const nearbyIndexes = viewer && viewer.total > 1
+    ? [...new Set([-1, 1, -2, 2].map(step => (viewer.index + step + viewer.total) % viewer.total))]
+      .filter(index => index !== viewer.index)
+    : [];
+  const gridPage = { offset, ids: photoIds };
+  function pageForIndex(index: number) {
+    const start = Math.floor(index / pageSize) * pageSize;
+    if (viewer?.page.offset === start) return viewer.page;
+    return start === offset ? gridPage : viewerPages[start];
+  }
+  const missingPages = [...new Set(nearbyIndexes.filter(index => !pageForIndex(index))
+    .map(index => Math.floor(index / pageSize) * pageSize))].join(",");
+  const neighborIds = nearbyIndexes.map(index => {
+    const photoPage = pageForIndex(index);
+    return photoPage?.ids[index - photoPage.offset];
+  }).filter(Boolean).join(",");
+
+  useEffect(() => {
+    const session = viewerSession.current;
+    if (!session || !missingPages) return;
+    for (const start of missingPages.split(",")) {
+      void loadViewerPage(Number(start), session.signal).catch(() => {});
+    }
+  }, [loadViewerPage, missingPages]);
 
   function changePage(nextPage: number, fromBottom = false) {
     if (nextPage === page) return;
@@ -246,35 +289,33 @@ function AlbumPhotos({ album, text, language, basePath }: {
   }
 
   function closeViewer() {
-    viewerRequest.current?.abort();
-    viewerRequest.current = null;
+    viewerSession.current?.abort();
+    viewerSession.current = null;
+    pendingViewerPages.current.clear();
+    viewerMoving.current = false;
+    setViewerPages({});
     setViewerMoveState("ready");
     setViewer(null);
   }
 
   async function movePhoto(step: -1 | 1) {
-    if (!viewer || viewerRequest.current) return;
-    if (viewer.total <= 1) return;
+    const session = viewerSession.current;
+    if (!viewer || !session || viewerMoving.current || viewer.total <= 1) return;
     const index = (viewer.index + step + viewer.total) % viewer.total;
-    const localIndex = index - viewer.page.offset;
-    if (viewer.page.ids[localIndex]) {
-      setViewer({ ...viewer, index });
-      setViewerMoveState("ready");
-      return;
-    }
-    if (photoIds[index - offset]) {
-      setViewer({ ...viewer, index, page: { offset, ids: photoIds } });
+    const photoPage = pageForIndex(index);
+    if (photoPage?.ids[index - photoPage.offset]) {
+      setViewer({ ...viewer, index, page: photoPage });
       setViewerMoveState("ready");
       return;
     }
 
-    const controller = new AbortController();
-    viewerRequest.current = controller;
+    viewerMoving.current = true;
     setViewerMoveState("loading");
+    const { signal } = session;
     try {
       const start = Math.floor(index / pageSize) * pageSize;
-      const result = await getAlbumPhotos(album.id, start, pageSize, controller.signal);
-      if (controller.signal.aborted) return;
+      const result = await loadViewerPage(start, signal);
+      if (signal.aborted) return;
       if (result.ids[index - start]) {
         setViewer({ ...viewer, index, total: result.count, page: { offset: start, ids: result.ids } });
       } else {
@@ -282,9 +323,9 @@ function AlbumPhotos({ album, text, language, basePath }: {
       }
       setViewerMoveState("ready");
     } catch {
-      if (!controller.signal.aborted) setViewerMoveState("error");
+      if (!signal.aborted) setViewerMoveState("error");
     } finally {
-      if (viewerRequest.current === controller) viewerRequest.current = null;
+      if (!signal.aborted) viewerMoving.current = false;
     }
   }
 
@@ -321,7 +362,8 @@ function AlbumPhotos({ album, text, language, basePath }: {
       <div className="gallery-photo-grid">{photoIds.map((id, index) =>
         <button type="button" key={id} className="gallery-photo"
           aria-label={`${name} · ${text.photos} ${offset + index + 1}`} aria-haspopup="dialog" onClick={event => {
-            setViewer({ page: { offset, ids: photoIds }, index: offset + index, total: count, opener: event.currentTarget });
+            viewerSession.current = new AbortController();
+            setViewer({ page: gridPage, index: offset + index, total: count, opener: event.currentTarget });
           }}>
           <GalleryImage id={id} url={urls[id]} variant="thumb" />
         </button>
@@ -332,7 +374,7 @@ function AlbumPhotos({ album, text, language, basePath }: {
     </>}
     {state === "ready" && photoIds.length === 0 && <p className="gallery-status">{text.noPhotos}</p>}
     <LoadStatus state={state} text={text} retry={() => { setState("loading"); setAttempt(value => value + 1); }} />
-    {viewer && viewerPhotoId && <PhotoViewer photoId={viewerPhotoId} previewUrl={urls[viewerPhotoId]}
+    {viewer && viewerPhotoId && <PhotoViewer photoId={viewerPhotoId} previewUrl={urls[viewerPhotoId]} neighborIds={neighborIds}
       label={`${name} · ${text.photos} ${viewerPosition}`} position={viewerPosition} total={viewer.total}
       slug={album.slug} language={language} opener={viewer.opener}
       moveLoading={viewerMoveState === "loading"} moveFailed={viewerMoveState === "error"}
