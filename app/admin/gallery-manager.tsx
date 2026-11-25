@@ -330,7 +330,7 @@ export default function GalleryManager({ tournamentId, tournamentSlug, active, o
                 onClick={() => void updateAlbum({ cover_photo_id: photo.id })}>{t("Set cover")}</button>}
               {(photo.state === "visible" || photo.state === "hidden") && !(photo.id === album?.cover_photo_id && published) &&
                 <button type="button" className="admin-button" disabled={busy} onClick={() => void togglePhoto(photo)}>{t(photo.state === "hidden" ? "Show" : "Hide")}</button>}
-              {photo.state !== "pending" && <button type="button" className="admin-button is-danger" disabled={busy}
+              {photo.state !== "pending" && <button type="button" className="admin-button is-danger admin-gallery-delete-photo" disabled={busy}
                 onClick={() => void removePhoto(photo)}>{t(photo.state === "deleting" ? "Retry deletion" : "Delete photo")}</button>}
             </div>
           </article>)}</div>

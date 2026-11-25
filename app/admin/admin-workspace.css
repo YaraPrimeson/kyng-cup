@@ -93,7 +93,7 @@ main.admin-page { padding: 0; background: #f9f7f2; font-family: system-ui, sans-
 .admin-subnav { display: flex; flex-wrap: wrap; gap: 5px; }
 .admin-subnav button { border: 1px solid var(--line); border-radius: 18px; padding: 7px 12px; color: var(--forest-dark); background: #fff; font-size: .78rem; font-weight: 650; cursor: pointer; }
 .admin-subnav button[aria-pressed=true] { background: var(--forest-dark); color: #fff; }
-.admin-dialog { width: min(470px, calc(100vw - 24px)); max-width: none; max-height: calc(100dvh - 24px); padding: 22px; border: 0; border-radius: 13px; color: var(--ink); box-shadow: 0 16px 48px #173c2e36; }
+.admin-dialog { position: fixed; inset: 0; margin: auto; height: fit-content; overflow: auto; width: min(470px, calc(100vw - 24px)); max-width: none; max-height: calc(100dvh - 24px); padding: 22px; border: 0; border-radius: 13px; color: var(--ink); box-shadow: 0 16px 48px #173c2e36; }
 .admin-dialog::backdrop { background: #173c2e55; }
 .admin-dialog form { display: grid; gap: 14px; font-family: system-ui, sans-serif; }
 .admin-dialog :is(h2,p) { margin: 0; text-align: center; }
