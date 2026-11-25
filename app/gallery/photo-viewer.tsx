@@ -13,6 +13,7 @@ const copy = {
 
 type Props = {
   photoId: string;
+  previewUrl?: string;
   label: string;
   position: number;
   total: number;
@@ -32,11 +33,13 @@ async function fullPhotoUrl(id: string, signal: AbortSignal) {
   return urls[id];
 }
 
-function FullPhoto({ id, label, text }: { id: string; label: string; text: typeof copy[Language] }) {
+function FullPhoto({ id, label, previewUrl, text }: { id: string; label: string; previewUrl?: string; text: typeof copy[Language] }) {
   const [url, setUrl] = useState("");
   const [loaded, setLoaded] = useState(false);
   const [failed, setFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
+  const [previewFailed, setPreviewFailed] = useState(false);
+  const showPreview = Boolean(previewUrl && !previewFailed && !loaded);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -49,8 +52,10 @@ function FullPhoto({ id, label, text }: { id: string; label: string; text: typeo
   }, [id, attempt]);
 
   return <>
+    {showPreview && <img className="gallery-viewer-preview" src={previewUrl} alt="" draggable={false}
+      onError={() => setPreviewFailed(true)} />}
     {url && !failed && <img className="gallery-viewer-image" src={url} alt={label} draggable={false}
-      onLoad={() => setLoaded(true)} onError={() => setFailed(true)} />}
+      data-loading={!loaded} onLoad={() => setLoaded(true)} onError={() => setFailed(true)} />}
     {failed ? <div className="gallery-viewer-message">
       <p role="alert">{text.error}</p>
       <button type="button" className="gallery-viewer-button" onClick={() => {
@@ -59,18 +64,19 @@ function FullPhoto({ id, label, text }: { id: string; label: string; text: typeo
         setUrl("");
         setAttempt(value => value + 1);
       }}>{text.retry}</button>
-    </div> : !loaded && <p className="gallery-viewer-message" role="status">{text.loading}</p>}
+    </div> : !loaded && <p className={showPreview ? "gallery-viewer-message gallery-viewer-loading" : "gallery-viewer-message"} role="status">{text.loading}</p>}
   </>;
 }
 
-export default function PhotoViewer({ photoId, label, position, total, slug, language, opener, hasNext, moveLoading, moveFailed, onClose, onMove }: Props) {
+export default function PhotoViewer({ photoId, previewUrl, label, position, total, slug, language, opener, hasNext, moveLoading, moveFailed, onClose, onMove }: Props) {
   const text = copy[language];
   const dialogRef = useRef<HTMLDialogElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   const gesture = useRef<{ id: number; x: number; y: number } | null>(null);
   const download = useRef<AbortController | null>(null);
   const [downloading, setDownloading] = useState(false);
-  const [downloadError, setDownloadError] = useState(false);
+  const [downloadErrorPhoto, setDownloadErrorPhoto] = useState<string | null>(null);
+  const downloadError = downloadErrorPhoto === photoId;
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -114,7 +120,7 @@ export default function PhotoViewer({ photoId, label, position, total, slug, lan
     const controller = new AbortController();
     download.current = controller;
     setDownloading(true);
-    setDownloadError(false);
+    setDownloadErrorPhoto(null);
     try {
       const url = await fullPhotoUrl(photoId, controller.signal);
       const response = await fetch(url, { signal: controller.signal });
@@ -133,7 +139,7 @@ export default function PhotoViewer({ photoId, label, position, total, slug, lan
         window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
       }
     } catch {
-      if (!controller.signal.aborted) setDownloadError(true);
+      if (!controller.signal.aborted) setDownloadErrorPhoto(photoId);
     } finally {
       download.current = null;
       if (!controller.signal.aborted) setDownloading(false);
@@ -152,15 +158,21 @@ export default function PhotoViewer({ photoId, label, position, total, slug, lan
       <button type="button" ref={closeRef} className="gallery-viewer-button gallery-viewer-icon"
         aria-label={text.close} onClick={onClose}>×</button>
       <p className="gallery-viewer-counter" aria-live="polite">{position} / {total}</p>
-      <button type="button" className="gallery-viewer-button" disabled={downloading}
-        onClick={() => void downloadPhoto()}>{downloading ? text.downloading : text.download}</button>
+      <button type="button" className="gallery-viewer-button gallery-viewer-icon gallery-viewer-download"
+        disabled={downloading} aria-label={downloading ? text.downloading : text.download}
+        title={text.download} onClick={() => void downloadPhoto()}>
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor"
+          strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M12 3v12m-4-4 4 4 4-4M5 16v4h14v-4" />
+        </svg>
+      </button>
     </header>
     <div className="gallery-viewer-main">
       <button type="button" className="gallery-viewer-button gallery-viewer-icon gallery-viewer-previous"
         aria-label={text.back} disabled={position <= 1 || moveLoading} onClick={() => move(-1)}>‹</button>
       <div className="gallery-viewer-stage" onPointerDown={startSwipe} onPointerUp={endSwipe}
         onPointerCancel={() => { gesture.current = null; }}>
-        <FullPhoto key={photoId} id={photoId} label={label} text={text} />
+        <FullPhoto key={photoId} id={photoId} label={label} previewUrl={previewUrl} text={text} />
       </div>
       <button type="button" className="gallery-viewer-button gallery-viewer-icon gallery-viewer-next"
         aria-label={text.next} disabled={!hasNext || moveLoading} onClick={() => move(1)}>›</button>

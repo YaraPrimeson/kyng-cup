@@ -15,6 +15,7 @@ test("large albums paginate, and the viewer crosses page boundaries, supports to
   window.HTMLDialogElement.prototype.close = function () { this.removeAttribute("open"); };
 
   const ids = Array.from({ length: 502 }, (_, index) => String(index + 1).padStart(8, "0"));
+  let albumSize = ids.length;
   const pages = [];
   const urlRequests = [];
   let downloaded;
@@ -29,11 +30,11 @@ test("large albums paginate, and the viewer crosses page boundaries, supports to
 
   const { createRoot } = await import("react-dom/client");
   globalThis.galleryFixture = {
-    async getAlbum() { return { id: "album", slug: "vienna", name: "Vienna", sport: "padel" }; },
+    async getAlbum() { return { id: "album", slug: "vienna", name: "Vienna | November 20, 2026", starts_at: "2026-11-20", sport: "padel" }; },
     async getAlbumPhotos(id, offset, limit) {
       assert.equal(id, "album");
       pages.push([offset, limit]);
-      return { ids: ids.slice(offset, offset + limit), count: ids.length };
+      return { ids: ids.slice(offset, Math.min(offset + limit, albumSize)), count: albumSize };
     },
     async getPublicPhotoUrls(photoIds, variant) {
       urlRequests.push([variant, ...photoIds]);
@@ -80,9 +81,17 @@ test("large albums paginate, and the viewer crosses page boundaries, supports to
     assert.equal(document.querySelectorAll(".gallery-photo").length, 20);
     assert.deepEqual(urlRequests[0], ["thumb", ...ids.slice(0, 20)]);
     assert.equal(urlRequests.some(([variant]) => variant === "web"), false);
+    assert.equal(document.querySelector("h1").textContent, "Vienna");
     const opener = selector("Vienna · Photos 20");
     await click(opener);
     assert.equal(current(), "20 / 502");
+    const preview = document.querySelector(".gallery-viewer-preview");
+    const image = document.querySelector(".gallery-viewer-image");
+    assert.match(preview.src, /\/thumb\/00000020$/);
+    assert.equal(image.dataset.loading, "true");
+    await act(async () => image.dispatchEvent(new window.Event("load")));
+    assert.equal(document.querySelector(".gallery-viewer-preview"), null);
+    assert.equal(image.dataset.loading, "false");
     assert.equal(document.activeElement, selector("Close photo"));
     assert.equal(document.body.style.overflow, "hidden");
 
@@ -92,8 +101,7 @@ test("large albums paginate, and the viewer crosses page boundaries, supports to
     assert.equal(current(), "21 / 502");
     assert.match(document.querySelector(".gallery-viewer-image").src, /\/web\/00000021$/);
 
-    const downloadButton = Array.from(document.querySelectorAll("dialog button"))
-      .find(button => button.textContent === "Download photo");
+    const downloadButton = selector("Download photo");
     await click(downloadButton);
     for (let i = 0; !downloaded && i < 20; i += 1) {
       await act(async () => new Promise(resolve => setTimeout(resolve, 5)));
@@ -166,6 +174,15 @@ test("large albums paginate, and the viewer crosses page boundaries, supports to
     await click(selector("Next photo"));
     assert.equal(current(), "502 / 502");
     assert.equal(selector("Next photo").disabled, true);
+
+    await click(selector("Close photo"));
+    await act(async () => root.render(null));
+    albumSize = 8;
+    await act(async () => root.render(createElement(compiled.exports.default)));
+    await act(async () => new Promise(resolve => setTimeout(resolve, 10)));
+    assert.equal(document.querySelectorAll(".gallery-photo").length, 8);
+    assert.equal(document.querySelector(".gallery-photo-controls"), null);
+    assert.equal(document.querySelector(".gallery-pagination"), null);
   } finally {
     await act(async () => root.unmount());
     dom.window.close();

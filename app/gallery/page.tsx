@@ -12,11 +12,28 @@ import "./gallery.css";
 
 const copy = {
   en: { title: "Gallery", latest: "Latest album", archive: "More albums", open: "View album", back: "All albums", results: "Tournament results", empty: "There are no published albums yet.", missing: "This album is unavailable.", busy: "Loading photos…", error: "Could not load the gallery.", retry: "Retry", moreAlbums: "Show more albums", perPage: "Photos per page", page: "Page", previousPage: "Previous page", nextPage: "Next page", noPhotos: "There are no photos in this album yet.", all: "All sports", photos: "Photos" },
-  uk: { title: "Галерея", latest: "Останній альбом", archive: "Інші альбоми", open: "Переглянути альбом", back: "Усі альбоми", results: "Результати турніру", empty: "Опублікованих альбомів поки немає.", missing: "Цей альбом недоступний.", busy: "Завантажуємо фото…", error: "Не вдалося завантажити галерею.", retry: "Спробувати ще раз", moreAlbums: "Показати більше альбомів", perPage: "Фото на сторінці", page: "Сторінка", previousPage: "Попередня сторінка", nextPage: "Наступна сторінка", noPhotos: "У цьому альбомі поки немає фото.", all: "Усі види спорту", photos: "Фото" },
+  uk: { title: "Галерея", latest: "Останній альбом", archive: "Інші альбоми", open: "Дивитися альбом", back: "Усі альбоми", results: "Результати турніру", empty: "Опублікованих альбомів поки немає.", missing: "Цей альбом недоступний.", busy: "Завантажуємо фото…", error: "Не вдалося завантажити галерею.", retry: "Спробувати ще раз", moreAlbums: "Показати більше альбомів", perPage: "Фото на сторінці", page: "Сторінка", previousPage: "Попередня сторінка", nextPage: "Наступна сторінка", noPhotos: "У цьому альбомі поки немає фото.", all: "Усі види спорту", photos: "Фото" },
   de: { title: "Galerie", latest: "Neuestes Album", archive: "Weitere Alben", open: "Album ansehen", back: "Alle Alben", results: "Turnierergebnisse", empty: "Es gibt noch keine veröffentlichten Alben.", missing: "Dieses Album ist nicht verfügbar.", busy: "Fotos werden geladen…", error: "Die Galerie konnte nicht geladen werden.", retry: "Erneut versuchen", moreAlbums: "Mehr Alben anzeigen", perPage: "Fotos pro Seite", page: "Seite", previousPage: "Vorherige Seite", nextPage: "Nächste Seite", noPhotos: "In diesem Album gibt es noch keine Fotos.", all: "Alle Sportarten", photos: "Fotos" },
   ru: { title: "Галерея", latest: "Последний альбом", archive: "Другие альбомы", open: "Смотреть альбом", back: "Все альбомы", results: "Результаты турнира", empty: "Опубликованных альбомов пока нет.", missing: "Этот альбом недоступен.", busy: "Загружаем фото…", error: "Не удалось загрузить галерею.", retry: "Попробовать ещё раз", moreAlbums: "Показать больше альбомов", perPage: "Фото на странице", page: "Страница", previousPage: "Предыдущая страница", nextPage: "Следующая страница", noPhotos: "В этом альбоме пока нет фото.", all: "Все виды спорта", photos: "Фото" },
 } as const;
 type Copy = typeof copy[Language];
+
+function albumTitle(album: PublicAlbum) {
+  // Older tournament names can include their English date after a pipe.
+  const [name, suffix, ...rest] = album.name.split(/\s*\|\s*/);
+  if (!album.starts_at || !name || !suffix || rest.length) return album.name;
+  const date = formatTournamentDate(album, "en", true);
+  if (suffix === date) return name;
+  const formatter = new Intl.DateTimeFormat("en-US", { timeZone: "Europe/Vienna", dateStyle: "long" });
+  const start = formatter.format(new Date(album.starts_at));
+  const end = album.ends_at ? formatter.format(new Date(album.ends_at)) : start;
+  return suffix === (start === end ? start : `${start} – ${end}`) ? name : album.name;
+}
+
+function photoCountLabel(count: number, language: Language) {
+  const noun = language === "en" ? (count === 1 ? "photo" : "photos") : language === "de" ? (count === 1 ? "Foto" : "Fotos") : "фото";
+  return `${new Intl.NumberFormat(language).format(count)} ${noun}`;
+}
 
 function GalleryImage({ id, variant, url, alt = "" }: { id: string; variant: "thumb" | "web"; url?: string; alt?: string }) {
   const [refreshed, setRefreshed] = useState<string | null>(null);
@@ -71,25 +88,27 @@ function Archive({ text, language, sport, basePath }: { text: Copy; language: La
   function label(album: PublicAlbum) {
     const date = formatTournamentDate(album, language, true);
     const count = photoCounts[album.id];
-    return count == null ? date : `${date} · ${text.photos} ${new Intl.NumberFormat(language).format(count)}`;
+    return count == null ? date : `${date} · ${photoCountLabel(count, language)}`;
   }
 
   const [latest, ...earlier] = albums;
   return <>
     {latest && <a className="gallery-feature" href={galleryAlbumHref(latest.slug, basePath)}>
-      <GalleryImage id={latest.cover_photo_id} url={urls[latest.cover_photo_id]} variant="web" />
+      <div className="gallery-feature-image">
+        <GalleryImage id={latest.cover_photo_id} url={urls[latest.cover_photo_id]} variant="web" />
+      </div>
       <div className="gallery-feature-copy">
         <p className="eyebrow">{text.latest}</p>
-        <h2>{latest.name}</h2>
+        <h2>{albumTitle(latest)}</h2>
         <p>{label(latest)}</p>
-        <span>{text.open} <span aria-hidden="true">↗</span></span>
+        <span className="gallery-feature-action">{text.open} <span aria-hidden="true">→</span></span>
       </div>
     </a>}
     {earlier.length > 0 && <section className="gallery-archive">
       <h2>{text.archive}</h2>
       <div className="gallery-albums">{earlier.map(album => <a className="gallery-card" key={album.id} href={galleryAlbumHref(album.slug, basePath)}>
         <div className="gallery-card-image"><GalleryImage id={album.cover_photo_id} url={urls[album.cover_photo_id]} variant="thumb" /></div>
-        <h3>{album.name}</h3>
+        <h3>{albumTitle(album)}</h3>
         <p>{label(album)}</p>
       </a>)}</div>
     </section>}
@@ -220,12 +239,22 @@ function AlbumPhotos({ album, text, language, basePath }: {
   }
 
   const viewerPosition = viewer ? viewer.index + 1 : 0;
+  const viewerPhotoId = viewer?.page.ids[viewer.index - viewer.page.offset];
+  const name = albumTitle(album);
+  const date = formatTournamentDate(album, language, true);
   return <>
     <div className="gallery-album-heading">
-      <div><h1>{album.name}</h1><p>{formatTournamentDate(album, language, true)}{album.location && ` · ${album.location}`} · {text.photos} {count}</p></div>
-      {album.has_public_bracket && <a className="gallery-text-link" href={`${basePath}/bracket/?${new URLSearchParams({ tournament: album.slug, sport: album.sport })}`}>{text.results} <span aria-hidden="true">↗</span></a>}
+      <div>
+        <h1>{name}</h1>
+        <p className="gallery-album-meta">
+          {album.starts_at && <span>{date}</span>}
+          {album.location && <span className="gallery-album-location">{album.location}</span>}
+          {count > 0 && <span>{photoCountLabel(count, language)}</span>}
+        </p>
+      </div>
+      {album.has_public_bracket && <a className="gallery-text-link gallery-results" href={`${basePath}/bracket/?${new URLSearchParams({ tournament: album.slug, sport: album.sport })}`}>{text.results} <span aria-hidden="true">↗</span></a>}
     </div>
-    <div className="gallery-photo-controls" ref={controls}>
+    {count > photoPageSizes[0] && <div className="gallery-photo-controls" ref={controls}>
       <label>{text.perPage}
         <select value={pageSize} onChange={event => {
           setState("loading");
@@ -236,11 +265,11 @@ function AlbumPhotos({ album, text, language, basePath }: {
         </select>
       </label>
       {pages > 1 && <AlbumPagination text={text} page={page} pages={pages} onPageChange={changePage} />}
-    </div>
+    </div>}
     {state === "ready" && photoIds.length > 0 && <>
       <div className="gallery-photo-grid">{photoIds.map((id, index) =>
-        <button type="button" key={id} className="gallery-photo" data-shape={index % 8 === 0 ? "portrait" : index % 8 === 2 ? "wide" : undefined}
-          aria-label={`${album.name} · ${text.photos} ${offset + index + 1}`} aria-haspopup="dialog" onClick={event => {
+        <button type="button" key={id} className="gallery-photo"
+          aria-label={`${name} · ${text.photos} ${offset + index + 1}`} aria-haspopup="dialog" onClick={event => {
             setViewer({ page: { offset, ids: photoIds }, index: offset + index, total: count, opener: event.currentTarget });
           }}>
           <GalleryImage id={id} url={urls[id]} variant="thumb" />
@@ -252,8 +281,8 @@ function AlbumPhotos({ album, text, language, basePath }: {
     </>}
     {state === "ready" && photoIds.length === 0 && <p className="gallery-status">{text.noPhotos}</p>}
     <LoadStatus state={state} text={text} retry={() => { setState("loading"); setAttempt(value => value + 1); }} />
-    {viewer && <PhotoViewer photoId={viewer.page.ids[viewer.index - viewer.page.offset]}
-      label={`${album.name} · ${text.photos} ${viewerPosition}`} position={viewerPosition} total={viewer.total}
+    {viewer && viewerPhotoId && <PhotoViewer photoId={viewerPhotoId} previewUrl={urls[viewerPhotoId]}
+      label={`${name} · ${text.photos} ${viewerPosition}`} position={viewerPosition} total={viewer.total}
       slug={album.slug} language={language} opener={viewer.opener}
       hasNext={viewerPosition < viewer.total}
       moveLoading={viewerMoveState === "loading"} moveFailed={viewerMoveState === "error"}
