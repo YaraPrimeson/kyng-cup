@@ -26,17 +26,24 @@ test("large albums paginate, and the viewer crosses page boundaries, supports to
   const boundaryDecode = Promise.withResolvers();
   window.HTMLImageElement.prototype.decode = async function () {
     decoded.push(this.src);
-    if (this.src.endsWith("/web/00000021")) await boundaryDecode.promise;
+    if (this.src.endsWith("/00000021")) await boundaryDecode.promise;
   };
   let downloaded;
   window.HTMLAnchorElement.prototype.click = function () {
     downloaded = { href: this.href, name: this.download };
   };
   const originalFetch = globalThis.fetch;
+  const originalCreateObjectURL = URL.createObjectURL;
+  const originalRevokeObjectURL = URL.revokeObjectURL;
   globalThis.fetch = async url => {
-    assert.equal(url, "https://photos.example.test/web/00000021");
-    return new Response(new Blob(["photo"], { type: "image/webp" }));
+    assert.match(url, /^https:\/\/photos\.example\.test\/web\/\d+$/);
+    const blob = new Blob(["photo"], { type: "image/webp" });
+    // Preserve the fixture ID on blobs so warm and download URLs are observable.
+    blob.photoId = url.split("/").at(-1);
+    return { ok: true, blob: async () => blob };
   };
+  URL.createObjectURL = blob => `blob:https://photos.example.test/${blob.photoId}`;
+  URL.revokeObjectURL = () => {};
 
   const { createRoot } = await import("react-dom/client");
   globalThis.galleryFixture = {
@@ -121,7 +128,7 @@ test("large albums paginate, and the viewer crosses page boundaries, supports to
     assert.equal(document.body.style.overflow, "hidden");
 
     assert.deepEqual(pages, [[0, 20], [20, 20]]);
-    assert.ok(decoded.some(url => url.endsWith("/web/00000019")));
+    assert.ok(decoded.some(url => url.endsWith("/00000019")));
     await click(selector("Next photo"));
     assert.equal(document.querySelector("dialog [role=status]").className, "gallery-visually-hidden");
     await act(async () => pageBoundary.resolve());
@@ -145,7 +152,7 @@ test("large albums paginate, and the viewer crosses page boundaries, supports to
     assert.ok(downloaded, document.querySelector(".gallery-viewer-feedback")?.textContent);
     assert.match(downloaded.href, /^blob:/);
     assert.equal(downloaded.name, "kyng-cup-vienna-00000021.webp");
-    assert.ok(decoded.some(url => url.endsWith("/web/00000022")));
+    assert.ok(decoded.some(url => url.endsWith("/00000022")));
     const requestsFor22 = () => urlRequests.filter(([variant, ...photoIds]) => variant === "web" && photoIds.includes("00000022")).length;
     const warmRequestsFor22 = requestsFor22();
 
@@ -162,7 +169,7 @@ test("large albums paginate, and the viewer crosses page boundaries, supports to
     });
     assert.equal(current(), "22 / 502");
     assert.equal(document.querySelector(".gallery-viewer-slides").dataset.ready, "true");
-    assert.match(document.querySelector(".gallery-viewer-image").src, /\/web\/00000022$/);
+    assert.equal(document.querySelector(".gallery-viewer-image").src, "blob:https://photos.example.test/00000022");
     assert.equal(requestsFor22(), warmRequestsFor22);
     assert.equal(document.querySelector("dialog [role=status]"), null);
     await act(async () => dialog.dispatchEvent(new window.KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true })));
@@ -255,6 +262,8 @@ test("large albums paginate, and the viewer crosses page boundaries, supports to
   } finally {
     await act(async () => root.unmount());
     dom.window.close();
+    URL.createObjectURL = originalCreateObjectURL;
+    URL.revokeObjectURL = originalRevokeObjectURL;
     globalThis.HTMLElement = originalHTMLElement;
     globalThis.fetch = originalFetch;
   }
