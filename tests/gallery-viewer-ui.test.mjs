@@ -16,6 +16,8 @@ test("large albums paginate, and the viewer crosses page boundaries, supports to
 
   const ids = Array.from({ length: 502 }, (_, index) => String(index + 1).padStart(8, "0"));
   let albumSize = ids.length;
+  let finishInitialPage;
+  const initialPage = new Promise(resolve => { finishInitialPage = resolve; });
   const pages = [];
   const urlRequests = [];
   let downloaded;
@@ -34,6 +36,7 @@ test("large albums paginate, and the viewer crosses page boundaries, supports to
     async getAlbumPhotos(id, offset, limit) {
       assert.equal(id, "album");
       pages.push([offset, limit]);
+      if (pages.length === 1) await initialPage;
       return { ids: ids.slice(offset, Math.min(offset + limit, albumSize)), count: albumSize };
     },
     async getPublicPhotoUrls(photoIds, variant) {
@@ -78,7 +81,18 @@ test("large albums paginate, and the viewer crosses page boundaries, supports to
     await act(async () => root.render(createElement(compiled.exports.default)));
     await act(async () => new Promise(resolve => setTimeout(resolve, 10)));
     assert.deepEqual(pages, [[0, 20]]);
+    assert.equal(document.querySelectorAll(".gallery-photo-placeholder").length, 4);
+    assert.equal(document.querySelector("[role=status]").className, "gallery-visually-hidden");
+    await act(async () => finishInitialPage());
+    assert.equal(document.querySelectorAll(".gallery-photo-placeholder").length, 0);
     assert.equal(document.querySelectorAll(".gallery-photo").length, 20);
+    const firstTile = selector("Vienna · Photos 1");
+    const thumbnail = firstTile.querySelector("img");
+    assert.equal(thumbnail.dataset.loading, "true");
+    assert.ok(firstTile.querySelector(".gallery-skeleton-fill"));
+    await act(async () => thumbnail.dispatchEvent(new window.Event("load")));
+    assert.equal(thumbnail.dataset.loading, "false");
+    assert.equal(firstTile.querySelector(".gallery-skeleton-fill"), null);
     assert.deepEqual(urlRequests[0], ["thumb", ...ids.slice(0, 20)]);
     assert.equal(urlRequests.some(([variant]) => variant === "web"), false);
     assert.equal(document.querySelector("h1").textContent, "Vienna");

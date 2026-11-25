@@ -1,5 +1,6 @@
 "use client";
 
+import Skeleton from "@mui/material/Skeleton";
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { siteBasePath } from "@/lib/player-account";
@@ -35,18 +36,65 @@ function photoCountLabel(count: number, language: Language) {
   return `${new Intl.NumberFormat(language).format(count)} ${noun}`;
 }
 
+function GallerySkeleton({ className = "", animated = true }: { className?: string; animated?: boolean }) {
+  return <Skeleton variant="rounded" animation={animated ? "wave" : false}
+    className={`gallery-skeleton ${className}`} aria-hidden="true" />;
+}
+
+function ArchiveSkeleton({ text }: { text: Copy }) {
+  return <>
+    <span className="gallery-visually-hidden" role="status">{text.busy}</span>
+    <div className="gallery-feature" aria-hidden="true">
+      <div className="gallery-feature-image"><GallerySkeleton className="gallery-skeleton-fill" /></div>
+      <div className="gallery-feature-copy">
+        <GallerySkeleton className="gallery-skeleton-eyebrow" />
+        <GallerySkeleton className="gallery-skeleton-feature-title" />
+        <GallerySkeleton className="gallery-skeleton-meta" />
+        <GallerySkeleton className="gallery-skeleton-action" />
+      </div>
+    </div>
+    <section className="gallery-archive" aria-hidden="true">
+      <h2>{text.archive}</h2>
+      <div className="gallery-albums">
+        <div className="gallery-card">
+          <div className="gallery-card-image"><GallerySkeleton className="gallery-skeleton-fill" /></div>
+          <GallerySkeleton className="gallery-skeleton-card-title" />
+          <GallerySkeleton className="gallery-skeleton-meta" />
+        </div>
+      </div>
+    </section>
+  </>;
+}
+
+function PhotoGridSkeleton({ count, text }: { count: number; text: Copy }) {
+  return <>
+    <span className="gallery-visually-hidden" role="status">{text.busy}</span>
+    <div className="gallery-photo-grid" aria-hidden="true">
+      {Array.from({ length: count }, (_, index) =>
+        <div className="gallery-photo gallery-photo-placeholder" key={index}>
+          <GallerySkeleton className="gallery-skeleton-fill" />
+        </div>
+      )}
+    </div>
+  </>;
+}
+
 function GalleryImage({ id, variant, url, alt = "" }: { id: string; variant: "thumb" | "web"; url?: string; alt?: string }) {
   const [refreshed, setRefreshed] = useState<string | null>(null);
+  const [loadedSrc, setLoadedSrc] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
   const src = refreshed ?? url;
-  if (!src || failed) return <span className="gallery-image-placeholder" aria-hidden="true" />;
-  return <img src={src} alt={alt} decoding="async" onError={() => {
-    if (refreshed) { setFailed(true); return; }
-    void getPublicPhotoUrls([id], variant).then(next => {
-      if (next[id] && next[id] !== src) setRefreshed(next[id]);
-      else setFailed(true);
-    }, () => setFailed(true));
-  }} />;
+  const loading = Boolean(src && loadedSrc !== src && !failed);
+  return <>
+    {(!src || loading || failed) && <GallerySkeleton className="gallery-skeleton-fill" animated={loading} />}
+    {src && !failed && <img src={src} alt={alt} decoding="async" data-loading={loading} onLoad={() => setLoadedSrc(src)} onError={() => {
+      if (refreshed) { setFailed(true); return; }
+      void getPublicPhotoUrls([id], variant).then(next => {
+        if (next[id] && next[id] !== src) setRefreshed(next[id]);
+        else setFailed(true);
+      }, () => setFailed(true));
+    }} />}
+  </>;
 }
 
 function Archive({ text, language, sport, basePath }: { text: Copy; language: Language; sport?: Sport; basePath: string }) {
@@ -66,14 +114,14 @@ function Archive({ text, language, sport, basePath }: { text: Copy; language: La
         const hero = offset === 0 ? result.albums[0] : undefined;
         const previewIds = result.albums.slice(hero ? 1 : 0).map(album => album.cover_photo_id);
         if (controller.signal.aborted) return;
-        setAlbums(current => [...current, ...result.albums.filter(album => !current.some(previous => previous.id === album.id))]);
-        setMore(result.more);
         const [wide, thumbs, counts] = await Promise.all([
           getPublicPhotoUrls(hero ? [hero.cover_photo_id] : [], "web", controller.signal),
           getPublicPhotoUrls(previewIds, "thumb", controller.signal),
           getArchivePhotoCounts(result.albums.map(album => album.id)),
         ]);
         if (controller.signal.aborted) return;
+        setAlbums(current => [...current, ...result.albums.filter(album => !current.some(previous => previous.id === album.id))]);
+        setMore(result.more);
         setUrls(current => ({ ...current, ...wide, ...thumbs }));
         setPhotoCounts(current => ({ ...current, ...counts }));
         setState("ready");
@@ -92,6 +140,7 @@ function Archive({ text, language, sport, basePath }: { text: Copy; language: La
   }
 
   const [latest, ...earlier] = albums;
+  if (state === "loading" && !latest) return <ArchiveSkeleton text={text} />;
   return <>
     {latest && <a className="gallery-feature" href={galleryAlbumHref(latest.slug, basePath)}>
       <div className="gallery-feature-image">
@@ -113,13 +162,13 @@ function Archive({ text, language, sport, basePath }: { text: Copy; language: La
       </a>)}</div>
     </section>}
     {state === "ready" && !latest && <p className="gallery-status">{text.empty}</p>}
-    {state === "ready" && more && <button type="button" className="gallery-more" onClick={next}>{text.moreAlbums}</button>}
+    {more && state !== "error" && <button type="button" className="gallery-more" onClick={next}
+      disabled={state === "loading"} aria-busy={state === "loading"}>{text.moreAlbums}</button>}
     <LoadStatus state={state} text={text} retry={retry} />
   </>;
 }
 
 function LoadStatus({ state, text, retry }: { state: "loading" | "ready" | "error"; text: Copy; retry: () => void }) {
-  if (state === "loading") return <p className="gallery-status" role="status">{text.busy}</p>;
   if (state === "error") return <div className="gallery-status"><p role="alert">{text.error}</p><button type="button" className="gallery-more" onClick={retry}>{text.retry}</button></div>;
   return null;
 }
@@ -151,7 +200,7 @@ function AlbumPhotos({ album, text, language, basePath }: {
   const [pageSize, setPageSize] = useState(photoPageSizes[0]);
   const [photoIds, setPhotoIds] = useState<string[]>([]);
   const [urls, setUrls] = useState<Record<string, string>>({});
-  const [count, setCount] = useState(0);
+  const [count, setCount] = useState<number | null>(null);
   const [attempt, setAttempt] = useState(0);
   const [state, setState] = useState<LoadState>("loading");
   const [viewer, setViewer] = useState<ViewerPhoto | null>(null);
@@ -159,7 +208,8 @@ function AlbumPhotos({ album, text, language, basePath }: {
   const viewerRequest = useRef<AbortController | null>(null);
   const controls = useRef<HTMLDivElement>(null);
   const offset = (page - 1) * pageSize;
-  const pages = Math.max(1, Math.ceil(count / pageSize));
+  const pages = Math.max(1, Math.ceil((count ?? 0) / pageSize));
+  const placeholderCount = count === null ? 4 : Math.max(0, Math.min(pageSize, count - offset));
 
   useEffect(() => {
     const controller = new AbortController();
@@ -249,12 +299,12 @@ function AlbumPhotos({ album, text, language, basePath }: {
         <p className="gallery-album-meta">
           {album.starts_at && <span>{date}</span>}
           {album.location && <span className="gallery-album-location">{album.location}</span>}
-          {count > 0 && <span>{photoCountLabel(count, language)}</span>}
+          {count === null ? <GallerySkeleton className="gallery-skeleton-photo-count" /> : <span>{photoCountLabel(count, language)}</span>}
         </p>
       </div>
       {album.has_public_bracket && <a className="gallery-text-link gallery-results" href={`${basePath}/bracket/?${new URLSearchParams({ tournament: album.slug, sport: album.sport })}`}>{text.results} <span aria-hidden="true">↗</span></a>}
     </div>
-    {count > photoPageSizes[0] && <div className="gallery-photo-controls" ref={controls}>
+    {count !== null && count > photoPageSizes[0] && <div className="gallery-photo-controls" ref={controls}>
       <label>{text.perPage}
         <select value={pageSize} onChange={event => {
           setState("loading");
@@ -266,7 +316,8 @@ function AlbumPhotos({ album, text, language, basePath }: {
       </label>
       {pages > 1 && <AlbumPagination text={text} page={page} pages={pages} onPageChange={changePage} />}
     </div>}
-    {state === "ready" && photoIds.length > 0 && <>
+    {state === "loading" && <PhotoGridSkeleton count={placeholderCount} text={text} />}
+    {state === "ready" && count !== null && photoIds.length > 0 && <>
       <div className="gallery-photo-grid">{photoIds.map((id, index) =>
         <button type="button" key={id} className="gallery-photo"
           aria-label={`${name} · ${text.photos} ${offset + index + 1}`} aria-haspopup="dialog" onClick={event => {
@@ -308,6 +359,17 @@ function Album({ slug, text, language, basePath }: { slug: string; text: Copy; l
   return <>
     <a className="gallery-text-link" href={`${basePath}/gallery/`}><span aria-hidden="true">← </span>{text.back}</a>
     {album && <AlbumPhotos album={album} text={text} language={language} basePath={basePath} />}
+    {!album && state === "loading" && <>
+      <div className="gallery-album-heading" aria-hidden="true">
+        <div>
+          <GallerySkeleton className="gallery-skeleton-album-title" />
+          <GallerySkeleton className="gallery-skeleton-meta" />
+          <GallerySkeleton className="gallery-skeleton-location" />
+        </div>
+        <GallerySkeleton className="gallery-skeleton-results" />
+      </div>
+      <PhotoGridSkeleton count={4} text={text} />
+    </>}
     {state === "ready" && !album && <p className="gallery-status">{text.missing}</p>}
     <LoadStatus state={state} text={text} retry={() => { setState("loading"); setAttempt(value => value + 1); }} />
   </>;
@@ -339,7 +401,7 @@ export default function GalleryPage() {
         <button type="button" aria-pressed={!sport} onClick={() => setSport(undefined)}>{text.all}</button>
         {visibleSports.map(item => <button key={item} type="button" aria-pressed={sport === item} onClick={() => setSport(item)}>{item === "tennis" ? "Tennis" : "Padel"}</button>)}
       </div>}
-      {hydrated ? <Archive key={sport ?? "all"} sport={sport} text={text} language={language} basePath={basePath} /> : <p className="gallery-status" role="status">{text.busy}</p>}
+      {hydrated ? <Archive key={sport ?? "all"} sport={sport} text={text} language={language} basePath={basePath} /> : <ArchiveSkeleton text={text} />}
     </>}
   </main>;
 }

@@ -12,8 +12,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - run: npm install --save-exact @mui/material @emotion/react @emotion/styled --package-lock-only --ignore-scripts
-      - run: |
-          echo 'PACKAGE_PATCH_BEGIN'
-          git diff -- package.json package-lock.json
-          echo 'PACKAGE_PATCH_END'
+          cache: npm
+      - run: npm ci
+      - run: npm run build:pages
+      - run: node --experimental-strip-types --test tests/gallery-viewer-ui.test.mjs tests/static-site-paths.test.mjs tests/tournament-photo-gallery.test.mjs
+      - run: npm install --no-save --package-lock=false playwright-core
+      - run: node tests/gallery-skeleton-layout.mjs
