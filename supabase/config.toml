@@ -12,3 +12,7 @@ verify_jwt = false
 # The handler validates the caller through the organizer RPC before signing writes.
 [functions.gallery-photo-upload]
 verify_jwt = false
+
+# Validates the caller through the organizer RPC before reading the archive.
+[functions.gallery-zip-import]
+verify_jwt = false

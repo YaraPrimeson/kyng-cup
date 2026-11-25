@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAdminUI } from "./admin-ui";
 import { uploadGalleryPhoto } from "./gallery-upload";
+import { extractGalleryZip, galleryFileTypes, galleryZipBusy, galleryZipHint, isGalleryZip } from "./gallery-zip";
 
 type Album = { cover_photo_id: string | null; published_at: string | null };
 type Photo = { filename?: string; id: string; sort_order: number; state: "pending" | "visible" | "hidden" };
@@ -37,6 +38,7 @@ export default function GalleryManager({ tournamentId, tournamentSlug, active, o
   const [error, setError] = useState("");
   const [previewFailed, setPreviewFailed] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [extracting, setExtracting] = useState(false);
   const upload = useRef<AbortController | null>(null);
   const operation = useRef(false);
   useEffect(() => () => upload.current?.abort(), []);
@@ -152,8 +154,36 @@ export default function GalleryManager({ tournamentId, tournamentSlug, active, o
     }
   }
 
-  function selectFiles(files: FileList) {
+  async function selectFiles(selection: FileList) {
     if (operation.current || !loaded) return;
+    const files = Array.from(selection);
+    const archives = files.filter(isGalleryZip);
+    if (archives.length > 1) {
+      setError("Choose one ZIP archive at a time.");
+      return;
+    }
+    const archive = archives[0];
+    if (archive) {
+      const controller = new AbortController();
+      upload.current = controller;
+      operation.current = true;
+      setBusy(true);
+      setExtracting(true);
+      setError("");
+      try {
+        const extracted = await extractGalleryZip(archive, controller.signal);
+        if (controller.signal.aborted) return;
+        files.splice(files.indexOf(archive), 1, ...extracted);
+      } catch (reason) {
+        if (!controller.signal.aborted) setError(errorText(reason));
+        return;
+      } finally {
+        upload.current = null;
+        operation.current = false;
+        setExtracting(false);
+        setBusy(false);
+      }
+    }
     const start = Math.max(
       photos.reduce((max, photo) => Math.max(max, photo.sort_order), -1),
       jobs.reduce((max, job) => Math.max(max, job.order), -1),
@@ -227,13 +257,15 @@ export default function GalleryManager({ tournamentId, tournamentSlug, active, o
             if (!busy) setDragging(true);
           }}
           onDragLeave={event => { if (!event.relatedTarget || !event.currentTarget.contains(event.relatedTarget as Node)) setDragging(false); }}
-          onDrop={event => { event.preventDefault(); setDragging(false); selectFiles(event.dataTransfer.files); }}>
+          onDrop={event => { event.preventDefault(); setDragging(false); void selectFiles(event.dataTransfer.files); }}>
           <span className="admin-upload-icon" aria-hidden="true">↑</span>
-          <strong>{t("Drop photos here or choose files")}</strong>
+          <strong>{t("Drop photos or a ZIP here, or choose files")}</strong>
           <span>JPG, PNG, WebP</span>
-          <input className="admin-visually-hidden" aria-label={t("Upload photos")} type="file" multiple accept="image/jpeg,image/png,image/webp"
-            disabled={busy} onChange={event => { if (event.currentTarget.files) selectFiles(event.currentTarget.files); event.currentTarget.value = ""; }} />
+          <span>{t(galleryZipHint)}</span>
+          <input className="admin-visually-hidden" aria-label={t("Upload photos or ZIP")} type="file" multiple accept={galleryFileTypes}
+            disabled={busy} onChange={event => { if (event.currentTarget.files) void selectFiles(event.currentTarget.files); event.currentTarget.value = ""; }} />
         </label>
+        {extracting && <p role="status">{t(galleryZipBusy)}</p>}
         {jobs.length > 0 && <section className="admin-gallery-progress">
           <h3>{t("Upload queue")}</h3>
           <div className="admin-upload-meter"><progress max={jobs.length} value={settled} aria-label={t("Processed")} />
