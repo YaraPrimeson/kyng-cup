@@ -254,8 +254,8 @@ function AlbumPhotos({ album, text, language, basePath }: {
 
   async function movePhoto(step: -1 | 1) {
     if (!viewer || viewerRequest.current) return;
-    const index = viewer.index + step;
-    if (index < 0 || index >= viewer.total) return;
+    if (viewer.total <= 1) return;
+    const index = (viewer.index + step + viewer.total) % viewer.total;
     const localIndex = index - viewer.page.offset;
     if (viewer.page.ids[localIndex]) {
       setViewer({ ...viewer, index });
@@ -335,7 +335,6 @@ function AlbumPhotos({ album, text, language, basePath }: {
     {viewer && viewerPhotoId && <PhotoViewer photoId={viewerPhotoId} previewUrl={urls[viewerPhotoId]}
       label={`${name} · ${text.photos} ${viewerPosition}`} position={viewerPosition} total={viewer.total}
       slug={album.slug} language={language} opener={viewer.opener}
-      hasNext={viewerPosition < viewer.total}
       moveLoading={viewerMoveState === "loading"} moveFailed={viewerMoveState === "error"}
       onClose={closeViewer} onMove={step => void movePhoto(step)} />}
   </>;

@@ -20,7 +20,6 @@ type Props = {
   slug: string;
   language: Language;
   opener: HTMLButtonElement | null;
-  hasNext: boolean;
   moveLoading: boolean;
   moveFailed: boolean;
   onClose: () => void;
@@ -47,13 +46,19 @@ async function fullPhotoUrl(id: string, signal: AbortSignal) {
   return urls[id];
 }
 
-function FullPhoto({ id, label, previewUrl, text }: { id: string; label: string; previewUrl?: string; text: typeof copy[Language] }) {
+type Slide = { fromId: string; step: -1 | 1; source?: string };
+
+function FullPhoto({ id, label, previewUrl, slide, text }: {
+  id: string; label: string; previewUrl?: string; slide: Slide | null; text: typeof copy[Language];
+}) {
   const [url, setUrl] = useState("");
   const [loaded, setLoaded] = useState(false);
   const [failed, setFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
-  const [previewFailed, setPreviewFailed] = useState(false);
-  const showPreview = Boolean(previewUrl && !previewFailed && !loaded);
+  const [previewState, setPreviewState] = useState<"loading" | "ready" | "error">("loading");
+  const showPreview = Boolean(previewUrl && previewState !== "error" && !loaded);
+  const ready = loaded || (showPreview && previewState === "ready");
+  const previous = slide?.source;
 
   useEffect(() => {
     const controller = new AbortController();
@@ -66,10 +71,15 @@ function FullPhoto({ id, label, previewUrl, text }: { id: string; label: string;
   }, [id, attempt]);
 
   return <>
-    {showPreview && <img className="gallery-viewer-preview" src={previewUrl} alt="" draggable={false}
-      onError={() => setPreviewFailed(true)} />}
-    {url && !failed && <img className="gallery-viewer-image" src={url} alt={label} draggable={false}
-      data-loading={!loaded} onLoad={() => setLoaded(true)} onError={() => setFailed(true)} />}
+    <div className="gallery-viewer-slides" data-direction={slide?.step} data-ready={ready}>
+      {previous && <img className="gallery-viewer-outgoing" src={previous} alt="" draggable={false} />}
+      <div className="gallery-viewer-frame">
+        {showPreview && <img className="gallery-viewer-preview" src={previewUrl} alt="" draggable={false}
+          data-loading={previewState !== "ready"} onLoad={() => setPreviewState("ready")} onError={() => setPreviewState("error")} />}
+        {url && !failed && <img className="gallery-viewer-image" src={url} alt={label} draggable={false}
+          data-loading={!loaded} onLoad={() => setLoaded(true)} onError={() => setFailed(true)} />}
+      </div>
+    </div>
     {failed ? <div className="gallery-viewer-message">
       <p role="alert">{text.error}</p>
       <button type="button" className="gallery-viewer-button" onClick={() => {
@@ -78,14 +88,17 @@ function FullPhoto({ id, label, previewUrl, text }: { id: string; label: string;
         setUrl("");
         setAttempt(value => value + 1);
       }}>{text.retry}</button>
-    </div> : !loaded && <p className={showPreview ? "gallery-viewer-message gallery-viewer-loading" : "gallery-viewer-message"} role="status">{text.loading}</p>}
+    </div> : !loaded && <p className={ready || previous ? "gallery-viewer-message gallery-viewer-loading" : "gallery-viewer-message"} role="status">{text.loading}</p>}
   </>;
 }
 
-export default function PhotoViewer({ photoId, previewUrl, label, position, total, slug, language, opener, hasNext, moveLoading, moveFailed, onClose, onMove }: Props) {
+export default function PhotoViewer({ photoId, previewUrl, label, position, total, slug, language, opener, moveLoading, moveFailed, onClose, onMove }: Props) {
   const text = copy[language];
   const dialogRef = useRef<HTMLDialogElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
+  const stageRef = useRef<HTMLDivElement>(null);
+  const [slide, setSlide] = useState<Slide | null>(null);
+  const canMove = total > 1 && !moveLoading;
   const gesture = useRef<{ id: number; x: number; y: number } | null>(null);
   const download = useRef<AbortController | null>(null);
   const [downloading, setDownloading] = useState(false);
@@ -109,13 +122,19 @@ export default function PhotoViewer({ photoId, previewUrl, label, position, tota
   }, [opener]);
 
   function move(step: -1 | 1) {
-    if (!moveLoading && (step === -1 ? position > 1 : hasNext)) onMove(step);
+    if (!canMove) return;
+    const frame = stageRef.current;
+    const visible = frame?.querySelector<HTMLImageElement>(".gallery-viewer-frame img[data-loading='false']")
+      ?? frame?.querySelector<HTMLImageElement>(".gallery-viewer-outgoing");
+    const source = visible?.currentSrc || visible?.src;
+    setSlide({ fromId: photoId, step, source });
+    onMove(step);
   }
 
   function startSwipe(event: PointerEvent<HTMLDivElement>) {
     if (event.pointerType !== "touch") return;
     if (!event.isPrimary) { gesture.current = null; return; }
-    if (event.target !== event.currentTarget && (event.target as HTMLElement).tagName !== "IMG") return;
+    if ((event.target as Element).closest("button")) return;
     gesture.current = { id: event.pointerId, x: event.clientX, y: event.clientY };
     event.currentTarget.setPointerCapture?.(event.pointerId);
   }
@@ -180,13 +199,13 @@ export default function PhotoViewer({ photoId, previewUrl, label, position, tota
     </header>
     <div className="gallery-viewer-main">
       <button type="button" className="gallery-viewer-button gallery-viewer-icon gallery-viewer-previous"
-        aria-label={text.back} disabled={position <= 1 || moveLoading} onClick={() => move(-1)}><ViewerIcon name="previous" /></button>
-      <div className="gallery-viewer-stage" onPointerDown={startSwipe} onPointerUp={endSwipe}
+        aria-label={text.back} disabled={!canMove} onClick={() => move(-1)}><ViewerIcon name="previous" /></button>
+      <div className="gallery-viewer-stage" ref={stageRef} onPointerDown={startSwipe} onPointerUp={endSwipe}
         onPointerCancel={() => { gesture.current = null; }}>
-        <FullPhoto key={photoId} id={photoId} label={label} previewUrl={previewUrl} text={text} />
+        <FullPhoto key={photoId} id={photoId} label={label} previewUrl={previewUrl} slide={slide?.fromId !== photoId ? slide : null} text={text} />
       </div>
       <button type="button" className="gallery-viewer-button gallery-viewer-icon gallery-viewer-next"
-        aria-label={text.next} disabled={!hasNext || moveLoading} onClick={() => move(1)}><ViewerIcon name="next" /></button>
+        aria-label={text.next} disabled={!canMove} onClick={() => move(1)}><ViewerIcon name="next" /></button>
     </div>
     {(downloadError || moveFailed || moveLoading) && <p className="gallery-viewer-feedback" role={moveLoading ? "status" : "alert"}>
       {downloadError ? text.downloadError : moveFailed ? text.moveError : text.loading}
