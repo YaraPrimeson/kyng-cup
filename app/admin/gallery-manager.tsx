@@ -10,6 +10,7 @@ type Album = { cover_photo_id: string | null; published_at: string | null };
 type Photo = { filename?: string; id: string; sort_order: number; state: "pending" | "visible" | "hidden" };
 type Job = { file: File; order: number; state: "waiting" | "uploading" | "done" | "failed"; error?: string };
 const pageSize = 24;
+const galleryZipEnabled = false;
 const photoMime = new Set(["image/jpeg", "image/png", "image/webp"]);
 
 function errorText(error: unknown) {
@@ -157,7 +158,7 @@ export default function GalleryManager({ tournamentId, tournamentSlug, active, o
   async function selectFiles(selection: FileList) {
     if (operation.current || !loaded) return;
     const files = Array.from(selection);
-    const archives = files.filter(isGalleryZip);
+    const archives = galleryZipEnabled ? files.filter(isGalleryZip) : [];
     if (archives.length > 1) {
       setError("Choose one ZIP archive at a time.");
       return;
@@ -189,7 +190,7 @@ export default function GalleryManager({ tournamentId, tournamentSlug, active, o
       jobs.reduce((max, job) => Math.max(max, job.order), -1),
     ) + 1;
     const batch: Job[] = Array.from(files, (file, index) => {
-      const supported = photoMime.has(file.type) || (!file.type && /\.(?:jpe?g|png|webp)$/i.test(file.name));
+      const supported = !isGalleryZip(file) && (photoMime.has(file.type) || (!file.type && /\.(?:jpe?g|png|webp)$/i.test(file.name)));
       return { file, order: start + index, state: supported ? "waiting" : "failed",
         error: supported ? undefined : "Choose JPG, PNG or WebP images." };
     });
@@ -259,13 +260,14 @@ export default function GalleryManager({ tournamentId, tournamentSlug, active, o
           onDragLeave={event => { if (!event.relatedTarget || !event.currentTarget.contains(event.relatedTarget as Node)) setDragging(false); }}
           onDrop={event => { event.preventDefault(); setDragging(false); void selectFiles(event.dataTransfer.files); }}>
           <span className="admin-upload-icon" aria-hidden="true">↑</span>
-          <strong>{t("Drop photos or a ZIP here, or choose files")}</strong>
+          <strong>{t(galleryZipEnabled ? "Drop photos or a ZIP here, or choose files" : "Drop photos here or choose files")}</strong>
           <span>JPG, PNG, WebP</span>
-          <span>{t(galleryZipHint)}</span>
-          <input className="admin-visually-hidden" aria-label={t("Upload photos or ZIP")} type="file" multiple accept={galleryFileTypes}
+          {galleryZipEnabled && <span>{t(galleryZipHint)}</span>}
+          <input className="admin-visually-hidden" aria-label={t(galleryZipEnabled ? "Upload photos or ZIP" : "Upload photos")} type="file" multiple
+            accept={galleryZipEnabled ? galleryFileTypes : [...photoMime].join(",")}
             disabled={busy} onChange={event => { if (event.currentTarget.files) void selectFiles(event.currentTarget.files); event.currentTarget.value = ""; }} />
         </label>
-        {extracting && <p role="status">{t(galleryZipBusy)}</p>}
+        {galleryZipEnabled && extracting && <p role="status">{t(galleryZipBusy)}</p>}
         {jobs.length > 0 && <section className="admin-gallery-progress">
           <h3>{t("Upload queue")}</h3>
           <div className="admin-upload-meter"><progress max={jobs.length} value={settled} aria-label={t("Processed")} />
