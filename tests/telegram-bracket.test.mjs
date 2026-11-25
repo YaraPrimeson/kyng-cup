@@ -5,17 +5,19 @@ import test from "node:test";
 import { runInNewContext } from "node:vm";
 
 const functionDir = new URL("../supabase/functions/telegram-bracket/", import.meta.url);
-const [entry, demo] = await Promise.all(["index.ts", "demo.ts"].map(file => readFile(new URL(file, functionDir), "utf8")));
+const [entry, demo, organiser, groupStage] = await Promise.all(["index.ts", "demo.ts", "organiser.ts", "group-stage.ts"].map(file => readFile(new URL(file, functionDir), "utf8")));
 const code = stripTypeScriptTypes([
   demo.replaceAll(/^export (?=type|function)/gm, ""),
-  entry.replace(/^import .*"\.\/demo\.ts";\n/m, ""),
+  groupStage.replaceAll(/^export (?=type|function)/gm, ""),
+  "\n{\n" + organiser.replaceAll(/^import .*;\n/gm, "").replace("export function telegramOrganiser", "globalThis.telegramOrganiser = function telegramOrganiser") + "\n}\n",
+  entry.replaceAll(/^import .*;\n/gm, ""),
 ].join("\n"));
 
-function webhook(demoControl, cupControl) {
+function webhook(demoControl, cupControl, organiserControl) {
   let handler;
   const calls = [], replies = [];
   runInNewContext(code, {
-    Request, Response, URLSearchParams, console,
+    Request, Response, URLSearchParams, console, crypto: globalThis.crypto,
     Deno: {
       env: { get: name => ({ SUPABASE_URL: "https://database.test", SUPABASE_SERVICE_ROLE_KEY: "test-service-key" })[name] },
       serve: value => { handler = value; },
@@ -28,6 +30,9 @@ function webhook(demoControl, cupControl) {
       }
       if (url === "https://database.test/rest/v1/rpc/telegram_cup_control" && cupControl) {
         return Response.json(cupControl(JSON.parse(init.body)));
+      }
+      if (url === "https://database.test/rest/v1/rpc/telegram_organiser" && organiserControl) {
+        return Response.json(organiserControl(JSON.parse(init.body)));
       }
       if (url.startsWith("https://api.telegram.org/bot900:test/")) {
         replies.push(JSON.parse(init.body));
@@ -261,4 +266,57 @@ test("eight-pair dashboard edits each court with its own revision and previews b
   assert.equal(calls.at(-1).p_revision, 3);
   await tap("kc:b:qualifiers:11");
   assert.match(bot.replies.at(-1).text, /Основная сетка\nСевер · Запад · Альфа · Сигма[\s\S]*Короли подвала\nЮг · Восток · Бета · Омега/);
+});
+
+test("organiser starts in private chat, links through the website and opens a three-pair group", async () => {
+  const id = 123;
+  let linked = false;
+  let panel;
+  let pendingLink;
+  const group = {
+    id: "group", code: "A", qualify_count: 1,
+    members: ["a","b","c"].map((pair_id, position) => ({ pair_id, position, group_id: "group" })),
+  };
+  const tournament = { id: "tournament", name: "Three-pair groups", status: "published" };
+  const matches = [["a","b"],["a","c"],["b","c"]].map(([pair_one_id,pair_two_id], index) => ({
+    id: "match"+index, group_id: group.id, position:index+1, status:"scheduled", court:"Court 1",
+    pair_one_id, pair_two_id, pair_one_sets:[], pair_two_sets:[], winner_id:null, updated_at:"v1",
+    play:{one:0,two:0,sets:[]},
+  }));
+  const bot = webhook(undefined, undefined, ({ p_telegram_id, p_action, p_payload }) => {
+    assert.equal(p_telegram_id, id);
+    if (p_action === "link") {
+      pendingLink = p_payload.code;
+      return { linked, tournaments: [tournament] };
+    }
+    if (p_action === "save_panel") { panel = p_payload; return { ok:true }; }
+    if (p_action === "button") {
+      if (panel?.key !== p_payload.key) return { error:"Карточка устарела." };
+      const command = panel.buttons[p_payload.index]; panel = undefined; return { command };
+    }
+    if (p_action === "board") return {
+      tournament, matches, groups:[group],
+      pairs: ["a","b","c"].map(id=>({id,name:id.toUpperCase()})),
+    };
+    assert.fail(p_action);
+  });
+  const start = () => bot.update({ message:{ from:{id,first_name:"Test"}, chat:{id,type:"private"}, text:"/start" } });
+  await start();
+  assert.match(pendingLink,/^[0-9a-f]{48}$/);
+  assert.equal(bot.replies.at(-1).reply_markup.inline_keyboard[0][0].url,"https://kyngcup.com/admin/#telegram="+pendingLink);
+  linked = true;
+  await start();
+  const tap = (data, chatType = "private") => bot.update({ callback_query:{ id:"click", from:{id}, message:{message_id:1,chat:{id,type:chatType}},data } });
+  const button = () => bot.replies.at(-1).reply_markup.inline_keyboard.flat()[0].callback_data;
+  const home = button();
+  await tap(home,"group");
+  assert.equal(bot.replies.at(-1).callback_query_id,"click");
+  await tap(home);
+  const groupButton = bot.replies.at(-1).reply_markup.inline_keyboard.flat().find(item=>item.text.includes("0/3"));
+  assert.ok(groupButton);
+  await tap(groupButton.callback_data);
+  assert.match(bot.replies.at(-1).text,/3\. C/);
+  assert.equal(bot.replies.at(-1).reply_markup.inline_keyboard.flat().filter(item=>item.text.includes(" — ")).length,3);
+  await tap(groupButton.callback_data);
+  assert.match(bot.replies.at(-1).text,/устарела/);
 });

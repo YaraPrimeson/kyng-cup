@@ -1,37 +1,25 @@
-# Telegram bracket management
+# Telegram tournament control
 
-The `telegram-bracket` Supabase Edge Function currently provides read-only access to tournament lists and matches. Result editing and resetting are temporarily disabled in code, including for valid Telegram webhook messages. The function still verifies Telegram's webhook secret header before processing an update.
+Open `/start` or `/admin` in the private bot chat. Confirm the displayed Telegram account in the KYNG CUP admin page and return to `/admin`. A link expires after ten minutes and can be used once. An organiser sees the tournaments allowed by the same shared organiser policy as the website.
 
-The existing result handlers and database functions are preserved. Both result handlers reject requests before looking up a tournament or calling any result-writing RPC. Before enabling `RESULT_EDITING_ENABLED`, implement verified Telegram identity linking and server-side tournament-organiser authorisation for both saving and resetting results. The webhook secret alone authenticates Telegram delivery, not the sender's permission to edit a tournament.
+- Open a group to see its standings, roster and individual matches. Qualification follows each group's configured number of places. The existing draw builder creates both the main and consolation brackets.
+- Start the match and enter games or sets. Use `+1` and `−1` on sets as needed. Confirm the final score and winner to publish the result. An awarded set counts as a set win without adding games to standings.
+- Correct a name in the group roster, or replace a player in an unlinked pair before its first match and before its playoff placement. Use the registration tools in the admin page for changes to account-linked pairs.
+- Swap two pairs in scheduled matches in one bracket. The bot previews both encounters. It only exchanges starting slots and checks both versions when confirming.
+- Finish both brackets before confirming tournament closure. A result correction requires a reason. Group results that can affect a confirmed draw go through the web admin.
+- The action journal shows published results, corrections, undo actions, roster changes, swaps and draw approvals.
 
-## Setup
+The Telegram-owned live draft is stored in the database. The website continues to show official results after confirmation, and changes from the website invalidate the previous Telegram draft when the match version changes.
 
-The production token and webhook secret are stored encrypted in Supabase Vault under these names:
+`/tournaments` and `/matches <slug>` provide public read-only access. `/cup` opens the earlier test flow. Use `/admin` to manage real matches.
 
-```text
-telegram_bot_token
-telegram_webhook_secret
+## Release
+
+Apply the database migration before releasing the static site and Edge Function. The website is published through the GitHub Pages workflow on `main`. The `telegram-bracket` Edge Function is deployed separately with `verify_jwt=false` because it authenticates Telegram's secret webhook header. In the Telegram webhook configuration include both `message` and `callback_query` in `allowed_updates`. Its token and webhook secret are stored in Vault.
+
+Run webhook and SQL regression checks with:
+
+```sh
+node --test tests/telegram-bracket.test.mjs tests/telegram-organiser-sql.test.mjs
+deno check supabase/functions/telegram-bracket/index.ts
 ```
-
-Deploy the database migrations and Edge Function, then register the webhook using the decrypted values in a trusted local environment:
-
-```bash
-supabase db push
-supabase functions deploy telegram-bracket --no-verify-jwt
-curl -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook" \
-  -H "Content-Type: application/json" \
-  -d "{\"url\":\"https://omkytvxgjhdjfglnarfe.supabase.co/functions/v1/telegram-bracket\",\"secret_token\":\"${TELEGRAM_WEBHOOK_SECRET}\",\"allowed_updates\":[\"message\"]}"
-```
-
-## Commands
-
-```text
-/tournaments
-/matches <slug>
-```
-
-`/result` and `/reset` return a temporary-disable notice without modifying results. Organisers can continue editing results in the KYNG CUP admin page.
-
-Run the isolated webhook regression checks with `node --test tests/telegram-bracket.test.mjs`. These checks mock all HTTP requests and do not contact Telegram or the production database.
-
-The bot is deployed separately as a Supabase Edge Function. Pushing to `main` publishes the website, but does not update the running bot; deploy `telegram-bracket` as well when changing its code.

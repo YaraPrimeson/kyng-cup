@@ -1,3 +1,4 @@
+import { telegramOrganiser } from "./organiser.ts";
 import { telegramDemo, type Message } from "./demo.ts";
 
 type TelegramUpdate = {
@@ -33,7 +34,7 @@ let secretsPromise: Promise<BotSecrets> | null = null;
 // Keep result handlers for future organiser-only editing. Do not enable this
 // until Telegram identities are authorised for the selected tournament.
 const RESULT_EDITING_ENABLED = false;
-const editingDisabledMessage = "Редактирование результатов через бота временно отключено. Используйте админку KYNG CUP.";
+const editingDisabledMessage = "Редактирование через старые команды временно отключено. Откройте /admin в личном чате.";
 
 function requireResultEditing() {
   if (!RESULT_EDITING_ENABLED) throw new Error(editingDisabledMessage);
@@ -44,7 +45,8 @@ const helpText = [
   "",
   "/tournaments — активные турниры",
   "/matches <slug> — матчи турнира",
-  "/cup — пульт турнира на восемь пар",
+  "/admin — пульт организатора в личном чате",
+  "/cup — тестовый турнир на восемь пар",
   "",
   editingDisabledMessage,
 ].join("\n");
@@ -108,7 +110,7 @@ async function loadSecrets() {
 }
 
 async function findTournament(slug: string) {
-  const rows = await supabase(`tournaments?select=id,slug,name,status&slug=eq.${encodeURIComponent(slug)}&limit=1`) as Tournament[];
+  const rows = await supabase(`tournaments?select=id,slug,name,status&slug=eq.${encodeURIComponent(slug)}&status=in.(published,live,completed)&limit=1`) as Tournament[];
   return rows[0] ?? null;
 }
 
@@ -260,14 +262,22 @@ const cup = telegramDemo(
   true,
 );
 
+const organiser = telegramOrganiser(
+  (userId, action, payload) => supabase("rpc/telegram_organiser", {
+    method: "POST", body: JSON.stringify({ p_telegram_id: userId, p_action: action, p_payload: payload ?? {} }),
+  }),
+  telegram,
+  async () => Number((await loadSecrets()).bot_token.split(":")[0]),
+);
+
 async function handleUpdate(update: TelegramUpdate) {
   if (update.callback_query) {
     const callback = update.callback_query;
     try {
-      await (callback.data?.startsWith("kc:") ? cup : demo).callback(callback);
+      await (callback.data?.startsWith("ko:") ? organiser : callback.data?.startsWith("kc:") ? cup : demo).callback(callback);
     } catch {
       if (callback.message?.chat?.type === "private" && callback.message.chat.id === callback.from.id) {
-        await reply(callback.from.id, "Не удалось обновить демо. Откройте пульт и проверьте текущий счёт.");
+        await reply(callback.from.id, "Не удалось обновить карточку. Откройте пульт и проверьте текущий счёт.");
       }
     }
     return;
@@ -285,9 +295,11 @@ async function handleUpdate(update: TelegramUpdate) {
     const privateChat = message.chat?.type === "private" && userId === chatId;
     if (invite !== undefined) {
       if (privateChat) await demo.open(userId, invite);
+    } else if (privateChat && (command === "/admin" || command === "/start")) {
+      await organiser.open(userId, [message.from?.first_name, message.from?.last_name, message.from?.username && "@"+message.from.username].filter(Boolean).join(" "));
     } else if (command === "/cup" || command === "/demo") {
       if (privateChat) await cup.open(userId);
-    } else if (privateChat && (await demo.textReply(userId, message, text) || await cup.textReply(userId, message, text))) return;
+    } else if (privateChat && (await organiser.textReply(userId, message, text) || await demo.textReply(userId, message, text) || await cup.textReply(userId, message, text))) return;
     else if (command === "/start" || command === "/help") await reply(chatId, helpText);
     else if (command === "/tournaments") await listTournaments(chatId);
     else if (command === "/matches") await listMatches(chatId, args[0]);
@@ -295,8 +307,9 @@ async function handleUpdate(update: TelegramUpdate) {
     else if (command === "/reset") await resetResult(chatId, userId, args);
     else await reply(chatId, `Неизвестная команда.\n\n${helpText}`);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Неизвестная ошибка";
-    await reply(chatId, `Не удалось изменить сетку: ${message}`);
+    const detail = error instanceof Error ? error.message : "Неизвестная ошибка";
+    const organiserRequest = command === "/admin" || command === "/start" || message.reply_to_message?.text?.includes("\n#ko:");
+    await reply(chatId, organiserRequest ? "Не удалось обновить пульт. Повторите /admin." : `Не удалось изменить сетку: ${detail}`);
   }
 }
 

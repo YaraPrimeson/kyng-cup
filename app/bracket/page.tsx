@@ -29,7 +29,7 @@ type Tournament = {
 };
 
 type Pair = { id: string; name: string; player_one: string; player_two: string; seed: number | null; country_code: string | null };
-type Match = { next_match_id: string | null; next_slot: number | null; bracket_kind: "playoffs" | "basement"; id: string; round: number; position: number; pair_one_id: string | null; pair_two_id: string | null; pair_one_sets: number[]; pair_two_sets: number[]; winner_id: string | null; status: "scheduled" | "live" | "completed"; court: string | null; scheduled_at: string | null };
+type Match = { next_match_id: string | null; next_slot: number | null; bracket_kind: "playoffs" | "basement"; id: string; round: number; position: number; pair_one_id: string | null; pair_two_id: string | null; pair_one_sets: number[]; pair_two_sets: number[]; awarded_sets?: number[]; winner_id: string | null; status: "scheduled" | "live" | "completed"; court: string | null; scheduled_at: string | null };
 
 const bracketCopy = {
   en: { headingA: "Tournament", headingB: "bracket", groups: "Group stage", playoffs: "Playoffs", qualified: "Qualifies", played: "P", won: "W", lost: "L", sets: "Sets", games: "Games", points: "Pts", groupRule: "Highlighted positions advance to the playoffs.", decided: "To be decided", previousWinner: "Winner of previous match", scheduleTba: "Schedule TBA", courtTba: "Court TBA", final: "Final", live: "Live", scheduled: "Scheduled", locationTba: "Location TBA", pairs: "doubles pairs", previous: "Previous", next: "Next", noBracket: "No published tournament bracket is available yet.", loadError: "The latest match data could not be loaded." },
@@ -63,9 +63,13 @@ function getRounds(size: number, language: Language) {
   return (labels[size] ?? labels[16]).map((label, index) => ({ number: index + 1, label }));
 }
 
-function PairRow({ pair, scores, winner, language }: { pair?: Pair; scores: number[]; winner: boolean; language: Language }) {
+function PairRow({ pair, scores, awarded, winner, language }: { pair?: Pair; scores: number[]; awarded?: number[]; winner: boolean; language: Language }) {
   const text = bracketCopy[language];
-  return <div className={`bracket-pair${winner ? " is-winner" : ""}${!pair ? " is-pending" : ""}`}><span className="pair-seed">{pair?.seed ? String(pair.seed).padStart(2, "0") : "—"}</span><span className="pair-name"><strong>{pair?.name ?? text.decided}</strong><small>{pair ? `${pair.player_one} · ${pair.player_two}` : text.previousWinner}</small></span><span className="pair-score">{scores.length ? scores.join(" · ") : "—"}</span></div>;
+  return <div className={`bracket-pair${winner ? " is-winner" : ""}${!pair ? " is-pending" : ""}`}><span className="pair-seed">{pair?.seed ? String(pair.seed).padStart(2, "0") : "—"}</span><span className="pair-name"><strong>{pair?.name ?? text.decided}</strong><small>{pair ? `${pair.player_one} · ${pair.player_two}` : text.previousWinner}</small></span><span className="pair-score">{scores.length ? displaySets(scores, awarded) : "—"}</span></div>;
+}
+
+function displaySets(scores: number[], awarded?: number[]) {
+  return scores.map((value, index) => awarded?.includes(index + 1) ? (value ? "✓" : "—") : value).join(" · ");
 }
 
 const dateLocales: Record<Language, string> = { en: "en-GB", uk: "uk-UA", de: "de-DE", ru: "ru-RU" };
@@ -75,7 +79,7 @@ function MatchCard({ match, pairMap, language }: { match: Match; pairMap: Map<st
   const pairTwo = match.pair_two_id ? pairMap.get(match.pair_two_id) : undefined;
   const text = bracketCopy[language];
   const date = match.scheduled_at ? new Intl.DateTimeFormat(dateLocales[language], { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(match.scheduled_at)) : text.scheduleTba;
-  return <article className={`bracket-match status-${match.status}`}><span className="match-connector" aria-hidden="true" /><div className="match-meta"><span>{date}</span><span>{match.court ?? text.courtTba}</span><strong>{match.status === "completed" ? text.final : match.status === "live" ? text.live : text.scheduled}</strong></div><PairRow pair={pairOne} scores={match.pair_one_sets} winner={match.winner_id === match.pair_one_id && !!match.winner_id} language={language} /><PairRow pair={pairTwo} scores={match.pair_two_sets} winner={match.winner_id === match.pair_two_id && !!match.winner_id} language={language} /></article>;
+  return <article className={`bracket-match status-${match.status}`}><span className="match-connector" aria-hidden="true" /><div className="match-meta"><span>{date}</span><span>{match.court ?? text.courtTba}</span><strong>{match.status === "completed" ? text.final : match.status === "live" ? text.live : text.scheduled}</strong></div><PairRow pair={pairOne} scores={match.pair_one_sets} awarded={match.awarded_sets} winner={match.winner_id === match.pair_one_id && !!match.winner_id} language={language} /><PairRow pair={pairTwo} scores={match.pair_two_sets} awarded={match.awarded_sets} winner={match.winner_id === match.pair_two_id && !!match.winner_id} language={language} /></article>;
 }
 
 function PublicGroupStage({ groups, members, matches, pairMap, language }: { groups: TournamentGroup[]; members: GroupMember[]; matches: GroupMatch[]; pairMap: Map<string, Pair>; language: Language }) {
@@ -92,7 +96,7 @@ function PublicGroupStage({ groups, members, matches, pairMap, language }: { gro
       return <article className={`${visibleGroups.includes(group) ? "is-active" : ""}`} key={group.id}>
         <header><span>Group</span><h2>{group.code}</h2></header>
         <div className="group-table-scroll"><table><thead><tr><th>#</th><th>Pair</th><th>{text.played}</th><th>{text.won}</th><th>{text.lost}</th><th>{text.sets}</th><th>{text.games}</th><th>{text.points}</th></tr></thead><tbody>{standings.map((row) => { const pair = pairMap.get(row.pairId); const qualifies = row.place <= group.qualify_count; return <tr className={qualifies ? "is-qualified" : ""} key={row.pairId}><td><b>{row.place}</b></td><td><strong>{pair?.name}</strong><small>{pair?.player_one} · {pair?.player_two}</small>{qualifies && groupCompleted && <em>{text.qualified}</em>}</td><td>{row.played}</td><td>{row.won}</td><td>{row.lost}</td><td>{row.setsFor}:{row.setsAgainst}</td><td>{row.gamesFor}:{row.gamesAgainst}</td><td><b>{row.points}</b></td></tr>; })}</tbody></table></div>
-        <div className="group-match-list">{groupMatches.map((match) => { const one = pairMap.get(match.pair_one_id); const two = pairMap.get(match.pair_two_id); const date = match.scheduled_at ? new Intl.DateTimeFormat(dateLocales[language], { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(match.scheduled_at)) : text.scheduleTba; return <div className={`group-match-row status-${match.status}`} key={match.id}><span>{date}<small>{match.court ?? text.courtTba}</small></span><strong>{one?.name}<i>{match.pair_one_sets.length ? match.pair_one_sets.join(" · ") : "—"}</i></strong><strong>{two?.name}<i>{match.pair_two_sets.length ? match.pair_two_sets.join(" · ") : "—"}</i></strong></div>; })}</div>
+        <div className="group-match-list">{groupMatches.map((match) => { const one = pairMap.get(match.pair_one_id); const two = pairMap.get(match.pair_two_id); const date = match.scheduled_at ? new Intl.DateTimeFormat(dateLocales[language], { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(match.scheduled_at)) : text.scheduleTba; return <div className={`group-match-row status-${match.status}`} key={match.id}><span>{date}<small>{match.court ?? text.courtTba}</small></span><strong>{one?.name}<i>{match.pair_one_sets.length ? displaySets(match.pair_one_sets, match.awarded_sets) : "—"}</i></strong><strong>{two?.name}<i>{match.pair_two_sets.length ? displaySets(match.pair_two_sets, match.awarded_sets) : "—"}</i></strong></div>; })}</div>
       </article>;
     })}</div>
   </section>;
@@ -170,9 +174,9 @@ export default function BracketPage() {
     const groupIds = (groupsResult.data ?? []).map((item) => item.id);
     const [pairsResult, matchesResult, membersResult, groupMatchesResult] = await Promise.all([
       supabase.from("pairs").select("id,name,player_one,player_two,seed,country_code").eq("tournament_id", current.id).order("seed"),
-      supabase.from("matches").select("id,round,bracket_kind,position,next_match_id,next_slot,pair_one_id,pair_two_id,pair_one_sets,pair_two_sets,winner_id,status,court,scheduled_at").eq("tournament_id", current.id).order("round").order("position"),
+      supabase.from("matches").select("id,round,bracket_kind,position,next_match_id,next_slot,pair_one_id,pair_two_id,pair_one_sets,pair_two_sets,awarded_sets,winner_id,status,court,scheduled_at").eq("tournament_id", current.id).order("round").order("position"),
       groupIds.length ? supabase.from("group_members").select("group_id,pair_id,position").in("group_id", groupIds) : Promise.resolve({ data: [], error: null }),
-      supabase.from("group_matches").select("id,tournament_id,group_id,position,pair_one_id,pair_two_id,pair_one_sets,pair_two_sets,winner_id,status,court,scheduled_at,updated_at").eq("tournament_id", current.id).order("group_id").order("position"),
+      supabase.from("group_matches").select("id,tournament_id,group_id,position,pair_one_id,pair_two_id,pair_one_sets,pair_two_sets,awarded_sets,winner_id,status,court,scheduled_at,updated_at").eq("tournament_id", current.id).order("group_id").order("position"),
     ]);
     if (request !== requestNumber.current) return;
     if (pairsResult.error || matchesResult.error || groupsResult.error || membersResult.error || groupMatchesResult.error) setError(text.loadError);

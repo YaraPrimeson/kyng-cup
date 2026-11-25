@@ -5,7 +5,7 @@ export type PlayerMatch = {
   stage: "group" | "playoffs" | "basement"; round: number | null; final_round: number | null;
   is_final: boolean; status: string; winner_id: string | null;
   pair_one_id: string | null; pair_two_id: string | null;
-  pair_one_sets: number[]; pair_two_sets: number[];
+  pair_one_sets: number[]; pair_two_sets: number[]; awarded_sets?: number[];
   completed_at: string | null; scheduled_at: string | null;
 };
 
@@ -86,7 +86,7 @@ export function matchScore(match: PlayerMatch) {
   const oursFirst = match.pair_id === match.pair_one_id;
   const a = oursFirst ? match.pair_one_sets : match.pair_two_sets;
   const b = oursFirst ? match.pair_two_sets : match.pair_one_sets;
-  return a.map((value, index) => `${value}:${b[index]}`).join(" · ");
+  return a.map((value, index) => match.awarded_sets?.includes(index + 1) ? (value > b[index] ? "✓" : "—") : `${value}:${b[index]}`).join(" · ");
 }
 
 function appearanceDate(match: PlayerMatch) {

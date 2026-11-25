@@ -1,6 +1,7 @@
 "use client";
 
 import { isSportVisible, visibleSportItems } from "@/lib/sports";
+import TelegramLink from "./telegram-link";
 import CreateTournament from "./create-tournament";
 import GalleryManager from "./gallery-manager";
 import RegistrationPairLink, { RegistrationPairLinks } from "./registration-pair-link";
@@ -70,6 +71,7 @@ type Match = {
   pair_two_id: string | null;
   pair_one_sets: number[];
   pair_two_sets: number[];
+  awarded_sets?: number[];
   winner_id: string | null;
   status: MatchStatus;
   court: string | null;
@@ -596,7 +598,7 @@ function GroupStageManager({ tournament, pairs, groups, members, matches, playof
 
 function AdminBracketOverview({ matches, pairMap, size }: { matches: Match[]; pairMap: Map<string, Pair>; size: number }) {
   const { t } = useAdminUI();
-  return <KnockoutBoard matches={matches} size={size} label={t("Current tournament bracket")} renderMatch={match => <article className={`draw-preview-match status-${match.status}`}><small>{t(knockoutRoundLabel(size, match.round))} · {match.position}</small>{[match.pair_one_id, match.pair_two_id].map((id, index) => <div className={`draw-match-pair${id && id === match.winner_id ? " is-winner" : ""}`} key={index}><strong>{id ? pairMap.get(id)?.name : t("Winner of the previous match")}</strong><span>{(index === 0 ? match.pair_one_sets : match.pair_two_sets).join(" · ") || "—"}</span></div>)}</article>} />;
+  return <KnockoutBoard matches={matches} size={size} label={t("Current tournament bracket")} renderMatch={match => <article className={`draw-preview-match status-${match.status}`}><small>{t(knockoutRoundLabel(size, match.round))} · {match.position}</small>{[match.pair_one_id, match.pair_two_id].map((id, index) => <div className={`draw-match-pair${id && id === match.winner_id ? " is-winner" : ""}`} key={index}><strong>{id ? pairMap.get(id)?.name : t("Winner of the previous match")}</strong><span>{(index === 0 ? match.pair_one_sets : match.pair_two_sets).map((value, set) => match.awarded_sets?.includes(set + 1) ? (value ? "W" : "L") : value).join(" · ") || "—"}</span></div>)}</article>} />;
 }
 
 function KnockoutOnlyDraw({ tournament, pairs, matches, pairMap, onSaved }: { tournament: Tournament; pairs: Pair[]; matches: Match[]; pairMap: Map<string, Pair>; onSaved: () => void }) {
@@ -866,9 +868,9 @@ function AdminWorkspace() {
     const groupIds = (groupsResult.data ?? []).map((item) => item.id);
     const [pairsResult, matchesResult, groupMembersResult, groupMatchesResult, registrationsResult] = await Promise.all([
       supabase.from("pairs").select("id,tournament_id,name,player_one,player_two,seed,updated_at").eq("tournament_id", selectedId).order("seed"),
-      supabase.from("matches").select("id,tournament_id,round,bracket_kind,position,next_match_id,next_slot,pair_one_id,pair_two_id,pair_one_sets,pair_two_sets,winner_id,status,court,scheduled_at,updated_at").eq("tournament_id", selectedId).order("round").order("position"),
+      supabase.from("matches").select("id,tournament_id,round,bracket_kind,position,next_match_id,next_slot,pair_one_id,pair_two_id,pair_one_sets,pair_two_sets,awarded_sets,winner_id,status,court,scheduled_at,updated_at").eq("tournament_id", selectedId).order("round").order("position"),
       groupIds.length ? supabase.from("group_members").select("group_id,pair_id,position").in("group_id", groupIds) : Promise.resolve({ data: [], error: null }),
-      supabase.from("group_matches").select("id,tournament_id,group_id,position,pair_one_id,pair_two_id,pair_one_sets,pair_two_sets,winner_id,status,court,scheduled_at,updated_at").eq("tournament_id", selectedId).order("group_id").order("position"),
+      supabase.from("group_matches").select("id,tournament_id,group_id,position,pair_one_id,pair_two_id,pair_one_sets,pair_two_sets,awarded_sets,winner_id,status,court,scheduled_at,updated_at").eq("tournament_id", selectedId).order("group_id").order("position"),
       supabase.rpc("list_tournament_registrations", { p_tournament_id: selectedId }),
     ]);
     if (request !== dataRequest.current) return;
@@ -947,6 +949,7 @@ function AdminWorkspace() {
   const detailsReady = selected && loadedTournamentId === selected.id;
 
   return <main className="admin-page" lang={locale} translate="no" aria-busy={checking}>
+      <TelegramLink authorised={!!user && organizerAccess} />
     {checking ? null : !user ? <section className="admin-sign-in">
       <AdminLocale />
       <form onSubmit={submitAuth}>

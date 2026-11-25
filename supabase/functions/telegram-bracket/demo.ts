@@ -1,7 +1,7 @@
 export type Message = {
   message_id?: number;
   chat?: { id?: number; type?: string };
-  from?: { id?: number };
+  from?: { id?: number; first_name?: string; last_name?: string; username?: string };
   text?: string;
   reply_to_message?: Message;
 };
