@@ -1,0 +1,20 @@
+name: Gallery refresh checks
+on:
+  push:
+    branches: [codex/gallery-refresh-check]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: 18c71e3ac2594ad4b1d2973ee261f2f535586a7a
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build:pages
+      - run: node --experimental-strip-types --test tests/gallery-viewer-ui.test.mjs tests/tournament-photo-gallery.test.mjs tests/static-site-paths.test.mjs
