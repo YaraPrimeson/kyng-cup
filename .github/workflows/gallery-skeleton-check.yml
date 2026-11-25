@@ -1,0 +1,19 @@
+name: Gallery skeleton checks
+on:
+  push:
+    branches: [codex/gallery-skeleton-check]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm install --save-exact @mui/material @emotion/react @emotion/styled --package-lock-only --ignore-scripts
+      - run: |
+          echo 'PACKAGE_PATCH_BEGIN'
+          git diff -- package.json package-lock.json
+          echo 'PACKAGE_PATCH_END'
