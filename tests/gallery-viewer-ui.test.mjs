@@ -10,7 +10,8 @@ test("large albums paginate, and the viewer crosses page boundaries, supports to
   const dom = new JSDOM('<div id="root"></div>', { url: "https://example.test/gallery/?tournament=vienna" });
   const { window } = dom;
   const { document } = window;
-  Object.assign(globalThis, { window, document, IS_REACT_ACT_ENVIRONMENT: true });
+  const originalHTMLElement = globalThis.HTMLElement;
+  Object.assign(globalThis, { window, document, HTMLElement: window.HTMLElement, IS_REACT_ACT_ENVIRONMENT: true });
   window.HTMLDialogElement.prototype.showModal = function () { this.setAttribute("open", ""); };
   window.HTMLDialogElement.prototype.close = function () { this.removeAttribute("open"); };
 
@@ -200,6 +201,7 @@ test("large albums paginate, and the viewer crosses page boundaries, supports to
   } finally {
     await act(async () => root.unmount());
     dom.window.close();
+    globalThis.HTMLElement = originalHTMLElement;
     globalThis.fetch = originalFetch;
   }
 });
