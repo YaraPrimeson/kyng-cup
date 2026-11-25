@@ -14,6 +14,7 @@ const copy = {
 type Props = {
   photoId: string;
   previewUrl?: string;
+  neighborIds: string;
   label: string;
   position: number;
   total: number;
@@ -46,13 +47,74 @@ async function fullPhotoUrl(id: string, signal: AbortSignal) {
   return urls[id];
 }
 
+type PreparedPhoto = { image: HTMLImageElement; expiresAt: number };
+
+function usePreparedPhotos(photoId: string, neighborIds: string) {
+  const [prepared, setPrepared] = useState<Record<string, PreparedPhoto>>({});
+  const cache = useRef(new Map<string, PreparedPhoto>());
+  const pending = useRef(new Set<string>());
+  const wanted = useRef(new Set<string>());
+  const session = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    session.current = controller;
+    const photos = cache.current;
+    const requests = pending.current;
+    return () => {
+      controller.abort();
+      photos.clear();
+      requests.clear();
+    };
+  }, []);
+
+  useEffect(() => {
+    const controller = session.current;
+    if (!controller) return;
+    const ids = neighborIds.split(",").filter(Boolean);
+    const keep = new Set([photoId, ...ids]);
+    wanted.current = keep;
+    const photos = cache.current;
+    const requests = pending.current;
+    for (const [id, photo] of photos) {
+      if (!keep.has(id) || photo.expiresAt <= Date.now()) photos.delete(id);
+    }
+    setPrepared(Object.fromEntries(photos));
+    const missing = ids.filter(id => !photos.has(id) && !requests.has(id));
+    if (!missing.length) return;
+
+    for (const id of missing) requests.add(id);
+    void getPublicPhotoUrls(missing, "web", controller.signal).then(async urls => {
+      const expiresAt = Date.now() + 90_000;
+      await Promise.all(missing.map(async id => {
+        if (controller.signal.aborted || !wanted.current.has(id) || !urls[id]) return;
+        const image = new window.Image();
+        if (!image.decode) return;
+        image.fetchPriority = "low";
+        image.src = urls[id];
+        try { await image.decode(); }
+        catch { return; }
+        if (controller.signal.aborted || !wanted.current.has(id)) return;
+        photos.set(id, { image, expiresAt });
+        setPrepared(Object.fromEntries(photos));
+      }));
+    }, () => {}).finally(() => {
+      if (!controller.signal.aborted) for (const id of missing) requests.delete(id);
+    });
+  }, [photoId, neighborIds]);
+
+  const current = prepared[photoId];
+  return current && current.expiresAt > Date.now() ? current.image.src : undefined;
+}
+
 type Slide = { fromId: string; step: -1 | 1; source?: string };
 
-function FullPhoto({ id, label, previewUrl, slide, text }: {
-  id: string; label: string; previewUrl?: string; slide: Slide | null; text: typeof copy[Language];
+function FullPhoto({ id, label, previewUrl, preparedUrl, slide, text }: {
+  id: string; label: string; previewUrl?: string; preparedUrl?: string; slide: Slide | null; text: typeof copy[Language];
 }) {
-  const [url, setUrl] = useState("");
-  const [loaded, setLoaded] = useState(false);
+  const initialPreparedUrl = useRef(preparedUrl);
+  const [url, setUrl] = useState(preparedUrl ?? "");
+  const [loaded, setLoaded] = useState(Boolean(preparedUrl));
   const [failed, setFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const [previewState, setPreviewState] = useState<"loading" | "ready" | "error">("loading");
@@ -61,6 +123,7 @@ function FullPhoto({ id, label, previewUrl, slide, text }: {
   const previous = slide?.source;
 
   useEffect(() => {
+    if (initialPreparedUrl.current && attempt === 0) return;
     const controller = new AbortController();
     void fullPhotoUrl(id, controller.signal).then(value => {
       if (!controller.signal.aborted) setUrl(value);
@@ -92,8 +155,9 @@ function FullPhoto({ id, label, previewUrl, slide, text }: {
   </>;
 }
 
-export default function PhotoViewer({ photoId, previewUrl, label, position, total, slug, language, opener, moveLoading, moveFailed, onClose, onMove }: Props) {
+export default function PhotoViewer({ photoId, previewUrl, neighborIds, label, position, total, slug, language, opener, moveLoading, moveFailed, onClose, onMove }: Props) {
   const text = copy[language];
+  const preparedUrl = usePreparedPhotos(photoId, neighborIds);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
@@ -202,7 +266,7 @@ export default function PhotoViewer({ photoId, previewUrl, label, position, tota
         aria-label={text.back} disabled={!canMove} onClick={() => move(-1)}><ViewerIcon name="previous" /></button>
       <div className="gallery-viewer-stage" ref={stageRef} onPointerDown={startSwipe} onPointerUp={endSwipe}
         onPointerCancel={() => { gesture.current = null; }}>
-        <FullPhoto key={photoId} id={photoId} label={label} previewUrl={previewUrl} slide={slide?.fromId !== photoId ? slide : null} text={text} />
+        <FullPhoto key={photoId} id={photoId} label={label} previewUrl={previewUrl} preparedUrl={preparedUrl} slide={slide?.fromId !== photoId ? slide : null} text={text} />
       </div>
       <button type="button" className="gallery-viewer-button gallery-viewer-icon gallery-viewer-next"
         aria-label={text.next} disabled={!canMove} onClick={() => move(1)}><ViewerIcon name="next" /></button>
