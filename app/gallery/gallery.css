@@ -199,10 +199,10 @@
 .gallery-viewer-slides[data-direction="1"] { --viewer-slide-offset: 100%; }
 .gallery-viewer-slides[data-direction="-1"] { --viewer-slide-offset: -100%; }
 .gallery-viewer-slides[data-direction][data-ready="true"] .gallery-viewer-frame {
-  animation: gallery-photo-enter 260ms ease-out both;
+  animation: gallery-photo-enter 190ms ease-out both;
 }
 .gallery-viewer-slides[data-direction][data-ready="true"] .gallery-viewer-outgoing {
-  animation: gallery-photo-exit 260ms ease-out both;
+  animation: gallery-photo-exit 190ms ease-out both;
 }
 @keyframes gallery-photo-enter {
   from { transform: translateX(var(--viewer-slide-offset)); }
