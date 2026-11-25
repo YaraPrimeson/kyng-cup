@@ -27,6 +27,20 @@ type Props = {
   onMove: (step: -1 | 1) => void;
 };
 
+const viewerIconPaths = {
+  previous: "M15 6l-6 6 6 6",
+  next: "M9 6l6 6-6 6",
+  close: "M7 7l10 10M17 7 7 17",
+  download: "M12 4v11m-4-4 4 4 4-4M5 16v4h14v-4",
+};
+
+function ViewerIcon({ name }: { name: keyof typeof viewerIconPaths }) {
+  return <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor"
+    strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d={viewerIconPaths[name]} />
+  </svg>;
+}
+
 async function fullPhotoUrl(id: string, signal: AbortSignal) {
   const urls = await getPublicPhotoUrls([id], "web", signal);
   if (!urls[id]) throw new Error("Photo not available");
@@ -156,26 +170,23 @@ export default function PhotoViewer({ photoId, previewUrl, label, position, tota
     }}>
     <header className="gallery-viewer-toolbar">
       <button type="button" ref={closeRef} className="gallery-viewer-button gallery-viewer-icon"
-        aria-label={text.close} onClick={onClose}>×</button>
+        aria-label={text.close} onClick={onClose}><ViewerIcon name="close" /></button>
       <p className="gallery-viewer-counter" aria-live="polite">{position} / {total}</p>
       <button type="button" className="gallery-viewer-button gallery-viewer-icon gallery-viewer-download"
         disabled={downloading} aria-label={downloading ? text.downloading : text.download}
         title={text.download} onClick={() => void downloadPhoto()}>
-        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor"
-          strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-          <path d="M12 3v12m-4-4 4 4 4-4M5 16v4h14v-4" />
-        </svg>
+        <ViewerIcon name="download" />
       </button>
     </header>
     <div className="gallery-viewer-main">
       <button type="button" className="gallery-viewer-button gallery-viewer-icon gallery-viewer-previous"
-        aria-label={text.back} disabled={position <= 1 || moveLoading} onClick={() => move(-1)}>‹</button>
+        aria-label={text.back} disabled={position <= 1 || moveLoading} onClick={() => move(-1)}><ViewerIcon name="previous" /></button>
       <div className="gallery-viewer-stage" onPointerDown={startSwipe} onPointerUp={endSwipe}
         onPointerCancel={() => { gesture.current = null; }}>
         <FullPhoto key={photoId} id={photoId} label={label} previewUrl={previewUrl} text={text} />
       </div>
       <button type="button" className="gallery-viewer-button gallery-viewer-icon gallery-viewer-next"
-        aria-label={text.next} disabled={!hasNext || moveLoading} onClick={() => move(1)}>›</button>
+        aria-label={text.next} disabled={!hasNext || moveLoading} onClick={() => move(1)}><ViewerIcon name="next" /></button>
     </div>
     {(downloadError || moveFailed || moveLoading) && <p className="gallery-viewer-feedback" role={moveLoading ? "status" : "alert"}>
       {downloadError ? text.downloadError : moveFailed ? text.moveError : text.loading}
