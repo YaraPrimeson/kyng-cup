@@ -32,14 +32,22 @@ function encodePhoto(image: ImageBitmap, maxSide: number, quality: number) {
   });
 }
 
-async function uploadAction<T>(photoId: string, action: "prepare" | "finish") {
-  const result = await supabase.functions.invoke<T>("gallery-photo-upload", { body: { photoId, action } });
+type GalleryAction = { photoId: string; action: "prepare" | "finish" }
+  | { photoId: string; tournamentId: string; action: "delete" };
+
+async function uploadAction<T>(body: GalleryAction) {
+  const result = await supabase.functions.invoke<T>("gallery-photo-upload", { body });
   if (result.error) {
     const response = result.error.context;
     const details = response instanceof Response ? await response.json().catch(() => null) : null;
     throw new Error(details?.error ?? "Could not reach the photo upload service.");
   }
   return result.data;
+}
+
+export async function deleteGalleryPhoto(tournamentId: string, photoId: string) {
+  const result = await uploadAction<{ deleted: boolean }>({ photoId, tournamentId, action: "delete" });
+  if (!result?.deleted) throw new Error("Photo deletion could not finish. Try again.");
 }
 
 export async function uploadGalleryPhoto(tournamentId: string, file: File, sortOrder: number, signal: AbortSignal) {
@@ -61,7 +69,7 @@ export async function uploadGalleryPhoto(tournamentId: string, file: File, sortO
     if (metadata.error) throw metadata.error;
   }
   signal.throwIfAborted();
-  const ticket = await uploadAction<Ticket>(id, "prepare");
+  const ticket = await uploadAction<Ticket>({ photoId: id, action: "prepare" });
   if (!ticket) throw new Error("The upload service did not return a ticket.");
   if ("ready" in ticket) return;
   signal.throwIfAborted();
@@ -80,7 +88,7 @@ export async function uploadGalleryPhoto(tournamentId: string, file: File, sortO
     image.close();
   }
   signal.throwIfAborted();
-  await uploadAction(id, "finish");
+  await uploadAction({ photoId: id, action: "finish" });
 
   async function put(variant: Variant, blob: Blob) {
     if (!ticket || !("urls" in ticket)) throw new Error("Missing upload URLs.");

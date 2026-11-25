@@ -1,6 +1,8 @@
+/// <reference lib="deno.ns" />
+
 import { AwsClient } from "npm:aws4fetch@1.0.20";
-import { photoObjectKey } from "../gallery-photo-urls/handler.ts";
-import { galleryPhotoUpload, uploadHeaders } from "./handler.ts";
+import { type GalleryPhoto, photoObjectKey } from "../gallery-photo-urls/handler.ts";
+import { type DeleteClaim, galleryPhotoUpload, uploadHeaders } from "./handler.ts";
 
 const account = Deno.env.get("GALLERY_R2_ACCOUNT_ID");
 const bucket = Deno.env.get("GALLERY_R2_BUCKET");
@@ -24,6 +26,19 @@ function database(path: string, authorization: string, init?: RequestInit, key =
 
 function objectUrl(key: string) {
   return new URL(`https://${account}.r2.cloudflarestorage.com/${bucket}/${key}`);
+}
+
+function serviceDatabase(path: string, init: RequestInit) {
+  if (!serviceKey) throw new Error("Database service configuration missing");
+  return database(path, `Bearer ${serviceKey}`, init, serviceKey);
+}
+
+function deletionQuery(photo: GalleryPhoto, lease: string) {
+  const query = new URLSearchParams({
+    id: `eq.${photo.id}`, tournament_id: `eq.${photo.tournament_id}`,
+    state: "eq.deleting", delete_lease_until: `eq.${lease}`,
+  });
+  return `tournament_gallery_photos?${query}`;
 }
 
 Deno.serve(galleryPhotoUpload({
@@ -55,11 +70,31 @@ Deno.serve(galleryPhotoUpload({
     return response.headers;
   },
   async finalize(photo) {
-    if (!serviceKey) throw new Error("Database service configuration missing");
-    const response = await database(
+    const response = await serviceDatabase(
       `tournament_gallery_photos?id=eq.${photo.id}&tournament_id=eq.${photo.tournament_id}&state=eq.pending`,
-      `Bearer ${serviceKey}`, { method: "PATCH", body: '{"state":"visible"}' }, serviceKey,
+      { method: "PATCH", body: '{"state":"visible"}' },
     );
     if (!response.ok) throw new Error("Photo finalization failed");
+  },
+  async claimDelete(photo) {
+    const response = await serviceDatabase("rpc/begin_gallery_photo_delete", {
+      method: "POST", body: JSON.stringify({ p_tournament_id: photo.tournament_id, p_photo_id: photo.id }),
+    });
+    if (!response.ok) throw new Error("Photo deletion could not start");
+    return await response.json() as DeleteClaim;
+  },
+  async deleteObject(photo, variant) {
+    if (!storage) throw new Error("R2 upload configuration missing");
+    const response = await storage.fetch(objectUrl(photoObjectKey(photo, variant)), {
+      method: "DELETE", signal: AbortSignal.timeout(8000),
+    });
+    if (!response.ok && response.status !== 404) throw new Error("R2 deletion failed");
+  },
+  async finishDelete(photo, lease) {
+    const response = await serviceDatabase(deletionQuery(photo, lease), { method: "DELETE" });
+    if (!response.ok) throw new Error("Photo deletion could not finish");
+  },
+  async releaseDelete(photo, lease) {
+    await serviceDatabase(deletionQuery(photo, lease), { method: "PATCH", body: '{"delete_lease_until":null}' });
   },
 }));

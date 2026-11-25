@@ -23,7 +23,7 @@ Deno.serve(galleryPhotoUrls({
     const query = new URL("/rest/v1/tournament_gallery_photos", databaseUrl);
     query.searchParams.set("select", "id,tournament_id");
     query.searchParams.set("id", `in.(${ids.join(",")})`);
-    query.searchParams.set("state", "neq.pending");
+    query.searchParams.set("state", "in.(visible,hidden)");
 
     // PostgREST validates the session and applies the same RLS as the gallery UI.
     const response = await fetch(query, {

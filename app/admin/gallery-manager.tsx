@@ -3,11 +3,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAdminUI } from "./admin-ui";
-import { uploadGalleryPhoto } from "./gallery-upload";
+import { deleteGalleryPhoto, uploadGalleryPhoto } from "./gallery-upload";
 import { extractGalleryZip, galleryFileTypes, galleryZipBusy, galleryZipHint, isGalleryZip } from "./gallery-zip";
 
 type Album = { cover_photo_id: string | null; published_at: string | null };
-type Photo = { filename?: string; id: string; sort_order: number; state: "pending" | "visible" | "hidden" };
+type Photo = { filename?: string; id: string; sort_order: number; state: "pending" | "visible" | "hidden" | "deleting" };
 type Job = { file: File; order: number; state: "waiting" | "uploading" | "done" | "failed"; error?: string };
 const pageSize = 24;
 const galleryZipEnabled = false;
@@ -90,7 +90,7 @@ export default function GalleryManager({ tournamentId, tournamentSlug, active, o
 
   useEffect(() => {
     if (!active) return;
-    const photoIds = displayed.filter(photo => photo.state !== "pending").map(photo => photo.id);
+    const photoIds = displayed.filter(photo => photo.state === "visible" || photo.state === "hidden").map(photo => photo.id);
     if (!photoIds.length) return;
     let ignore = false;
     void supabase.functions.invoke<{ urls: Record<string, string> }>("gallery-photo-urls", {
@@ -218,6 +218,29 @@ export default function GalleryManager({ tournamentId, tournamentSlug, active, o
     });
   }
 
+  async function removePhoto(photo: Photo) {
+    if (busy || operation.current) return;
+    if (photo.state !== "deleting") {
+      const approved = await confirm({
+        title: "Delete photo?",
+        detail: photo.id === album?.cover_photo_id
+          ? "This permanently deletes the photo. The next visible photo becomes the cover. If no visible photos remain, the album becomes a draft."
+          : "This permanently deletes the photo from the album and storage.",
+        action: "Delete photo",
+        danger: true,
+      });
+      if (!approved) return;
+    }
+    await save(async () => {
+      try {
+        await deleteGalleryPhoto(tournamentId, photo.id);
+      } catch (reason) {
+        await load().catch(() => {});
+        throw reason;
+      }
+    });
+  }
+
   const failed = jobs.filter(job => job.state === "failed");
   const retryable = failed.filter(job => job.error !== "Choose JPG, PNG or WebP images.");
   const done = jobs.filter(job => job.state === "done").length;
@@ -292,21 +315,23 @@ export default function GalleryManager({ tournamentId, tournamentSlug, active, o
             value={query} onChange={event => { setQuery(event.target.value); goToPage(0); }} /></label>
           <label className="admin-field"><span>{t("Visibility filter")}</span><select value={filter} onChange={event => {
             setFilter(event.target.value as typeof filter); goToPage(0);
-          }}><option value="all">{t("All photos")}</option><option value="visible">{t("Visible")}</option><option value="hidden">{t("Hidden")}</option><option value="pending">{t("Upload pending")}</option></select></label>
+          }}><option value="all">{t("All photos")}</option><option value="visible">{t("Visible")}</option><option value="hidden">{t("Hidden")}</option><option value="pending">{t("Upload pending")}</option><option value="deleting">{t("Deletion pending")}</option></select></label>
         </div>}
         {previewFailed && <p role="status">{t("Photo previews are temporarily unavailable.")}</p>}
         {!!photos.length && !displayed.length && <p>{t("No matching photos.")}</p>}
         {!!displayed.length && <div className="admin-gallery-scroll" ref={previewScroll}>
           <div className="admin-gallery-grid">{displayed.map(photo => <article key={photo.id} data-state={photo.state}>
-            {urls[photo.id] ? <img src={urls[photo.id]} alt="" loading="lazy" /> : <div className="admin-gallery-placeholder" aria-hidden="true" />}
+            {photo.state !== "deleting" && urls[photo.id] ? <img src={urls[photo.id]} alt="" loading="lazy" /> : <div className="admin-gallery-placeholder" aria-hidden="true" />}
             {photo.id === album?.cover_photo_id && <span className="admin-gallery-cover">{t("Cover")}</span>}
-            <p><strong>{t("Photo")} {photo.sort_order + 1}</strong> · {t(photo.state === "pending" ? "Upload pending" : photo.state === "hidden" ? "Hidden" : "Visible")}</p>
+            <p><strong>{t("Photo")} {photo.sort_order + 1}</strong> · {t(photo.state === "pending" ? "Upload pending" : photo.state === "hidden" ? "Hidden" : photo.state === "deleting" ? "Deletion pending" : "Visible")}</p>
             {photo.filename && <small title={photo.filename}>{photo.filename}</small>}
             <div className="admin-gallery-photo-actions">
               {photo.state === "visible" && photo.id !== album?.cover_photo_id && <button type="button" className="admin-button" disabled={busy}
                 onClick={() => void updateAlbum({ cover_photo_id: photo.id })}>{t("Set cover")}</button>}
-              {photo.state !== "pending" && !(photo.id === album?.cover_photo_id && published) &&
+              {(photo.state === "visible" || photo.state === "hidden") && !(photo.id === album?.cover_photo_id && published) &&
                 <button type="button" className="admin-button" disabled={busy} onClick={() => void togglePhoto(photo)}>{t(photo.state === "hidden" ? "Show" : "Hide")}</button>}
+              {photo.state !== "pending" && <button type="button" className="admin-button is-danger" disabled={busy}
+                onClick={() => void removePhoto(photo)}>{t(photo.state === "deleting" ? "Retry deletion" : "Delete photo")}</button>}
             </div>
           </article>)}</div>
         </div>}
