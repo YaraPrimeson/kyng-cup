@@ -1,0 +1,20 @@
+name: Gallery viewer checks
+on:
+  push:
+    branches: [codex/gallery-controls-check]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build:pages
+      - run: node --experimental-strip-types --test tests/gallery-viewer-ui.test.mjs tests/static-site-paths.test.mjs
+      - run: npm install --no-save --package-lock=false playwright-core
+      - run: node tests/gallery-control-geometry.mjs
