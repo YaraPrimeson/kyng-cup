@@ -88,7 +88,7 @@ function FullPhoto({ id, label, previewUrl, slide, text }: {
         setUrl("");
         setAttempt(value => value + 1);
       }}>{text.retry}</button>
-    </div> : !loaded && <p className={ready || previous ? "gallery-viewer-message gallery-viewer-loading" : "gallery-viewer-message"} role="status">{text.loading}</p>}
+    </div> : !loaded && <p className={slide ? "gallery-visually-hidden" : ready ? "gallery-viewer-message gallery-viewer-loading" : "gallery-viewer-message"} role="status">{text.loading}</p>}
   </>;
 }
 
@@ -207,8 +207,9 @@ export default function PhotoViewer({ photoId, previewUrl, label, position, tota
       <button type="button" className="gallery-viewer-button gallery-viewer-icon gallery-viewer-next"
         aria-label={text.next} disabled={!canMove} onClick={() => move(1)}><ViewerIcon name="next" /></button>
     </div>
-    {(downloadError || moveFailed || moveLoading) && <p className="gallery-viewer-feedback" role={moveLoading ? "status" : "alert"}>
-      {downloadError ? text.downloadError : moveFailed ? text.moveError : text.loading}
+    {moveLoading && <p className="gallery-visually-hidden" role="status">{text.loading}</p>}
+    {(downloadError || moveFailed) && <p className="gallery-viewer-feedback" role="alert">
+      {downloadError ? text.downloadError : text.moveError}
     </p>}
   </dialog>;
 }

@@ -19,6 +19,7 @@ test("large albums paginate, and the viewer crosses page boundaries, supports to
   let albumSize = ids.length;
   let finishInitialPage;
   const initialPage = new Promise(resolve => { finishInitialPage = resolve; });
+  const pageBoundary = Promise.withResolvers();
   const pages = [];
   const urlRequests = [];
   let downloaded;
@@ -38,6 +39,7 @@ test("large albums paginate, and the viewer crosses page boundaries, supports to
       assert.equal(id, "album");
       pages.push([offset, limit]);
       if (pages.length === 1) await initialPage;
+      if (pages.length === 2) await pageBoundary.promise;
       return { ids: ids.slice(offset, Math.min(offset + limit, albumSize)), count: albumSize };
     },
     async getPublicPhotoUrls(photoIds, variant) {
@@ -112,8 +114,11 @@ test("large albums paginate, and the viewer crosses page boundaries, supports to
 
     await click(selector("Next photo"));
     assert.deepEqual(pages, [[0, 20], [20, 20]]);
+    assert.equal(document.querySelector("dialog [role=status]").className, "gallery-visually-hidden");
+    await act(async () => pageBoundary.resolve());
     assert.equal(urlRequests.filter(([variant]) => variant === "thumb").length, 1);
     assert.equal(current(), "21 / 502");
+    assert.equal(document.querySelector("dialog [role=status]").className, "gallery-visually-hidden");
     assert.equal(document.querySelector(".gallery-viewer-slides").dataset.direction, "1");
     assert.equal(document.querySelector(".gallery-viewer-slides").dataset.ready, "false");
     assert.match(document.querySelector(".gallery-viewer-outgoing").src, /\/web\/00000020$/);
@@ -144,6 +149,7 @@ test("large albums paginate, and the viewer crosses page boundaries, supports to
       stage.dispatchEvent(touchEvent("pointerup", 40, 53));
     });
     assert.equal(current(), "22 / 502");
+    assert.equal(document.querySelector("dialog [role=status]").className, "gallery-visually-hidden");
     await act(async () => dialog.dispatchEvent(new window.KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true })));
     assert.equal(current(), "21 / 502");
     await click(selector("Previous photo"));
