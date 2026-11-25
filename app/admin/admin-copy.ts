@@ -339,7 +339,7 @@ export const adminCopy: Readonly<Record<string, string>> = {
   "No participants yet.": "Участников пока нет.",
   "Schedule": "Расписание",
   "Result": "Результат",
-  "Enter final result": "Ввести итоговый результат"
+  "Enter final result": "Ввести итоговый результат",
   "Drop photos or a ZIP here, or choose files": "Перетащите фото или ZIP сюда либо выберите файлы",
   "Upload photos or ZIP": "Загрузить фото или ZIP",
   "ZIP: up to 50 photos and 24 MB per archive": "ZIP: до 50 фотографий и 24 МБ на архив",
