@@ -57,7 +57,7 @@ try {
     assert.equal(previous.button[1], next.button[1]);
     assert.equal(previous.button[0] + next.button[0], width);
     assert.equal(close.button[1], download.button[1]);
-    assert.equal(state.counter[0], width / 2);
+    assert.ok(Math.abs(state.counter[0] - width / 2) <= 1 / 64, "counter stays centered within Chromium layout precision");
     console.log(width + "px: four centered controls and aligned navigation");
   }
 } finally {
