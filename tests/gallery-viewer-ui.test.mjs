@@ -22,6 +22,12 @@ test("large albums paginate, and the viewer crosses page boundaries, supports to
   const pageBoundary = Promise.withResolvers();
   const pages = [];
   const urlRequests = [];
+  const decoded = [];
+  const boundaryDecode = Promise.withResolvers();
+  window.HTMLImageElement.prototype.decode = async function () {
+    decoded.push(this.src);
+    if (this.src.endsWith("/web/00000021")) await boundaryDecode.promise;
+  };
   let downloaded;
   window.HTMLAnchorElement.prototype.click = function () {
     downloaded = { href: this.href, name: this.download };
@@ -48,6 +54,8 @@ test("large albums paginate, and the viewer crosses page boundaries, supports to
     },
   };
   const mocks = {
+    "@mui/material/Skeleton": `import { createElement } from "react";
+      export default function Skeleton({ className }) { return createElement("span", { className }); }`,
     "next/navigation": 'export const usePathname = () => "/gallery/";',
     "@/lib/sports": 'export const visibleSports = ["padel"];',
     "../public-tournaments": 'export const formatTournamentDate = () => "20 November 2026";',
@@ -112,8 +120,9 @@ test("large albums paginate, and the viewer crosses page boundaries, supports to
     assert.equal(document.activeElement, selector("Close photo"));
     assert.equal(document.body.style.overflow, "hidden");
 
-    await click(selector("Next photo"));
     assert.deepEqual(pages, [[0, 20], [20, 20]]);
+    assert.ok(decoded.some(url => url.endsWith("/web/00000019")));
+    await click(selector("Next photo"));
     assert.equal(document.querySelector("dialog [role=status]").className, "gallery-visually-hidden");
     await act(async () => pageBoundary.resolve());
     assert.equal(urlRequests.filter(([variant]) => variant === "thumb").length, 1);
@@ -126,6 +135,7 @@ test("large albums paginate, and the viewer crosses page boundaries, supports to
     assert.match(nextImage.src, /\/web\/00000021$/);
     await act(async () => nextImage.dispatchEvent(new window.Event("load")));
     assert.equal(document.querySelector(".gallery-viewer-slides").dataset.ready, "true");
+    await act(async () => boundaryDecode.resolve());
 
     const downloadButton = selector("Download photo");
     await click(downloadButton);
@@ -135,7 +145,9 @@ test("large albums paginate, and the viewer crosses page boundaries, supports to
     assert.ok(downloaded, document.querySelector(".gallery-viewer-feedback")?.textContent);
     assert.match(downloaded.href, /^blob:/);
     assert.equal(downloaded.name, "kyng-cup-vienna-00000021.webp");
-    assert.equal(urlRequests.filter(([variant, id]) => variant === "web" && id === "00000021").length, 2);
+    assert.ok(decoded.some(url => url.endsWith("/web/00000022")));
+    const requestsFor22 = () => urlRequests.filter(([variant, ...photoIds]) => variant === "web" && photoIds.includes("00000022")).length;
+    const warmRequestsFor22 = requestsFor22();
 
     const dialog = document.querySelector("dialog");
     const stage = document.querySelector(".gallery-viewer-stage");
@@ -149,7 +161,10 @@ test("large albums paginate, and the viewer crosses page boundaries, supports to
       stage.dispatchEvent(touchEvent("pointerup", 40, 53));
     });
     assert.equal(current(), "22 / 502");
-    assert.equal(document.querySelector("dialog [role=status]").className, "gallery-visually-hidden");
+    assert.equal(document.querySelector(".gallery-viewer-slides").dataset.ready, "true");
+    assert.match(document.querySelector(".gallery-viewer-image").src, /\/web\/00000022$/);
+    assert.equal(requestsFor22(), warmRequestsFor22);
+    assert.equal(document.querySelector("dialog [role=status]"), null);
     await act(async () => dialog.dispatchEvent(new window.KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true })));
     assert.equal(current(), "21 / 502");
     await click(selector("Previous photo"));
@@ -193,9 +208,12 @@ test("large albums paginate, and the viewer crosses page boundaries, supports to
     assert.ok(selector("Vienna · Photos 501"));
     assert.equal(selector("Next page").disabled, true);
 
+    const beforeViewer = pages.length;
     await click(selector("Vienna · Photos 501"));
+    assert.deepEqual(pages.slice(beforeViewer), [[400, 100], [0, 100]]);
     await click(selector("Previous photo"));
-    assert.deepEqual(pages.at(-1), [400, 100]);
+    assert.equal(pages.length, beforeViewer + 2);
+    assert.equal(document.querySelector(".gallery-viewer-slides").dataset.ready, "true");
     assert.equal(current(), "500 / 502");
     await click(selector("Next photo"));
     await click(selector("Next photo"));
@@ -207,7 +225,8 @@ test("large albums paginate, and the viewer crosses page boundaries, supports to
       lastStage.dispatchEvent(touchEvent("pointerup", 40, 50));
     });
     assert.equal(current(), "1 / 502");
-    assert.deepEqual(pages.at(-1), [0, 100]);
+    assert.equal(pages.length, beforeViewer + 2);
+    assert.equal(document.querySelector(".gallery-viewer-slides").dataset.ready, "true");
     await act(async () => {
       const firstStage = document.querySelector(".gallery-viewer-stage");
       firstStage.dispatchEvent(touchEvent("pointerdown", 40, 50));
