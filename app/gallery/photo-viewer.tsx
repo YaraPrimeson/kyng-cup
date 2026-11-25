@@ -47,7 +47,7 @@ async function fullPhotoUrl(id: string, signal: AbortSignal) {
   return urls[id];
 }
 
-type PreparedPhoto = { image: HTMLImageElement; expiresAt: number };
+type PreparedPhoto = { image: HTMLImageElement; url: string };
 
 function usePreparedPhotos(photoId: string, neighborIds: string) {
   const [prepared, setPrepared] = useState<Record<string, PreparedPhoto>>({});
@@ -63,6 +63,7 @@ function usePreparedPhotos(photoId: string, neighborIds: string) {
     const requests = pending.current;
     return () => {
       controller.abort();
+      for (const { url } of photos.values()) URL.revokeObjectURL(url);
       photos.clear();
       requests.clear();
     };
@@ -77,7 +78,9 @@ function usePreparedPhotos(photoId: string, neighborIds: string) {
     const photos = cache.current;
     const requests = pending.current;
     for (const [id, photo] of photos) {
-      if (!keep.has(id) || photo.expiresAt <= Date.now()) photos.delete(id);
+      if (keep.has(id)) continue;
+      URL.revokeObjectURL(photo.url);
+      photos.delete(id);
     }
     setPrepared(Object.fromEntries(photos));
     const missing = ids.filter(id => !photos.has(id) && !requests.has(id));
@@ -85,17 +88,27 @@ function usePreparedPhotos(photoId: string, neighborIds: string) {
 
     for (const id of missing) requests.add(id);
     void getPublicPhotoUrls(missing, "web", controller.signal).then(async urls => {
-      const expiresAt = Date.now() + 90_000;
       await Promise.all(missing.map(async id => {
         if (controller.signal.aborted || !wanted.current.has(id) || !urls[id]) return;
         const image = new window.Image();
         if (!image.decode) return;
-        image.fetchPriority = "low";
-        image.src = urls[id];
-        try { await image.decode(); }
-        catch { return; }
-        if (controller.signal.aborted || !wanted.current.has(id)) return;
-        photos.set(id, { image, expiresAt });
+        let objectUrl: string | undefined;
+        try {
+          const response = await fetch(urls[id], { signal: controller.signal });
+          if (!response.ok) return;
+          const blob = await response.blob();
+          if (!blob.size || controller.signal.aborted || !wanted.current.has(id)) return;
+          objectUrl = URL.createObjectURL(blob);
+          image.src = objectUrl;
+          await image.decode();
+          if (controller.signal.aborted || !wanted.current.has(id)) return;
+          photos.set(id, { image, url: objectUrl });
+          objectUrl = undefined;
+        } catch {
+          return;
+        } finally {
+          if (objectUrl) URL.revokeObjectURL(objectUrl);
+        }
         setPrepared(Object.fromEntries(photos));
       }));
     }, () => {}).finally(() => {
@@ -103,8 +116,7 @@ function usePreparedPhotos(photoId: string, neighborIds: string) {
     });
   }, [photoId, neighborIds]);
 
-  const current = prepared[photoId];
-  return current && current.expiresAt > Date.now() ? current.image.src : undefined;
+  return prepared[photoId]?.url;
 }
 
 type Slide = { fromId: string; step: -1 | 1; source?: string };
