@@ -60,7 +60,7 @@ export default function SiteUtilities() {
     <>
       {showCookies && (
         <aside className="cookie-banner" aria-label={text.preferences}>
-          <div><span>{text.privacy}</span><p>{text.cookieBody}</p><a href={`${siteRoot}cookies/`}>{text.policy} ↗</a></div>
+          <div><span>{text.privacy}</span><p>{text.cookieBody}</p><a href={`${siteRoot}cookies/`}>{text.policy}</a></div>
           <div className="cookie-actions"><button type="button" onClick={() => saveConsent("necessary")}>{text.necessary}</button><button className="cookie-accept" type="button" onClick={() => saveConsent("all")}>{text.accept}</button></div>
         </aside>
       )}

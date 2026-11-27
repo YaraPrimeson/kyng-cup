@@ -34,16 +34,16 @@ export default function Home() {
   return <main className="universal-page" data-language={language} key={language}>
     <section className="home-ball-hero" aria-labelledby="home-hero-title">
       <HomeBall basePath={basePath} />
-      <div className="home-ball-copy"><p className="eyebrow">{c.eyebrow} · Vienna</p><h1 id="home-hero-title">{c.title}</h1><div className="home-ball-intro"><p>{c.intro}</p><a href="#home-dates-title">{({ en: "Explore tournaments", uk: "Найближчі турніри", de: "Turniere entdecken", ru: "Ближайшие турниры" })[language]} <span aria-hidden="true">↗</span></a></div></div>
-      <div className="home-ball-footer"><span>KYNG CUP{tournamentYear ? ` · ${tournamentYear}` : ""} · VIENNA</span><span>{({ en: "Move the cursor · Drag to spin", uk: "Рухайте курсором · Потягніть м’яч", de: "Cursor bewegen · Zum Drehen ziehen", ru: "Двигайте курсором · Потяните мяч" })[language]}</span><a href="#home-dates-title" aria-label={c.datesLabel}>↓</a></div>
+      <div className="home-ball-copy"><p className="eyebrow">{c.eyebrow} · Vienna</p><h1 id="home-hero-title">{c.title}</h1><div className="home-ball-intro"><p>{c.intro}</p><a href="#home-dates-title">{({ en: "Explore tournaments", uk: "Найближчі турніри", de: "Turniere entdecken", ru: "Ближайшие турниры" })[language]}</a></div></div>
+      <div className="home-ball-footer"><span>KYNG CUP{tournamentYear ? ` · ${tournamentYear}` : ""} · VIENNA</span><span>{({ en: "Move the cursor · Drag to spin", uk: "Рухайте курсором · Потягніть м’яч", de: "Cursor bewegen · Zum Drehen ziehen", ru: "Двигайте курсором · Потяните мяч" })[language]}</span></div>
     </section>
-    <section className="home-dates" aria-labelledby="home-dates-title"><div className="section-index"><span>01</span><span>{loading ? c.datesLabel : formatTournamentMonth(featured, language)}</span></div><div className="home-dates__intro"><h2 id="home-dates-title">{c.datesTitle}</h2><p>{c.datesIntro}</p></div><div className="home-dates__events">
-      {featured.map((tournament) => <a href={`${basePath}/upcoming-tournaments/#${tournament.sport}-${tournament.slug}`} key={tournament.id}><span>{tournament.name}</span><strong>{formatTournamentDate(tournament, language)}</strong><small>{c.details} <i aria-hidden="true">↗</i></small></a>)}
+    <section className="home-dates" aria-labelledby="home-dates-title"><div className="section-index"><span>01</span><span>{loading ? c.datesLabel : formatTournamentMonth(featured, language)}</span></div><div className="home-dates__intro"><h2 id="home-dates-title">{c.datesTitle.split(". ").map((line, index, lines) => <span key={line}>{line}{index < lines.length - 1 ? "." : ""}</span>)}</h2><p>{c.datesIntro}</p></div><div className="home-dates__events">
+      {featured.map((tournament) => <a href={`${basePath}/upcoming-tournaments/#${tournament.sport}-${tournament.slug}`} key={tournament.id}><span>{tournament.name}</span><strong>{formatTournamentDate(tournament, language)}</strong><small>{c.details}</small></a>)}
     </div></section>
     <section className="universal-about"><div className="section-index"><span>02</span><span>{c.aboutLabel}</span></div><div><h2>{c.aboutTitle}</h2><p>{c.aboutText}</p></div></section>
-    <section className="sport-choice"><div className="section-index"><span>02</span><span>{c.choose}</span></div><h2>{c.chooseTitle}</h2><div className="sport-choice-grid">
-      {isSportVisible("tennis") && <a className="sport-choice-card tennis-choice" href={`${basePath}/tennis/`}><span>Tennis</span><p>{c.tennisText}</p><strong>{c.enter} ↗</strong></a>}
-      <a className="sport-choice-card padel-choice" href={`${basePath}/padel/`}><span>Padel</span><p>{c.padelText}</p><strong>{c.enter} ↗</strong></a>
+    <section className="sport-choice"><div className="section-index"><span>03</span><span>{c.choose}</span></div><h2>{c.chooseTitle}</h2><div className="sport-choice-grid">
+      {isSportVisible("tennis") && <a className="sport-choice-card tennis-choice" href={`${basePath}/tennis/`}><span>Tennis</span><p>{c.tennisText}</p><strong>{c.enter}</strong></a>}
+      <a className="sport-choice-card padel-choice" href={`${basePath}/padel/`}><span>Padel</span><p>{c.padelText}</p><strong>{c.enter}</strong></a>
     </div></section>
     <SiteFooter />
   </main>;

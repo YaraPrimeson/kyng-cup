@@ -343,7 +343,7 @@ function AlbumPhotos({ album, text, language, basePath }: {
           {count === null ? <GallerySkeleton className="gallery-skeleton-photo-count" /> : <span>{photoCountLabel(count, language)}</span>}
         </p>
       </div>
-      {album.has_public_bracket && <a className="gallery-text-link gallery-results" href={`${basePath}/bracket/?${new URLSearchParams({ tournament: album.slug, sport: album.sport })}`}>{text.results} <span aria-hidden="true">↗</span></a>}
+      {album.has_public_bracket && <a className="gallery-text-link gallery-results" href={`${basePath}/bracket/?${new URLSearchParams({ tournament: album.slug, sport: album.sport })}`}>{text.results}</a>}
     </div>
     {count !== null && count > photoPageSizes[0] && <div className="gallery-photo-controls" ref={controls}>
       <label>{text.perPage}

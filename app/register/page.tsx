@@ -317,7 +317,7 @@ export default function RegisterPage() {
         <p className="eyebrow">{text.success}</p>
         <h2>{text.successTitle}<span className="accent-dot">.</span></h2>
         <p>{text.successBody.replace("{pair}", submittedPair).replace("{tournament}", tournament.name)}</p>
-        <a href={`${basePath}/${tournament.sport}/#tournament`}>{text.backTournament}<span>↗</span></a>
+        <a href={`${basePath}/${tournament.sport}/#tournament`}>{text.backTournament}</a>
       </article> : <form ref={formRef} className="registration-application" id="registration-form" onSubmit={submitRegistration} onChange={() => submissionError && setSubmissionError(null)}>
         <div className="registration-honeypot" aria-hidden="true"><label>Website<input name="website" type="text" tabIndex={-1} autoComplete="off" /></label></div>
         {repeatId && !account.loading && <div className="registration-review-card">
@@ -336,7 +336,7 @@ export default function RegisterPage() {
             <label><input name="rules_privacy_accepted" type="checkbox" required /><span>{text.rulesPrefix} <a href={`${basePath}/rules/`} target="_blank" rel="noreferrer">{text.rulesLink}</a> {text.privacyPrefix} <a href={`${basePath}/cookies/`} target="_blank" rel="noreferrer">{text.privacyNotice}</a>.</span></label>
           </div>
           {submissionError && <p className="registration-submit-error" role="alert">{submissionError}</p>}
-          <div className="registration-submit-row"><button type="submit" disabled={!tournament || repeatState === "loading" || submissionState === "submitting"}>{submissionState === "submitting" ? text.submitting : text.submit}<span>{submissionState === "submitting" ? "…" : "↗"}</span></button><div><small>* {text.required}</small><p>{text.privacy}</p></div></div>
+          <div className="registration-submit-row"><button type="submit" disabled={!tournament || repeatState === "loading" || submissionState === "submitting"}>{submissionState === "submitting" ? text.submitting : text.submit}{submissionState === "submitting" && <span>…</span>}</button><div><small>* {text.required}</small><p>{text.privacy}</p></div></div>
         </fieldset>
       </form>}
     </section>

@@ -39,10 +39,10 @@ export default function UpcomingTournament({ sport }: { sport: "tennis" | "padel
           <h2>{tournament.name}</h2>
           <div><span>{t("location")}<strong>{tournament.location ?? "Vienna, Austria"}</strong></span></div>
           <div className="upcoming-actions">
-            <a href={`${basePath}/bracket/?tournament=${tournamentSlug}&sport=${sport}`}>{t("viewBracket")} ↗</a>
+            <a href={`${basePath}/bracket/?tournament=${tournamentSlug}&sport=${sport}`}>{t("viewBracket")}</a>
             {tournament.registration_status === "closed"
               ? <span className="registration-cta is-disabled" aria-disabled="true">{t("registrationClosed")}</span>
-              : <a className="registration-cta" href={registrationHref}>{tournament.registration_status === "waitlist" ? t("joinWaitlist") : t("participate")} ↗</a>}
+              : <a className="registration-cta" href={registrationHref}>{tournament.registration_status === "waitlist" ? t("joinWaitlist") : t("participate")}</a>}
           </div>
         </div>
       </div>;
