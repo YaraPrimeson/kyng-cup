@@ -6,8 +6,10 @@
 .home-ball-copy .eyebrow { grid-column: 1 / -1; margin: 0; color: var(--peach); }
 .home-ball-copy h1 { font-size: clamp(55px, 5.3vw, 87px); font-weight: 400; letter-spacing: -.06em; line-height: .95; margin: 0; max-width: 750px; text-wrap: balance; }
 .home-ball-intro p { margin: 0; color: #f4f1ebaf; font-size: 17px; line-height: 1.65; }
-.home-ball-intro a { display: inline-flex; justify-content: space-between; align-items: center; gap: 30px; pointer-events: auto; margin-top: 15px; padding: 17px 23px; border: 1px solid #f4f1eb66; border-radius: 2px; font-size: 15px; }
-.home-ball-intro a:hover { background: #f4f1eb15; }
+.home-ball-intro a { display: inline-flex; justify-content: center; align-items: center; pointer-events: auto; margin-top: 15px; min-height: 56px; max-width: 100%; padding: 17px 30px; border: 1px solid #ad522d; border-radius: 999px; background: #ad522d; color: #f4f1eb; font-size: 15px; font-weight: 500; line-height: 1.2; text-align: center; box-shadow: 0 3px 10px #0002; transition: background .22s, border-color .22s, box-shadow .22s, transform .15s; }
+.home-ball-intro a:hover { background: #a44c29; border-color: #a44c29; box-shadow: 0 5px 18px #0003; }
+.home-ball-intro a:active { transform: translateY(2px); box-shadow: 0 1px 4px #0002; }
+.home-ball-intro a:focus-visible { outline: 2px solid #f4f1eb; outline-offset: 4px; }
 .home-ball-footer { position: absolute; bottom: 32px; left: 6%; right: 6%; display: flex; justify-content: space-between; align-items: center; gap: 16px; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: #f4f1eb80; }
 .home-ball-footer a { font-size: 22px; }
 #home-dates-title { scroll-margin-top: 100px; }
@@ -22,7 +24,12 @@
   .home-ball-copy .eyebrow { font-size: 11px; margin-bottom: 17px; }
   .home-ball-copy h1 { font-size: clamp(40px, 12.8vw, 57px); max-width: 450px; margin: 0 auto 18px; }
   .home-ball-intro p { font-size: 14px; max-width: 340px; margin: auto; }
-  .home-ball-intro a { margin-top: 20px; padding: 13px 18px; font-size: 13px; }
+  .home-ball-intro a { margin-top: 20px; min-height: 48px; padding: 13px 26px; font-size: 14px; }
   .home-ball-footer { left: 24px; right: 24px; bottom: 30px; font-size: 9px; }
   .home-ball-footer > span:nth-child(2) { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-ball-intro a { transition: none; }
+  .home-ball-intro a:active { transform: none; }
 }
