@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation";
 import { isSportVisible } from "@/lib/sports";
 import SiteFooter from "./site-footer";
+import HomeBall from "./home-ball";
 import { Language, useLanguage } from "./i18n";
 import { formatTournamentDate, formatTournamentMonth, selectUpcomingTournaments, usePublicTournaments } from "./public-tournaments";
 
@@ -31,7 +32,11 @@ export default function Home() {
     ? new Intl.DateTimeFormat("en", { timeZone: "Europe/Vienna", year: "numeric" }).format(new Date(featured.find((item) => item.starts_at)!.starts_at!))
     : null;
   return <main className="universal-page" data-language={language} key={language}>
-    <section className={`universal-hero${!isSportVisible("tennis") ? " padel-home-hero" : ""}`}><div><p className="eyebrow">{c.eyebrow}</p><h1>{c.title}</h1><p>{c.intro}</p></div><span className="universal-scroll">KYNG CUP{tournamentYear ? ` · ${tournamentYear}` : ""}</span></section>
+    <section className="home-ball-hero" aria-labelledby="home-hero-title">
+      <HomeBall basePath={basePath} />
+      <div className="home-ball-copy"><p className="eyebrow">{c.eyebrow} · Vienna</p><h1 id="home-hero-title">{c.title}</h1><div className="home-ball-intro"><p>{c.intro}</p><a href="#home-dates-title">{({ en: "Explore tournaments", uk: "Найближчі турніри", de: "Turniere entdecken", ru: "Ближайшие турниры" })[language]} <span aria-hidden="true">↗</span></a></div></div>
+      <div className="home-ball-footer"><span>KYNG CUP{tournamentYear ? ` · ${tournamentYear}` : ""} · VIENNA</span><span>{({ en: "Move the cursor · Drag to spin", uk: "Рухайте курсором · Потягніть м’яч", de: "Cursor bewegen · Zum Drehen ziehen", ru: "Двигайте курсором · Потяните мяч" })[language]}</span><a href="#home-dates-title" aria-label={c.datesLabel}>↓</a></div>
+    </section>
     <section className="home-dates" aria-labelledby="home-dates-title"><div className="section-index"><span>01</span><span>{loading ? c.datesLabel : formatTournamentMonth(featured, language)}</span></div><div className="home-dates__intro"><h2 id="home-dates-title">{c.datesTitle}</h2><p>{c.datesIntro}</p></div><div className="home-dates__events">
       {featured.map((tournament) => <a href={`${basePath}/upcoming-tournaments/#${tournament.sport}-${tournament.slug}`} key={tournament.id}><span>{tournament.name}</span><strong>{formatTournamentDate(tournament, language)}</strong><small>{c.details} <i aria-hidden="true">↗</i></small></a>)}
     </div></section>
