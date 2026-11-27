@@ -1,0 +1,243 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>KYNG CUP interactive ball</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lora:wght@500&display=swap">
+<style>html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#07100d}canvas{display:block;width:100%;height:100%;touch-action:pan-y;cursor:grab}canvas:active{cursor:grabbing}#fail{display:none}</style></head><body>
+<canvas id="c" aria-label="Drag the KYNG CUP ball to spin it"></canvas><p id="fail" hidden></p>
+<script src="https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js"></script><script>(function(){
+try{
+const T=THREE; if(!T)throw new Error('Three.js unavailable'); const cv=document.getElementById('c');
+const small=matchMedia('(max-width: 700px)').matches;
+const still=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const R=new T.WebGLRenderer({canvas:cv,antialias:true,powerPreference:'high-performance'});
+R.setPixelRatio(Math.min(devicePixelRatio,small?1.6:1.75));
+const scene=new T.Scene(), cam=new T.PerspectiveCamera(26,1,.1,50);
+cam.position.z=7;
+
+const W=512,H=256,N=1100,P=new Float32Array(N*3),a=.7,b=.3;
+for(let i=0;i<N;i++){const t=i/N*Math.PI*2;
+ P[i*3]=a*Math.cos(t)+b*Math.cos(3*t);P[i*3+1]=a*Math.sin(t)-b*Math.sin(3*t);P[i*3+2]=2*Math.sqrt(a*b)*Math.sin(2*t);}
+const data=new Uint8Array(W*H*4);
+for(let y=0;y<H;y++){const la=((y+.5)/H-.5)*Math.PI,cl=Math.cos(la),dy=Math.sin(la);
+ for(let x=0;x<W;x++){const lo=((x+.5)/W-.5)*Math.PI*2,dx=cl*Math.cos(lo),dz=cl*Math.sin(lo);let m=-1;
+  for(let i=0;i<N*3;i+=3){const d=dx*P[i]+dy*P[i+1]+dz*P[i+2];if(d>m)m=d;}
+  const k=(y*W+x)*4;data[k]=Math.min(255,Math.acos(Math.min(1,m))/.25*255);data[k+3]=255;}}
+const seam=new T.DataTexture(data,W,H);
+seam.wrapS=T.RepeatWrapping;seam.magFilter=seam.minFilter=T.LinearFilter;seam.needsUpdate=true;
+
+const sdist=(d)=>{const u=Math.atan2(d.z,d.x)/(Math.PI*2)+.5,w=Math.asin(Math.max(-1,Math.min(1,d.y)))/Math.PI+.5;return data[(Math.min(H-1,w*H|0)*W+Math.min(W-1,u*W|0))*4]/255*.25;};
+// find the widest clear panel for the print
+let best={s:0};
+const cands=[];for(let i=0;i<1500;i++){const y=1-2*(i+.5)/1500,r=Math.sqrt(1-y*y),t=i*2.399963,d=new T.Vector3(Math.cos(t)*r,y,Math.sin(t)*r);cands.push([sdist(d),d]);}
+cands.sort((p,q)=>q[0]-p[0]);
+for(const [,c] of cands.slice(0,40)){
+ const r0=new T.Vector3(0,1,0).cross(c).normalize();
+ for(let k=0;k<36;k++){const rt=r0.clone().applyAxisAngle(c,k*Math.PI/36),up=c.clone().cross(rt);
+  for(let h=.75;h>best.s;h-=.02){let ok=true;
+   for(let i=-5;ok&&i<=5;i++)for(let j=-3;j<=3;j++){const x=i/5*h,y=j/3*h*.5,z=Math.sqrt(Math.max(0,1-x*x-y*y));
+    if(sdist(c.clone().multiplyScalar(z).addScaledVector(rt,x).addScaledVector(up,y))<.07){ok=false;break;}}
+   if(ok){best={s:h,c:c.clone(),r:rt,u:up};break;}}}}
+const art=document.createElement('canvas');art.width=1024;art.height=512;
+const ink=new T.CanvasTexture(art);ink.generateMipmaps=false;ink.minFilter=T.LinearFilter;
+function draw(){const g=art.getContext('2d');g.fillStyle='#000';g.fillRect(0,0,1024,512);g.fillStyle=g.strokeStyle='#fff';g.textBaseline='alphabetic';
+ const font=px=>'500 '+px+'px Lora, Georgia, serif';
+ const width=(txt,px)=>{g.font=font(px);return [...txt].reduce((p,ch)=>p+g.measureText(ch).width,0)+.09*px*(txt.length-1);};
+ const line=(txt,px,y)=>{let x=1024/2-width(txt,px)/2;g.font=font(px);g.lineWidth=px*.018;
+  for(const ch of txt){g.fillText(ch,x,y);g.strokeText(ch,x,y);x+=g.measureText(ch).width+.09*px;}};
+ const px=200*960/width('KYNG',200),p2=px*0.65,c1=px*.7,c2=p2*.7,gap=px*.2,top=(512-c1-gap-c2)/2;
+ line('KYNG',px,top+c1);line('CUP',p2,top+c1+gap+c2);ink.needsUpdate=true;}
+draw();if(document.fonts)document.fonts.load('500 100px Lora').then(draw,()=>{});
+const nd=new Uint8Array(64*64*64);for(let i=0,q=12345;i<nd.length;i++){q^=q<<13;q^=q>>>17;q^=q<<5;nd[i]=q&255;}
+const nz=new T.Data3DTexture(nd,64,64,64);nz.format=T.RedFormat;nz.magFilter=nz.minFilter=T.LinearFilter;
+nz.wrapS=nz.wrapT=nz.wrapR=T.RepeatWrapping;nz.unpackAlignment=1;nz.needsUpdate=true;
+const bend={value:new T.Vector3()};
+const uni={uN:{value:nz},uBend:bend,uSeam:{value:seam},uInk:{value:ink},uC:{value:best.c},uR:{value:best.r},uU:{value:best.u},uS:{value:best.s}};
+
+const common=`
+uniform sampler2D uInk;uniform vec3 uC,uR,uU;uniform float uS;
+float inkM(vec3 d){if(dot(d,uC)<.3)return 0.;vec2 q=vec2(dot(d,uR),dot(d,uU)*2.)/(uS*2.)+.5;
+ if(q.x<0.||q.x>1.||q.y<0.||q.y>1.)return 0.;return texture2D(uInk,q).r;}
+uniform sampler2D uSeam;
+float seamD(vec3 d){vec2 uv=vec2(atan(d.z,d.x)/6.2831853+.5,asin(clamp(d.y,-1.,1.))/3.14159265+.5);return texture2D(uSeam,uv).r*.25;}
+uniform highp sampler3D uN;
+float noise(vec3 x){vec3 i=floor(x),f=fract(x);f=f*f*(3.-2.*f);return texture(uN,(i+f+.5)/64.).r;}`;
+const light=`
+vec3 shade(vec3 alb,vec3 n,vec3 v,float h){
+ vec3 K=normalize(vec3(-.55,.7,.55)),B=normalize(vec3(.85,.35,-.45)),B2=normalize(vec3(-.9,-.15,-.4));
+ float ao=mix(.38,1.,h);
+ float key=pow(clamp((dot(n,K)+.35)/1.35,0.,1.),1.5);
+ float fres=pow(1.-clamp(dot(n,v),0.,1.),2.2);
+ vec3 c=alb*(key*vec3(1.12,1.07,.97)+vec3(.045,.075,.07)*(1.+n.y*.5))*ao;
+ c+=alb*vec3(1.5,1.45,1.2)*fres*clamp(dot(n,B)+.45,0.,1.)*(.35+h);
+ c+=vec3(.08,.22,.2)*fres*clamp(dot(n,B2)+.3,0.,1.)*(.3+h*.6);
+ return c;}
+vec3 out_(vec3 c){c=(c*(2.51*c+.03))/(c*(2.43*c+.59)+.14);return pow(clamp(c,0.,1.),vec3(1./2.2));}`;
+
+const bg=new T.Mesh(new T.PlaneGeometry(2,2),new T.ShaderMaterial({depthWrite:false,depthTest:false,
+ uniforms:{uAsp:{value:1},uBall:{value:new T.Vector2()},uRad:{value:.3}},
+ vertexShader:`varying vec2 v;void main(){v=position.xy;gl_Position=vec4(position.xy,0.,1.);}`,
+ fragmentShader:`varying vec2 v;uniform float uAsp,uRad;uniform vec2 uBall;
+ void main(){vec2 p=vec2(v.x*uAsp,v.y);float g=exp(-dot(p-vec2(0,.1),p-vec2(0,.1))*1.3);
+ vec3 c=mix(vec3(.019,.042,.035),vec3(.055,.135,.105),g);
+ vec2 q=p-vec2(uBall.x*uAsp,uBall.y);c+=vec3(.045,.07,.015)*exp(-dot(q,q)/(uRad*uRad*2.2));
+ c*=1.-.28*dot(v,v)*.5;
+ c+=(fract(sin(dot(gl_FragCoord.xy,vec2(12.9898,78.233)))*43758.5453)-.5)/160.;
+ gl_FragColor=vec4(c,1.);}`}));
+bg.renderOrder=-10;bg.frustumCulled=false;scene.add(bg);
+
+const ball=new T.Group();scene.add(ball);
+const geo=new T.SphereGeometry(1,small?96:128,small?64:96);
+const SH=small?14:22;
+for(let s=0;s<=SH;s++){
+ const h=s/SH;
+ const m=new T.ShaderMaterial({transparent:s>0,depthWrite:s<SH*.45,
+ uniforms:Object.assign({uH:{value:h}},uni),
+ vertexShader:`uniform float uH;uniform vec3 uBend;varying vec3 vD,vN,vW;${common}
+ void main(){vec3 d=normalize(position);float sd=seamD(d);
+ float groove=-.026*(1.-smoothstep(.022,.085,sd));
+ float fur=.05*smoothstep(.034,.085,sd)*(1.-.3*inkM(d));
+ float r=1.+groove+uH*fur;
+ vD=d;vN=normalize(mat3(modelMatrix)*d);vec4 w=modelMatrix*vec4(d*r,1.);w.xyz+=uBend*uH*uH*fur*length(modelMatrix[0].xyz);vW=w.xyz;gl_Position=projectionMatrix*viewMatrix*w;}`,
+ fragmentShader:`uniform float uH;varying vec3 vD,vN,vW;${common}${light}
+ void main(){vec3 d=normalize(vD),v=normalize(cameraPosition-vW),n=normalize(vN);
+ float sd=seamD(d)+(noise(d*95.)-.5)*.016;
+ float rubber=1.-smoothstep(.032,.042,sd);
+ float big=noise(d*7.),mid=noise(d*23.+4.);
+ vec3 felt=mix(vec3(.40,.56,.008),vec3(.64,.76,.025),big*.6+mid*.4);
+ if(uH==0.){
+  float weave=noise(d*140.)*.6+noise(d*260.)*.4;
+  vec3 rc=vec3(.74,.73,.62)*(.88+.18*noise(d*55.));
+  float e=smoothstep(.0,.04,sd);rc*=mix(1.05,.75,e);
+  float im=inkM(d+(vec3(noise(d*120.),noise(d*120.+5.),noise(d*120.+9.))-.5)*.0018);
+  vec3 col=mix(mix(felt*(.7+.6*weave),vec3(.006,.022,.016)*(.7+.6*weave),im),rc,rubber);
+  vec3 c=shade(col,n,v,mix(.15,.75,rubber));
+  c+=rubber*vec3(.09)*pow(max(dot(reflect(-v,n),normalize(vec3(-.55,.7,.55))),0.),14.);
+  gl_FragColor=vec4(out_(c),1.);return;}
+ if(rubber>.5)discard;
+ vec3 warp=vec3(noise(d*22.),noise(d*22.+11.),noise(d*22.+27.))-.5;
+ vec3 p1=d*88.+warp*(1.+uH*2.+uH*uH*4.);
+ vec3 p2=d*142.-warp.zxy*(1.5+uH*3.+uH*uH*5.);
+ float n1=noise(p1),n2=noise(p2);
+ float f=max(n1,n2*.96);
+ float th=mix(.32,.78,pow(uH,.85));
+ float al=smoothstep(th-.03,th+.2,f);
+ al*=mix(1.,.62,uH);
+ if(al<.03)discard;
+ vec3 col=felt*(.82+.5*noise(p1*.55+3.));
+ col=mix(col,vec3(.80,.88,.30),smoothstep(.55,1.,uH)*.5);
+ float im=inkM(d+warp*.001*uH);
+ col=mix(col,vec3(.007,.026,.019)*(.7+.8*noise(p2*.5)),im*(.97-.12*uH));
+ vec3 lit=shade(col,n,v,uH);lit*=mix(1.,.55,im);
+ gl_FragColor=vec4(out_(lit),al);}`});
+ const mesh=new T.Mesh(geo,m);mesh.renderOrder=s;ball.add(mesh);
+}
+
+let seed=7;const rnd=()=>(seed=(seed*16807)%2147483647)/2147483647;
+const F=small?7000:16000,SEG=7,pos=[],att=[],root=[];
+for(let i=0;i<F;i++){
+ const y=1-2*(i+.5)/F,r=Math.sqrt(1-y*y),t=i*2.399963;
+ const d=new T.Vector3(Math.cos(t)*r,y,Math.sin(t)*r),q=sdist(d);if(q<.047)continue;
+ if(d.dot(best.c)>.3&&Math.abs(d.dot(best.r))<best.s&&Math.abs(d.dot(best.u))<best.s*.5&&rnd()<.8)continue;
+ const s1=new T.Vector3(rnd()-.5,rnd()-.5,rnd()-.5).cross(d).normalize(),s2=d.clone().cross(s1);
+ const len=.035+Math.pow(rnd(),2.5)*.075,lean=.5+rnd()*1.1,curl=(rnd()-.5)*.9,ph=rnd()*6.28,tone=rnd();
+ const at=k=>d.clone().multiplyScalar(1.016+len*k*(1-.5*k)).addScaledVector(s1,len*lean*k*k)
+  .addScaledVector(s2,len*curl*Math.sin(k*4.5+ph)*k);
+ let prev=at(0);
+ for(let j=1;j<=SEG;j++){const nx=at(j/SEG);
+  pos.push(prev.x,prev.y,prev.z,nx.x,nx.y,nx.z);att.push((j-1)/SEG,tone,j/SEG,tone);root.push(d.x,d.y,d.z,d.x,d.y,d.z);prev=nx;}
+}
+const fg=new T.BufferGeometry();
+fg.setAttribute('position',new T.Float32BufferAttribute(pos,3));
+fg.setAttribute('aT',new T.Float32BufferAttribute(att,2));
+fg.setAttribute('aR',new T.Float32BufferAttribute(root,3));
+const fibers=new T.LineSegments(fg,new T.ShaderMaterial({transparent:true,depthWrite:false,uniforms:{uBend:bend},
+ vertexShader:`attribute vec2 aT;attribute vec3 aR;uniform vec3 uBend;varying vec2 vT;varying vec3 vN,vW;void main(){vT=aT;vN=normalize(mat3(modelMatrix)*aR);
+ vec4 w=modelMatrix*vec4(position,1.);w.xyz+=uBend*aT.x*aT.x*(.05+.05*aT.y)*length(modelMatrix[0].xyz);vW=w.xyz;gl_Position=projectionMatrix*viewMatrix*w;}`,
+ fragmentShader:`varying vec2 vT;varying vec3 vN,vW;${light}void main(){vec3 v=normalize(cameraPosition-vW);
+ vec3 col=mix(vec3(.55,.70,.04),vec3(.82,.90,.34),vT.y);
+ gl_FragColor=vec4(out_(shade(col,normalize(vN),v,.55+.45*vT.x)),pow(1.-vT.x,.7)*.5);}`}));
+fibers.renderOrder=SH+1;ball.add(fibers);
+
+const M=140,dp=new Float32Array(M*3),dv=[],dl=new Float32Array(M);let di=0;
+const dg=new T.BufferGeometry();dg.setAttribute('position',new T.BufferAttribute(dp,3));
+dg.setAttribute('aL',new T.BufferAttribute(dl,1));
+for(let i=0;i<M;i++){dv.push(new T.Vector3());dp[i*3+2]=-99;}
+const dust=new T.Points(dg,new T.ShaderMaterial({transparent:true,depthWrite:false,blending:T.AdditiveBlending,uniforms:{uPx:{value:1}},
+ vertexShader:`attribute float aL;uniform float uPx;varying float l;void main(){l=aL;vec4 m=modelViewMatrix*vec4(position,1.);gl_PointSize=uPx*(1.5+2.5*aL);gl_Position=projectionMatrix*m;}`,
+ fragmentShader:`varying float l;void main(){float r=length(gl_PointCoord-.5);gl_FragColor=vec4(.8,.9,.45,max(0.,.5-r)*l*.9);}`}));
+dust.renderOrder=SH+2;dust.frustumCulled=false;scene.add(dust);
+
+let halfH=1,halfW=1,base=1;
+function size(){const w=cv.clientWidth,h=cv.clientHeight;R.setSize(w,h,false);cam.aspect=w/h;cam.updateProjectionMatrix();
+ halfH=Math.tan(T.MathUtils.degToRad(13))*cam.position.z;halfW=halfH*cam.aspect;
+ base=Math.min(halfH*.54,halfW*.72);bg.material.uniforms.uAsp.value=cam.aspect;dust.material.uniforms.uPx.value=R.getPixelRatio();}
+addEventListener('resize',size);new ResizeObserver(size).observe(cv.parentElement);size();
+
+const target=new T.Vector2(),pt=new T.Vector2(),vel=new T.Vector2(),spin=new T.Vector2();
+let drag=false,lx=0,ly=0,seen=-1e9;
+function move(e){const r=cv.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)return;pt.set((e.clientX-r.left)/r.width*2-1,-((e.clientY-r.top)/r.height*2-1));seen=performance.now();
+ if(drag){touched=seen;spin.y+=(e.clientX-lx)*.025;spin.x+=(e.clientY-ly)*.025;spin.clampLength(0,14);}lx=e.clientX;ly=e.clientY;}
+addEventListener('pointermove',move);
+cv.addEventListener('pointerdown',e=>{drag=true;touched=performance.now();lx=e.clientX;ly=e.clientY;cv.setPointerCapture(e.pointerId);move(e);});
+addEventListener('pointerup',()=>drag=false);addEventListener('pointercancel',()=>drag=false);
+
+const home=new T.Quaternion().setFromRotationMatrix(new T.Matrix4().makeBasis(best.r,best.u,best.c)).invert();
+const sway=new T.Quaternion(),eu=new T.Euler(),goal=new T.Quaternion();let touched=-1e9;
+ball.quaternion.copy(home);
+const X=new T.Vector3(1,0,0),Y=new T.Vector3(0,1,0);
+let last=performance.now(),acc=0,cnt=0,ratio=Math.min(devicePixelRatio,small?1.35:1.5);
+R.setPixelRatio(ratio);size();
+const bv=new T.Vector3(),want=new T.Vector3(),prevQ=ball.quaternion.clone(),dq=new T.Quaternion();
+function frame(now){
+ raf=0;if(!visible||document.hidden||disposed)return;
+ acc+=Math.min(100,now-last);if(++cnt===30){const ms=acc/cnt;acc=cnt=0;
+  if(ms>22&&ratio>.75){ratio=Math.max(.75,ratio-.2);R.setPixelRatio(ratio);size();}}
+ const dt=Math.min(.05,(now-last)/1000);last=now;const t=now/1000;
+ const idle=now-seen>3000;
+ if(idle)target.set(still?0:Math.sin(t*.45)*.18,still?0:Math.sin(t*.7)*.07);
+ else target.set(pt.x*.22,pt.y*.16);
+ const tx=target.x*halfW,ty=target.y*halfH+halfH*.07;
+ const ox=ball.position.x,oy=ball.position.y;
+ vel.x+=((tx-ox)*22-vel.x*7.5)*dt;vel.y+=((ty-oy)*22-vel.y*7.5)*dt;
+ ball.position.x+=vel.x*dt;ball.position.y+=vel.y*dt;
+ ball.scale.setScalar(base);
+ ball.rotateOnWorldAxis(Y,(spin.y+vel.x*.7)*dt);
+ ball.rotateOnWorldAxis(X,(spin.x-vel.y*.7)*dt);
+ const damp=Math.exp(-dt*1.4);spin.multiplyScalar(damp);
+ if(!drag&&now-touched>900){eu.set((still?0:Math.sin(t*.6)*.12)-ty/halfH*.35,(still?0:Math.sin(t*.43)*.3)+(tx/halfW)*.7,-.06);
+  goal.setFromEuler(eu).multiply(home);ball.quaternion.slerp(goal,1-Math.exp(-dt*2.2));}
+ dq.copy(ball.quaternion).multiply(prevQ.invert());prevQ.copy(ball.quaternion);
+ const turn=Math.hypot(dq.x,dq.y,dq.z)*2/Math.max(dt,.001);
+ want.set(-vel.x*.32-(dq.y>0?1:-1)*Math.min(turn,6)*.06,-vel.y*.32-.12,0).clampLength(0,.9);
+ if(still)want.set(0,0,0);
+ bv.x+=((want.x-bend.value.x)*90-bv.x*7)*dt;bv.y+=((want.y-bend.value.y)*90-bv.y*7)*dt;
+ bend.value.x+=bv.x*dt;bend.value.y+=bv.y*dt;
+ const sp=vel.length();
+ if(!still&&sp>.9){for(let k=0;k<Math.min(4,sp|0);k++){const i=di++%M,an=Math.random()*6.283;
+  dp[i*3]=ball.position.x+Math.cos(an)*base;dp[i*3+1]=ball.position.y+Math.sin(an)*base;dp[i*3+2]=(Math.random()-.5)*base;
+  dv[i].set(Math.cos(an)*.25-vel.x*.12+(Math.random()-.5)*.3,Math.sin(an)*.25-vel.y*.12+(Math.random()-.5)*.3,0);dl[i]=1;}}
+ for(let i=0;i<M;i++){if(dl[i]<=0)continue;dl[i]=Math.max(0,dl[i]-dt*.9);dv[i].y-=dt*.25;dp[i*3]+=dv[i].x*dt;dp[i*3+1]+=dv[i].y*dt;}
+ dg.attributes.position.needsUpdate=dg.attributes.aL.needsUpdate=true;
+ bg.material.uniforms.uBall.value.set(ball.position.x/halfW,ball.position.y/halfH);
+ bg.material.uniforms.uRad.value=base/halfH;
+ R.render(scene,cam);raf=requestAnimationFrame(frame);
+}
+let visible=false,raf=0,disposed=false;
+function sync(){
+ if(disposed)return;
+ if(!visible||document.hidden){if(raf)cancelAnimationFrame(raf);raf=0;drag=false;return;}
+ if(!raf){last=performance.now();acc=cnt=0;raf=requestAnimationFrame(frame);}
+}
+addEventListener('message',e=>{
+ if(e.source!==parent||e.origin!==location.origin||e.data?.type!=='kyng-ball-visibility')return;
+ visible=e.data.visible===true;sync();
+});
+document.addEventListener('visibilitychange',sync);
+addEventListener('pagehide',e=>{
+ visible=false;sync();
+ if(e.persisted)return;
+ disposed=true;scene.traverse(o=>{o.geometry?.dispose();if(o.material)o.material.dispose();});
+ seam.dispose();ink.dispose();nz.dispose();R.dispose();
+});
+parent.postMessage({type:'kyng-ball-ready'},location.origin);
+}catch(e){console.error(e);document.getElementById('fail').hidden=false;}
+})();
+</script></body></html>

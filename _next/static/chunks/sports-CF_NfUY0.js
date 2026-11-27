@@ -1,0 +1,1 @@
+var e={tennis:!1,padel:!0},t=[`tennis`,`padel`];function n(n){return t.some(t=>t===n&&e[t])}var r=t.filter(n);function i(e){return e.filter(e=>n(e.sport))}function a(e,t){return n(`tennis`)?e:t}export{r as i,a as n,i as r,n as t};
